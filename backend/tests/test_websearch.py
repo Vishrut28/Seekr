@@ -8,7 +8,7 @@ from rip.connectors.web import WebConnector
 
 def test_no_keys_means_no_calls(monkeypatch):
     """A default install must make zero third-party calls."""
-    for var in ("TAVILY_API_KEY", "SERPAPI_API_KEY"):
+    for var in ("TINYFISH_API_KEY", "TAVILY_API_KEY", "SERPAPI_API_KEY"):
         monkeypatch.delenv(var, raising=False)
 
     def boom(*a, **k):
@@ -33,15 +33,20 @@ def test_aggregators_are_not_treated_as_homepages():
 
 
 def test_backend_failure_falls_through(monkeypatch):
+    monkeypatch.setenv("TINYFISH_API_KEY", "x")
     monkeypatch.setenv("TAVILY_API_KEY", "x")
     monkeypatch.setenv("SERPAPI_API_KEY", "y")
+    monkeypatch.setattr(websearch, "_tinyfish",
+                        lambda q, l: (_ for _ in ()).throw(RuntimeError("down")))
     monkeypatch.setattr(websearch, "_tavily",
                         lambda q, l: (_ for _ in ()).throw(RuntimeError("down")))
     monkeypatch.setattr(websearch, "_serpapi",
                         lambda q, l: [{"url": "https://ok.example", "title": "t",
                                        "snippet": "", "backend": "serpapi"}])
     monkeypatch.setattr(websearch, "BACKENDS",
-                        (("tavily", websearch._tavily), ("serpapi", websearch._serpapi)))
+                        (("tinyfish", websearch._tinyfish),
+                         ("tavily", websearch._tavily),
+                         ("serpapi", websearch._serpapi)))
     assert websearch.search("q")[0]["backend"] == "serpapi"
 
 
@@ -49,7 +54,7 @@ def test_render_fallback_only_when_key_set(monkeypatch):
     connector = WebConnector.__new__(WebConnector)
     monkeypatch.setattr(WebConnector, "get_text",
                         lambda self, url: (_ for _ in ()).throw(RuntimeError("403")))
-    for var in ("FIRECRAWL_API_KEY", "ZENROWS_API_KEY", "SCRAPINGBEE_API_KEY"):
+    for var in ("TINYFISH_API_KEY", "FIRECRAWL_API_KEY", "ZENROWS_API_KEY", "SCRAPINGBEE_API_KEY"):
         monkeypatch.delenv(var, raising=False)
     with pytest.raises(RuntimeError, match="could not fetch"):
         connector._fetch_html("https://blocked.example")

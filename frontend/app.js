@@ -84,10 +84,11 @@ const NAV = [
 function shell(active, topbar, body){
   $("#root").innerHTML = `<div class="shell">
     <aside class="rail">
-      <div class="brand">
+      <a class="brand" href="/ui#/search" onclick="reloadApp(event)"
+         title="Reload Seekr" aria-label="Reload Seekr">
         <div class="mark">${ICON.logo}</div>
         <div><b>Seekr</b><span>by Deccan<sup>AI</sup></span></div>
-      </div>
+      </a>
       <nav>${NAV.map(([href,label,icon])=>
         `<a href="${href}" class="${active===href?"active":""}">${icon}${label}</a>`).join("")}</nav>
       <div class="rail-foot" id="railstats">
@@ -97,12 +98,21 @@ function shell(active, topbar, body){
     </aside>
     <main>
       <div class="backdrop" aria-hidden="true">${markBackdrop()}</div>
-      <div class="topbar">${topbar}</div>
+      <div class="topbar"${topbar?"":" hidden"}>${topbar||""}</div>
       <div class="page" id="page">${body}</div>
     </main>
   </div>`;
   loadRailStats();
   bindScrollShade();
+}
+function reloadApp(e){
+  if(e) e.preventDefault();
+  if(window.matchMedia("(prefers-reduced-motion: reduce)").matches){
+    location.reload();
+    return;
+  }
+  document.body.classList.add("is-reloading");
+  setTimeout(()=>location.reload(), 240);
 }
 function toggleTheme(){
   const cur = document.documentElement.getAttribute("data-theme");
@@ -111,6 +121,9 @@ function toggleTheme(){
   localStorage.setItem("seekr_theme", next);
 }
 (function(){ const t=localStorage.getItem("seekr_theme"); if(t) document.documentElement.setAttribute("data-theme",t); })();
+document.addEventListener("animationend", e=>{
+  if(e.animationName==="arrive") document.body.classList.remove("is-arriving");
+});
 
 async function loadRailStats(){
   const el = $("#railstats"); if(!el) return;
@@ -169,17 +182,52 @@ const FIELDS = {
   f_srcs:"min_sources", f_sort:"sort",
 };
 let PAGE = {mode:"query", q:"", offset:0, rows:[]};
+let LIVE = sessionStorage.getItem("seekr_live") === "1";
 
 function searchTopbar(q){
+  const filled = !!(q||"").trim();
   return `<div class="searchrow">
     <div class="searchwrap">
       ${ICON.search}
       <input class="search" id="q" placeholder="Search people, skills, organizations…" value="${esc(q||"")}">
+      <button type="button" class="qclear" id="qclear" ${filled?"":"hidden"}
+              onclick="clearBox()" aria-label="Clear search" title="Clear">×</button>
       <span class="kbd">/</span>
     </div>
     <button class="btn primary" onclick="runQuery()">Search</button>
-    <button class="btn" onclick="runQuery('true')" title="Also query live sources">Live</button>
+    <button class="btn livebtn${LIVE?" on":""}" id="livebtn" onclick="toggleLive()"
+            title="Also query live sources (GitHub, OpenAlex, the web)"
+            aria-pressed="${LIVE?"true":"false"}">
+      <span class="livedot" aria-hidden="true"></span> Live
+    </button>
   </div>`;
+}
+function syncClearBtn(){
+  const q = $("#q"), b = $("#qclear");
+  if(b) b.hidden = !(q && q.value.trim());
+}
+function clearBox(){
+  const q = $("#q"); if(q) q.value = "";
+  clearSearchResults();
+  syncClearBtn();
+  q?.focus();
+}
+function paintLiveBtn(){
+  const b = $("#livebtn"); if(!b) return;
+  b.classList.toggle("on", LIVE);
+  b.setAttribute("aria-pressed", String(LIVE));
+}
+function toggleLive(){
+  LIVE = !LIVE;
+  sessionStorage.setItem("seekr_live", LIVE ? "1" : "0");
+  paintLiveBtn();
+  if($("#q")?.value.trim()) runQuery(LIVE ? "true" : null);
+}
+function clearSearchResults(){
+  PAGE = {mode:"query", q:"", offset:0, rows:[]};
+  sessionStorage.removeItem("seekr_q");
+  setWorking(false);
+  const box = $("#results"); if(box) box.innerHTML = "";
 }
 
 
@@ -221,7 +269,9 @@ const MAX_BRAND_LINKS = 6;
 
 function brandLinks(urls, max){
   const seen = new Set();
+  const used = new Set();
   const out = [];
+  const cap = max || MAX_BRAND_LINKS;
   for(const [host, label, color, path] of BRANDS){
     const hit = (urls||[]).find(u=>{
       try{ const h = new URL(u).hostname.replace(/^www\./, "");
@@ -229,13 +279,100 @@ function brandLinks(urls, max){
     });
     if(!hit || seen.has(label)) continue;
     seen.add(label);
+    used.add(hit);
     out.push(`<a class="plink" href="${esc(hit)}" target="_blank" rel="noopener noreferrer"
       title="${esc(label)}" aria-label="${esc(label)}" style="--plink:${color}"
       onclick="event.stopPropagation()">
       <svg viewBox="0 0 24 24" fill="currentColor" width="10" height="10">${path}</svg></a>`);
-    if(out.length >= (max || MAX_BRAND_LINKS)) break;
+    if(out.length >= cap) break;
+  }
+  for(const u of urls||[]){
+    if(out.length >= cap || used.has(u)) continue;
+    try{ new URL(u); }catch(e){ continue; }
+    used.add(u);
+    out.push(`<a class="plink" href="${esc(u)}" target="_blank" rel="noopener noreferrer"
+      title="Profile page" aria-label="Profile page" style="--plink:#6b7280"
+      onclick="event.stopPropagation()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10">
+        <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>
+      </svg></a>`);
   }
   return out.length ? `<div class="plinks">${out.join("")}</div>` : "";
+}
+
+const SOURCE_HOST = {
+  github: "github.com",
+  openalex: "openalex.org",
+  semanticscholar: "semanticscholar.org",
+  orcid: "orcid.org",
+  dblp: "dblp.org",
+  stackoverflow: "stackoverflow.com",
+  huggingface: "huggingface.co",
+  wikidata: "wikidata.org",
+  wikipedia: "wikipedia.org",
+  linkedin: "linkedin.com",
+  scholar: "scholar.google.com",
+  exa: null,
+  web: null,
+};
+
+function hostOf(url){
+  try{ return new URL(url).hostname.replace(/^www\./, ""); }catch(e){ return ""; }
+}
+
+function urlForSource(source, urls, links){
+  const named = (links||[]).find(x => (x.source||"").toLowerCase() === (source||"").toLowerCase());
+  if(named && named.url) return named.url;
+  const host = SOURCE_HOST[(source||"").toLowerCase()];
+  if(!host) return null;
+  return (urls||[]).find(u => {
+    const h = hostOf(u);
+    return h === host || h.endsWith("." + host);
+  }) || null;
+}
+
+function sourcePills(p){
+  const urls = p.profile_urls || [];
+  const links = p.source_links || [];
+  const srcs = [];
+  const seen = new Set();
+  const add = (name, url)=>{
+    const key = (name||"").toLowerCase() || url;
+    if(!key || seen.has(key)) return;
+    seen.add(key);
+    srcs.push({name: name || hostOf(url) || "profile", url});
+  };
+  for(const x of links) add(x.source, x.url);
+  for(const s of [...new Set((p.attributes||[]).flatMap(a=>a.sources||[]))]){
+    add(s, urlForSource(s, urls, links));
+  }
+  for(const u of urls){
+    const host = hostOf(u);
+    const known = Object.entries(SOURCE_HOST).find(([,h])=>h && (host===h || host.endsWith("."+h)));
+    add(known ? known[0] : host, u);
+  }
+  if(!srcs.length) return '<span class="muted">—</span>';
+  return srcs.map(x => sourcePill(x.name, x.url)).join("");
+}
+
+function sourcePill(label, url){
+  if(url) return `<a class="srcpill" href="${esc(url)}" target="_blank" rel="noopener noreferrer"
+    title="${esc(url)}" onclick="event.stopPropagation()">${esc(label)}</a>`;
+  return `<span class="srcpill">${esc(label)}</span>`;
+}
+
+function suggestionUrl(x){
+  if(x.url) return x.url;
+  const id = x.external_id;
+  if(!id) return null;
+  if(x.source==="github") return "https://github.com/"+id;
+  if(x.source==="openalex") return String(id).startsWith("http") ? id : "https://openalex.org/"+id;
+  if(x.source==="orcid") return String(id).startsWith("http") ? id : "https://orcid.org/"+id;
+  if(x.source==="dblp") return "https://dblp.org/pid/"+id;
+  if(x.source==="huggingface") return "https://huggingface.co/"+id;
+  if(x.source==="stackoverflow") return "https://stackoverflow.com/users/"+id;
+  if(x.source==="semanticscholar") return "https://www.semanticscholar.org/author/"+id;
+  return null;
 }
 
 /* ---------------- recent searches ---------------- */
@@ -273,8 +410,9 @@ async function paintTrending(){
 }
 
 async function renderSearch(){
-  const last = sessionStorage.getItem("seekr_q") || "";
-  shell("#/search", searchTopbar(last), `
+  // An empty box must show no results. Do not replay the last query — that
+  // left "Rahul" on screen after the input was cleared.
+  shell("#/search", searchTopbar(""), `
     <div class="examples" id="trending"><em>Trending</em>${EXAMPLES.map(x=>
       `<button class="chipbtn" onclick="useExample(this)">${esc(x)}</button>`).join("")}</div>
     <div class="examples" id="recent" hidden><em>Recent</em></div>
@@ -295,7 +433,7 @@ async function renderSearch(){
         <label>Active since<input id="f_active" placeholder="YYYY"></label>
         <label>Min sources<input id="f_srcs" type="number" min="1" placeholder="1"></label>
         <label>Sort<select id="f_sort">
-          <option value="relevance">Default order</option>
+          <option value="relevance">Best match</option>
           <option value="recent">Recently updated</option>
           <option value="name">Name A–Z</option></select></label>
         <label class="chk"><input type="checkbox" id="f_cv"> Has CV</label>
@@ -314,14 +452,17 @@ async function renderSearch(){
   loadFacets();
   paintRecent();
   paintTrending();
-  if(last) runQuery();
 }
 function useExample(el){ $("#q").value = el.textContent; runQuery(); }
 function bindSearchKeys(){
   const q = $("#q");
   q.addEventListener("keydown", e=>{
     if(e.key==="Enter") runQuery();
-    if(e.key==="Escape"){ q.value=""; q.blur(); }
+    if(e.key==="Escape"){ q.value=""; clearSearchResults(); syncClearBtn(); q.blur(); }
+  });
+  q.addEventListener("input", ()=>{
+    syncClearBtn();
+    if(!q.value.trim()) clearSearchResults();
   });
   document.addEventListener("keydown", e=>{
     const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
@@ -407,7 +548,9 @@ function busy(msg){
 }
 
 async function runQuery(discover, offset){
-  const q = $("#q").value.trim(); if(!q) return;
+  const q = $("#q").value.trim();
+  if(!q){ clearSearchResults(); return; }
+  if(discover == null && LIVE) discover = "true";
   sessionStorage.setItem("seekr_q", q);
   rememberQuery(q);
   paintRecent();
@@ -441,6 +584,7 @@ function loadMore(){
 
 function renderResults(data, opts={}){
   setWorking(false);
+  data = data || {};
   const f = data.applied_filters;
   const pills = f ? [
     ...(f.skills||[]).map(s=>`<span class="pill"><b>skill</b>${esc(s)}</span>`),
@@ -451,14 +595,16 @@ function renderResults(data, opts={}){
     ...(f.name_terms||[]).map(n=>`<span class="pill"><b>name</b>${esc(n)}</span>`),
   ].join("") : "";
   const um = data.unmatched_terms||[];
+  const nf = data.not_found||[];
   const unmatched = um.length
     ? `<span class="pill warn">not applied: ${um.map(esc).join(", ")}</span>` : "";
+  const notFoundPills = nf.map(x=>
+    `<span class="pill warn">${esc(x.term)} not found</span>`).join("");
 
-  const rows = data.results.map(p=>{
+  const rows = (data.results||[]).map(p=>{
     const skills = (p.attributes||[])
       .filter(a=>a.attribute_type==="skill"||a.attribute_type==="research_interest")
       .slice(0,3).map(a=>esc(a.value)).join(", ");
-    const srcs = [...new Set((p.attributes||[]).flatMap(a=>a.sources||[]))];
     const primary = p.matched_organization || p.current_organization || "";
     const others = (p.organizations||[]).filter(o=>o!==primary);
     const orgSub = [
@@ -475,7 +621,7 @@ function renderResults(data, opts={}){
         ${orgSub?`<div class="sub2">${orgSub}</div>`:""}</td>
       <td class="org">${esc(p.location||"")||'<span class="muted">—</span>'}</td>
       <td class="sk">${skills||'<span class="muted">—</span>'}</td>
-      <td>${srcs.length?srcs.map(s=>`<span class="srcpill">${esc(s)}</span>`).join(""):'<span class="muted">—</span>'}</td>
+      <td>${sourcePills(p)}</td>
       <td class="vote" onclick="event.stopPropagation()">
         <button class="vbtn" title="Good match for this query"
           onclick="vote('${p.id}','good',this)">${ICON.thumbUp}</button>
@@ -489,7 +635,7 @@ function renderResults(data, opts={}){
   PAGE.rows = PAGE.rows.concat(rows);
   PAGE.offset = data.next_offset ?? PAGE.rows.length;
 
-  const total = data.total_matches ?? PAGE.rows.length;
+  const total = Math.max(data.total_matches ?? 0, PAGE.rows.length);
   // A dropped constraint must be loud: results that silently ignore
   // "in Hyderabad" read as wrong answers rather than a coverage gap.
   // A corrected spelling must be visible, or the answer quietly belongs to a
@@ -514,8 +660,18 @@ function renderResults(data, opts={}){
           : ""}.
       <button class="btn sm" onclick="runQuery('true')">Search paid sources too</button>
     </div>` : "";
+  const appliedBits = (data.applied_clauses||[]).map(c=>c.term).join(" + ");
+  const notFoundBanner = nf.length ? `
+    <div class="banner warnbar">
+      ${nf.map(x=>`<b>${esc(x.term)}</b> was not found as a ${esc(x.as)}`).join("; ")}
+      ${PAGE.rows.length && appliedBits ? ` — showing ${esc(appliedBits)}` : ""}.
+    </div>` : "";
   const sugg = data.discovery_suggestions || [];
-  const suggBlock = sugg.length ? `
+  // Live hits are an OR dump across sources. Hide them on a corpus-only
+  // search once AND-search already has people. When Live is on, keep them
+  // visible — that is the rest of what upstream found.
+  const showLive = sugg.length && (!PAGE.rows.length || opts.discover || LIVE);
+  const suggBlock = showLive ? `
     <section class="block"><h2>Live candidates <span class="n">${sugg.length}</span></h2>
       <div class="card"><div class="tablewrap"><table class="list">
         <thead><tr><th>Name</th><th>Affiliation</th><th>Role &amp; place</th><th>Source</th><th></th></tr></thead>
@@ -523,14 +679,14 @@ function renderResults(data, opts={}){
           <td class="nm">${esc(x.name||"Unnamed")}</td>
           <td class="org">${esc(x.affiliation||"")||'<span class="muted">—</span>'}</td>
           <td class="sk">${esc([x.role,x.location].filter(Boolean).join(" · "))||'<span class="muted">—</span>'}</td>
-          <td><span class="srcpill">${esc(x.source)}</span></td>
-          <td class="num"><button class="btn sm" onclick="event.stopPropagation();queueOne('${esc(x.source)}','${esc(x.external_id)}',this)">Add</button></td>
+          <td>${sourcePill(x.source, suggestionUrl(x))}</td>
+          <td class="num"><button class="btn sm" onclick="event.stopPropagation();queueOne(${JSON.stringify(x.source||"")},${JSON.stringify(x.external_id||"")},this)">Add</button></td>
         </tr>`).join("")}</tbody></table></div></div></section>` : "";
 
   let main;
   if(PAGE.rows.length){
     main = `<div class="card"><div class="tablewrap"><table class="list">
-        <thead><tr><th>Name</th><th>Organization</th><th>Location</th><th>Skills &amp; interests</th><th>Sources</th><th title="Tell the ranking tool whether this fits your query">Match</th></tr></thead>
+        <thead><tr><th>Name</th><th>Organization</th><th>Location</th><th>Skills &amp; interests</th><th>Sources</th><th title="Was this a good match for your query?">Match</th></tr></thead>
         <tbody>${PAGE.rows.join("")}</tbody></table></div>
       ${data.has_more?`<div class="loadmore"><button class="btn" id="more" onclick="loadMore()">Load 50 more</button></div>`:""}
       </div>`;
@@ -557,9 +713,9 @@ function renderResults(data, opts={}){
   $("#results").innerHTML = `
     <div class="meta">
       <div class="count">${PAGE.rows.length?`<b>${fmt(PAGE.rows.length)}</b> of ${fmt(total)} matching`:""}</div>
-      <div class="pills">${pills}${unmatched}</div>
+      <div class="pills">${pills}${unmatched}${notFoundPills}</div>
     </div>
-    ${corrBanner}${roBanner}${unmatchedBanner}${main}${suggBlock}`;
+    ${corrBanner}${roBanner}${unmatchedBanner}${notFoundBanner}${main}${suggBlock}`;
 }
 function emptyState(title, body, action, extraHtml){
   // body is escaped; extraHtml is markup we built ourselves
@@ -758,7 +914,7 @@ async function renderPerson(id){
       <div class="card"><div class="tablewrap"><table class="list">
         <thead><tr><th>Source</th><th>Record</th><th>Matched by</th><th>Review</th><th>Seen</th></tr></thead>
         <tbody>${prov.sources.map(s=>`<tr>
-          <td><span class="srcpill">${esc(s.source)}</span></td>
+          <td>${sourcePill(s.source, s.url)}</td>
           <td>${s.url?`<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.external_id)}</a>`:esc(s.external_id)}</td>
           <td class="muted">${esc(s.match_signals?.reason||s.match_method)}</td>
           <td>${s.review_state==="approved"?`<span class="vstate corroborated">approved</span>`
@@ -823,14 +979,31 @@ function drawNetwork(graph, selfId){
 /* ---------------- review ---------------- */
 async function renderReview(){
   shell("#/review", `<h1 class="title">Review queue</h1>
-    <div class="sub">Merges Seekr was not confident enough to make on its own. Every decision is reversible.</div>`,
+    <div class="sub">Merges Seekr was not confident enough to make on its own, and the good/bad votes from search. Votes are stored, not used to reorder results.</div>`,
     (setWorking(true), `<div class="loading">Loading queue…</div>`));
-  let r;
-  try{ r = await api("/v1/review/merges"); }
+  let r, fb;
+  try{
+    [r, fb] = await Promise.all([
+      api("/v1/review/merges"),
+      api("/v1/feedback?limit=200").catch(()=>({feedback:[]})),
+    ]);
+  }
   catch(e){ if(e.message!=="unauthorized") $("#page").innerHTML = `<div class="banner">${esc(e.message)}</div>`; return; }
   const dup = r.possible_duplicates||[], fuz = r.fuzzy_merges||[];
+  const votes = fb.feedback||[];
 
   $("#page").innerHTML = `
+    <section class="block"><h2>Match votes <span class="n">${votes.length}</span></h2>
+      ${votes.length ? `<div class="card"><div class="tablewrap"><table class="list">
+        <thead><tr><th>Person</th><th>Query</th><th>Vote</th><th>When</th></tr></thead>
+        <tbody>${votes.slice().reverse().map(f=>`<tr onclick="location.hash='#/person/${f.person_id}'">
+          <td class="nm">${esc(f.canonical_name||f.person_id)}</td>
+          <td class="sk">${esc(f.query||"")||'<span class="muted">—</span>'}</td>
+          <td>${f.verdict==="good"?'<span class="badge ok">good match</span>':'<span class="badge warn">bad match</span>'}</td>
+          <td class="muted">${esc(String(f.created_at||"").slice(0,10))}</td>
+        </tr>`).join("")}</tbody></table></div></div>`
+      : emptyState("No votes yet", "Thumbs up or down on a search result to record whether it matched the query.")}
+    </section>
     <section class="block"><h2>Possible duplicates <span class="n">${dup.length}</span></h2>
       ${dup.length ? dup.map(d=>`<div class="conflict">
         <div class="vs">

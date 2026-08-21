@@ -252,7 +252,8 @@ def cmd_find_homepages(args) -> None:
     backends = available_backends()
     if not backends:
         raise SystemExit(
-            "no search backend configured — set TAVILY_API_KEY or SERPAPI_API_KEY"
+            "no search backend configured — set TINYFISH_API_KEY (free), "
+            "TAVILY_API_KEY, or SERPAPI_API_KEY"
         )
     init_db()
     connector = get_connector("web")
@@ -495,7 +496,7 @@ def cmd_check_db(args) -> None:
         print(f"pending hooks: {pending_hooks:,}")
     print("credentials:")
     for var in ("GITHUB_TOKEN", "SEMANTIC_SCHOLAR_API_KEY", "OPENALEX_MAILTO",
-                "RIP_API_TOKEN", "RIP_LEAD_BATCH"):
+                "TINYFISH_API_KEY", "RIP_API_TOKEN", "RIP_LEAD_BATCH"):
         print(f"  {var:26} {'set' if os.environ.get(var) else 'NOT SET'}")
 
 

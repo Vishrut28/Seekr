@@ -1,5 +1,5 @@
 from rip.ingest import ingest_profile
-from rip.nlq import execute, parse
+from rip.nlq import execute, execute_progressive, parse
 from rip.normalize import EvidenceItem, OrgAffiliation
 from tests.test_resolution import make_profile
 
@@ -37,7 +37,7 @@ def test_vocab_driven_parse(session):
     parsed = parse(session, "distributed systems experts at Acme Labs in Toronto, top 5")
     assert parsed.skills == ["Distributed Systems"]
     assert parsed.organizations == ["Acme Labs"]
-    assert parsed.locations == ["Toronto, Canada"]
+    assert parsed.locations[0].lower().startswith("toronto")
     assert parsed.limit == 5
     assert parsed.unmatched_terms == []
 
@@ -69,9 +69,9 @@ def test_name_term_filter(session):
     assert [p.canonical_name for p in results] == ["Grace Sample"]
 
 
-def test_no_ranking_db_order(session):
+def test_no_ranking_in_the_parser(session):
     seed(session)
-    # no scores anywhere in the parse result
+    # scoring is applied after filtering; the parse result itself has no score
     parsed = parse(session, "python")
     assert not hasattr(parsed, "score")
     results = execute(session, parsed)
@@ -169,6 +169,42 @@ def test_auto_discover_never_calls_a_metered_provider(session, monkeypatch):
 
     nl_query(q="quantum basketweaving", discover="true", db=session)
     assert called                            # explicitly asked for, so allowed
+
+
+def test_auto_discover_skips_when_corpus_already_answered(session, monkeypatch):
+    """Live GitHub/TinyFish must not run on every search that already has hits."""
+    from rip.api import nl_query
+
+    seed(session)
+    called = []
+
+    def fake(*_a, **_k):
+        called.append(1)
+        return []
+
+    monkeypatch.setattr("rip.nlq.discovery_suggestions", fake)
+    resp = nl_query(q="rust at Acme Labs", discover="auto", db=session)
+    assert [r["canonical_name"] for r in resp["results"]] == ["Ada Example"]
+    assert called == []
+    nl_query(q="rust at Acme Labs", discover="true", db=session)
+    assert called
+
+
+def test_auto_discover_runs_for_a_thin_name_search(session, monkeypatch):
+    """One local 'Rahul' must not stop live search for everyone else named that."""
+    from rip.api import nl_query
+
+    seed(session)
+    called = []
+
+    def fake(*_a, **_k):
+        called.append(1)
+        return []
+
+    monkeypatch.setattr("rip.nlq.discovery_suggestions", fake)
+    resp = nl_query(q="Grace", discover="auto", db=session)
+    assert [r["canonical_name"] for r in resp["results"]] == ["Grace Sample"]
+    assert called == [1]
 
 
 class _FakeSearcher:
@@ -430,8 +466,8 @@ def test_sort_is_factual_not_ranked(session):
     )
     names = [r["canonical_name"] for r in _filters(session, sort="name")["results"]]
     assert names == sorted(names)
-    # no score/rank fields anywhere in the payload
-    assert "score" not in str(_filters(session, country="US"))
+    # name/recent stay factual — scores only appear on sort=relevance
+    assert "score" not in str(_filters(session, country="US", sort="name"))
 
 
 def test_facets_list_available_values(session):
@@ -457,13 +493,73 @@ def test_place_name_is_never_treated_as_a_person_name(session):
     seed(session)
     parsed = parse(session, "top python developers in Hyderabad")
     assert parsed.name_terms == []            # not a name filter
-    assert "Hyderabad" in parsed.unmatched_terms  # reported honestly
+    assert parsed.locations == ["Hyderabad"]
+    assert "Hyderabad" not in parsed.unmatched_terms
 
 
-def test_capitalised_word_is_a_name_filter_only_when_someone_has_it(session):
+def test_tech_word_is_never_a_person_name(session):
+    """A language is a skill even after the graph holds someone surnamed it."""
+    ingest_profile(
+        session,
+        make_profile(
+            external_id="marie", url="https://openalex.org/A-MARIE",
+            raw={"id": "A-MARIE"}, name="Marie Python", usernames=[],
+            source="openalex", source_type="scholarly",
+        ),
+    )
+    ingest_profile(
+        session,
+        make_profile(
+            name="Ada Coder",
+            evidence=[EvidenceItem(attribute_type="skill", value="Python")],
+        ),
+    )
+    parsed = parse(session, "python")
+    assert parsed.name_terms == []
+    assert parsed.skills == ["Python"] or parsed.skill_patterns == ["python"]
+    names = [p.canonical_name for p in execute(session, parsed)]
+    assert names == ["Ada Coder"]
+
+
+def test_real_name_search_is_not_a_skill(session):
     seed(session)
-    assert parse(session, "find Grace").name_terms == ["Grace"]
+    parsed = parse(session, "find Grace")
+    assert parsed.name_terms == ["Grace"]
+    assert parsed.skills == []
     assert parse(session, "find Zzznobody").name_terms == []
+
+
+def test_first_name_is_not_swallowed_as_a_bio_keyword(session):
+    """A portfolio bio that says 'Rahul' must not hide every other Rahul."""
+    ingest_profile(
+        session,
+        make_profile(
+            name="Rahul Satija",
+            source="openalex",
+            external_id="A-rs",
+            url="https://openalex.org/A-rs",
+            raw={"id": "A-rs"},
+            usernames=[],
+        ),
+    )
+    ingest_profile(
+        session,
+        make_profile(
+            name="Rahul's | Portfolio Website",
+            source="web",
+            external_id="https://rahul.example",
+            url="https://rahul.example",
+            raw={},
+            usernames=[],
+            evidence=[EvidenceItem(attribute_type="bio", value="Hi I am Rahul")],
+        ),
+    )
+    parsed = parse(session, "Rahul")
+    assert parsed.name_terms == ["Rahul"]
+    assert parsed.skill_groups == []
+    names = {p.canonical_name for p in execute(session, parsed)}
+    assert "Rahul Satija" in names
+    assert "Rahul's | Portfolio Website" in names
 
 
 def test_country_names_become_country_filters(session):
@@ -566,6 +662,89 @@ def test_cache_expires_after_the_ttl(session, monkeypatch):
     assert nlq._cache_lookup(session, "exa", "some query") is None
 
 
+def test_free_source_is_not_cached_when_nothing_was_stored(session, monkeypatch):
+    """A found-but-unfetched OpenAlex hit must not lock the name out for a week."""
+    from rip.api import nl_query
+    from rip.nlq import _search_openalex
+
+    calls = []
+
+    class Fake:
+        def search_authors(self, name, limit=10):
+            calls.append(name)
+            return [{"id": "A1", "name": "Marie Curie", "works_count": 1,
+                     "affiliation": "Sorbonne", "cited_by": 0}]
+
+        def search_authors_by_topic(self, topic, limit=10):
+            return []
+
+        def fetch(self, identifier):
+            raise RuntimeError("offline")
+
+    monkeypatch.setattr("rip.connectors.get_connector", lambda s: Fake())
+    monkeypatch.setattr("rip.nlq.SUGGESTION_SEARCHERS",
+                        (("openalex", _search_openalex, True),))
+    nl_query(q="Marie Curie", discover="true", db=session)
+    nl_query(q="Marie Curie", discover="true", db=session)
+    assert len(calls) == 2
+
+
+def test_persist_keeps_a_person_named_the_query(session, monkeypatch):
+    """'Rahul' must store an author whose name is Rahul, not drop them as a collision."""
+    from rip.nlq import persist_suggestions
+
+    class Fake:
+        def fetch(self, ident):
+            return make_profile(
+                source="openalex",
+                external_id=ident,
+                url="https://openalex.org/" + ident,
+                raw={"id": ident},
+                name="Rahul",
+                usernames=[],
+            )
+
+    monkeypatch.setattr("rip.connectors.get_connector", lambda s: Fake())
+    items = [{"source": "openalex", "external_id": "A1", "_term": "Rahul"}]
+    assert persist_suggestions(session, items) == 1
+    assert items[0]["stored"] is True
+
+
+def test_persist_github_name_match_does_not_need_the_name_in_the_bio(session, monkeypatch):
+    from rip.nlq import persist_suggestions
+
+    class Fake:
+        def fetch(self, ident):
+            return make_profile(
+                external_id=ident,
+                url="https://github.com/" + ident,
+                raw={"login": ident},
+                name="Rahul Sharma",
+                usernames=["github:" + ident],
+                summary="Backend engineer",
+            )
+
+    monkeypatch.setattr("rip.connectors.get_connector", lambda s: Fake())
+    items = [{"source": "github", "external_id": "rsharma99", "_term": "Rahul"}]
+    assert persist_suggestions(session, items) == 1
+
+
+def test_persist_github_skill_query_still_needs_bio_evidence(session, monkeypatch):
+    from rip.nlq import persist_suggestions
+
+    class Fake:
+        def fetch(self, ident):
+            return make_profile(
+                external_id=ident,
+                name="Intelligence",
+                summary="just a person",
+            )
+
+    monkeypatch.setattr("rip.connectors.get_connector", lambda s: Fake())
+    items = [{"source": "github", "external_id": "Intelligence08", "_term": "kubernetes"}]
+    assert persist_suggestions(session, items) == 0
+
+
 def test_query_normalisation_ignores_word_order(session):
     import rip.nlq as nlq
 
@@ -623,6 +802,7 @@ def test_match_feedback_is_recorded_but_never_ranks(session):
     assert log["count"] == 2
     assert {f["verdict"] for f in log["feedback"]} == {"good", "bad"}
     assert any(f["note"] == "exactly right" for f in log["feedback"])
+    assert any(f.get("canonical_name") for f in log["feedback"])
 
     # re-voting replaces, never stacks
     post_feedback({"person_id": str(people[0].id), "query": "rust", "verdict": "good"}, db=session)
@@ -837,3 +1017,162 @@ def test_one_organization_however_it_is_spelled(session):
 
     pms = {p.canonical_name for p in execute(session, parse(session, "program managers at deccan.ai"))}
     assert pms == {"Ann Pm", "Bo Pm"}
+
+
+def _person(session, ext, name, **kwargs):
+    ingest_profile(
+        session,
+        make_profile(
+            external_id=ext,
+            url=f"https://github.com/{ext}",
+            raw={"login": ext},
+            name=name,
+            usernames=[f"github:{ext}"],
+            **kwargs,
+        ),
+    )
+
+
+def test_california_is_a_place_not_a_name(session):
+    """A live hit named '… California' must not recast the next search."""
+    _person(session, "cal-entity", "A. M. U. O. California")
+    _person(
+        session, "andrew-py", "Andrew Pythonista",
+        location="Berlin, Germany",
+        evidence=[EvidenceItem(attribute_type="skill", value="Python")],
+    )
+    parsed = parse(session, "Andrew python california")
+    assert parsed.name_terms == ["Andrew"]
+    assert parsed.locations == ["California"]
+    assert parsed.skills == ["Python"] or parsed.skill_patterns == ["python"]
+    kinds = {c["label"] for c in parsed.clause_order}
+    assert kinds == {"name", "skill", "location"}
+
+
+def test_progressive_and_drops_from_the_right(session):
+    """All three, then the first two, then the first word — never OR."""
+    _person(session, "cal-entity", "A. M. U. O. California")
+    _person(
+        session, "andrew-py", "Andrew Pythonista",
+        location="Berlin, Germany",
+        evidence=[EvidenceItem(attribute_type="skill", value="Python")],
+    )
+    _person(
+        session, "other-py", "Sam Pythonista",
+        location="San Francisco, California",
+        evidence=[EvidenceItem(attribute_type="skill", value="Python")],
+    )
+    parsed = parse(session, "Andrew python california")
+    rows, used, dropped = execute_progressive(session, parsed)
+    assert [p.canonical_name for p in rows] == ["Andrew Pythonista"]
+    assert used.locations == []
+    assert used.name_terms == ["Andrew"]
+    assert used.skill_groups
+    assert any(d["term"].lower() == "california" and d["as"] == "location" for d in dropped)
+
+
+def test_progressive_and_keeps_all_three_when_they_match(session):
+    _person(
+        session, "andrew-ca", "Andrew Californian",
+        location="Palo Alto, California",
+        evidence=[EvidenceItem(attribute_type="skill", value="Python")],
+    )
+    parsed = parse(session, "Andrew python california")
+    rows, used, dropped = execute_progressive(session, parsed)
+    assert [p.canonical_name for p in rows] == ["Andrew Californian"]
+    assert used.locations == ["California"]
+    assert dropped == []
+
+
+def test_progressive_and_falls_back_to_the_first_word(session):
+    _person(
+        session, "andrew-rs", "Andrew Rustler",
+        location="Berlin, Germany",
+        evidence=[EvidenceItem(attribute_type="skill", value="Rust")],
+    )
+    _person(
+        session, "other-py", "Sam Pythonista",
+        location="San Francisco, California",
+        evidence=[EvidenceItem(attribute_type="skill", value="Python")],
+    )
+    parsed = parse(session, "Andrew python california")
+    rows, used, dropped = execute_progressive(session, parsed)
+    assert [p.canonical_name for p in rows] == ["Andrew Rustler"]
+    assert used.name_terms == ["Andrew"]
+    assert used.skill_groups == []
+    assert used.locations == []
+    assert {d["term"].lower() for d in dropped} == {"python", "california"}
+
+
+def test_nl_query_reports_which_word_was_not_found(session):
+    from rip.api import nl_query
+
+    _person(
+        session, "andrew-py", "Andrew Pythonista",
+        location="Berlin, Germany",
+        evidence=[EvidenceItem(attribute_type="skill", value="Python")],
+    )
+    resp = nl_query(q="Andrew python california", discover="false", db=session)
+    assert [r["canonical_name"] for r in resp["results"]] == ["Andrew Pythonista"]
+    assert resp["applied_filters"]["name_terms"] == ["Andrew"]
+    assert resp["applied_filters"]["locations"] == []
+    assert any(x["term"].lower() == "california" for x in resp["not_found"])
+
+
+def test_location_in_bio_counts_as_the_place(session):
+    """A city written in the GitHub bio is still a location match."""
+    _person(
+        session, "neha-cpp", "Neha Chaudhary",
+        location=None,
+        summary="NMIT, Bangalore",
+        evidence=[
+            EvidenceItem(attribute_type="skill", value="C++"),
+            EvidenceItem(attribute_type="bio", value="NMIT, Bangalore"),
+        ],
+    )
+    parsed = parse(session, "Neha c++ bangalore")
+    assert parsed.name_terms == ["Neha"]
+    assert parsed.locations == ["Bangalore"]
+    rows, used, dropped = execute_progressive(session, parsed)
+    assert dropped == []
+    assert used.locations == ["Bangalore"]
+    assert [p.canonical_name for p in rows] == ["Neha Chaudhary"]
+
+    from rip.api import nl_query
+
+    resp = nl_query(q="Neha c++ bangalore", discover="false", db=session)
+    assert resp["not_found"] == []
+    assert resp["results"][0]["location"] == "Bangalore"
+    assert any(
+        (x.get("source") == "github") and x.get("url")
+        for x in (resp["results"][0].get("source_links") or [])
+    )
+
+
+def test_bangalore_matches_bengaluru_in_bio(session):
+    _person(
+        session, "neha-blru", "Neha Bengaluru",
+        location=None,
+        evidence=[
+            EvidenceItem(attribute_type="skill", value="Python"),
+            EvidenceItem(attribute_type="bio", value="Works from Bengaluru"),
+        ],
+    )
+    rows = execute(session, parse(session, "Neha python bangalore"))
+    assert [p.canonical_name for p in rows] == ["Neha Bengaluru"]
+
+
+def test_nl_query_exposes_source_profile_links(session):
+    from rip.api import nl_query
+
+    _person(
+        session, "neha-link", "Neha Linker",
+        evidence=[EvidenceItem(attribute_type="skill", value="Python")],
+    )
+    resp = nl_query(q="Neha python", discover="false", db=session)
+    row = resp["results"][0]
+    assert any("github.com/neha-link" in (u or "") for u in (row.get("profile_urls") or []))
+    assert any(
+        (x.get("source") == "github") and x.get("url")
+        for x in (row.get("source_links") or [])
+    )

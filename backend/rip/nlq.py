@@ -1,9 +1,9 @@
 """Natural-language query parsing for internal search.
 
 Turns "distributed systems researchers at Google in London, top 10" into
-structured filters. Deliberately NOT ranking: the parser extracts filter
-constraints only, results stay in DB order, and the response is honest about
-which terms were applied and which weren't.
+structured filters. The parser still extracts constraints only — scoring is
+applied after filtering, so unmatched terms stay unmatched rather than being
+silently "understood" as weights.
 
 The vocabulary is built from the live corpus (skill/interest values, org
 names, locations) rather than hardcoded gazetteers, so it grows with the data.
@@ -129,6 +129,45 @@ COUNTRIES = {
     "united arab emirates": "AE", "uae": "AE", "iran": "IR", "taiwan": "TW",
     "hong kong": "HK", "colombia": "CO", "peru": "PE",
 }
+
+# Places are never surnames. A live hit named "A. M. U. O. California" must
+# not turn the next search for "… california" into a name filter.
+PLACES = {
+    "california": "California", "texas": "Texas", "washington": "Washington",
+    "new york": "New York", "florida": "Florida", "illinois": "Illinois",
+    "massachusetts": "Massachusetts", "colorado": "Colorado", "oregon": "Oregon",
+    "nevada": "Nevada", "arizona": "Arizona", "georgia": "Georgia",
+    "pennsylvania": "Pennsylvania", "ohio": "Ohio", "michigan": "Michigan",
+    "north carolina": "North Carolina", "virginia": "Virginia",
+    "san francisco": "San Francisco", "los angeles": "Los Angeles",
+    "seattle": "Seattle", "austin": "Austin", "boston": "Boston",
+    "chicago": "Chicago", "denver": "Denver", "atlanta": "Atlanta",
+    "miami": "Miami", "london": "London", "paris": "Paris", "berlin": "Berlin",
+    "amsterdam": "Amsterdam", "toronto": "Toronto", "vancouver": "Vancouver",
+    "sydney": "Sydney", "melbourne": "Melbourne", "tokyo": "Tokyo",
+    "singapore": "Singapore", "dubai": "Dubai",
+    "bangalore": "Bangalore", "bengaluru": "Bengaluru", "mumbai": "Mumbai",
+    "delhi": "Delhi", "new delhi": "New Delhi", "hyderabad": "Hyderabad",
+    "chennai": "Chennai", "pune": "Pune", "kolkata": "Kolkata",
+    "ahmedabad": "Ahmedabad", "noida": "Noida", "gurgaon": "Gurgaon",
+    "gurugram": "Gurugram", "jaipur": "Jaipur", "kochi": "Kochi",
+}
+# City renames: a bio that says Bengaluru must still match a search for Bangalore.
+PLACE_SYNONYMS = {
+    "bangalore": ("bangalore", "bengaluru"),
+    "bengaluru": ("bangalore", "bengaluru"),
+    "gurgaon": ("gurgaon", "gurugram"),
+    "gurugram": ("gurgaon", "gurugram"),
+    "mumbai": ("mumbai", "bombay"),
+    "bombay": ("mumbai", "bombay"),
+    "kolkata": ("kolkata", "calcutta"),
+    "calcutta": ("kolkata", "calcutta"),
+    "chennai": ("chennai", "madras"),
+    "madras": ("chennai", "madras"),
+    "delhi": ("delhi", "new delhi"),
+    "new delhi": ("new delhi", "delhi"),
+    "new york": ("new york", "nyc", "new york city"),
+}
 # "Indian researchers" means people in India, not the topic "Indian History".
 DEMONYMS = {
     "indian": "IN", "american": "US", "british": "GB", "german": "DE",
@@ -191,6 +230,9 @@ class NLQuery:
     # job titles like "community manager" — matched against role evidence,
     # never against research topics
     roles: list[str] = field(default_factory=list)
+    # Constraints in the order the user typed them, used to relax AND-search
+    # from the right: all three, then the first two, then the first word.
+    clause_order: list = field(default_factory=list)
 
 
 def _text_evidence_exists(session: Session, term: str) -> bool:
@@ -233,6 +275,22 @@ ACRONYMS = {
     "infosec": "information security",
     "sre": "site reliability",
     "qa": "quality assurance",
+}
+
+# Words that name a language, tool or stack — never a person. Once a live
+# search stores someone surnamed Python, leftover matching would otherwise
+# treat "python" as a name filter forever.
+TECH_SKILLS = {
+    "python", "rust", "ruby", "java", "kotlin", "scala", "haskell", "perl",
+    "julia", "matlab", "fortran", "erlang", "elixir", "clojure", "dart",
+    "swift", "golang", "javascript", "typescript", "react", "vue", "angular",
+    "django", "flask", "rails", "spring", "pytorch", "tensorflow", "keras",
+    "pandas", "numpy", "docker", "kubernetes", "linux", "android", "ios",
+    "mongodb", "redis", "postgres", "postgresql", "mysql", "sqlite",
+    "hadoop", "spark", "kafka", "airflow", "pytorch", "huggingface",
+    "langchain", "openai", "node", "nodejs", "nextjs", "graphql", "html",
+    "css", "sass", "bitcoin", "ethereum", "solidity", "cuda", "llvm",
+    "c++", "cpp", "c#", "csharp",
 }
 
 
@@ -293,7 +351,8 @@ def _ngrams(tokens: list[str], max_n: int = 3):
             yield " ".join(tokens[i : i + n]), set(range(i, i + n))
 
 
-def parse(session: Session, query: str) -> NLQuery:
+def parse(session: Session, query: str | None) -> NLQuery:
+    query = query or ""
     result = NLQuery(raw=query)
 
     # limit requires an explicit prefix — a bare number is never a limit
@@ -305,7 +364,7 @@ def parse(session: Session, query: str) -> NLQuery:
     skills, orgs, locations = _vocab(session)
     df = _token_frequency(skills)
     vocab_size = max(1, len(skills))
-    tokens = re.findall(r"[a-zA-Z0-9+#.'-]+", cleaned)
+    tokens = re.findall(r"[a-zA-Z0-9+#.'-]+", cleaned)[:40]
     consumed: set[int] = set()
 
     for gram, span in _ngrams(tokens):
@@ -340,8 +399,15 @@ def parse(session: Session, query: str) -> NLQuery:
         # meaningful part, so skip this one.
         if len(parts) > 1 and (parts[0] in STOPWORDS or parts[-1] in STOPWORDS):
             continue
-        if gram_l in skills:
-            result.skill_groups.append({"term": gram, "values": [skills[gram_l]]})
+        if gram_l in TECH_SKILLS or gram_l in skills:
+            group = {"term": gram}
+            if gram_l in skills:
+                group["values"] = [skills[gram_l]]
+            else:
+                # not in the corpus yet, but it is a skill — match bios/topics
+                # by pattern rather than inventing a name filter
+                group["pattern"] = gram_l
+            result.skill_groups.append(group)
             consumed |= span
         elif gram_l in orgs:
             result.organizations.append(orgs[gram_l])
@@ -353,10 +419,22 @@ def parse(session: Session, query: str) -> NLQuery:
             # "Indian researchers" is a place, not the topic "Indian History"
             result.countries.append(DEMONYMS[gram_l])
             consumed |= span
+        elif gram_l in PLACES:
+            # Gazetteer wins over a city that happens to contain the word
+            # ("california" must not become "San Francisco, California").
+            result.locations.append(PLACES[gram_l])
+            consumed |= span
         elif gram_l in locations:
             result.locations.append(locations[gram_l])
             consumed |= span
-        elif len(parts) > 1 and _full_name_exists(session, gram_l):
+        elif (
+            len(parts) > 1
+            and not any(
+                p in TECH_SKILLS or p in PLACES or p in COUNTRIES or p in DEMONYMS
+                for p in parts
+            )
+            and _full_name_exists(session, gram_l)
+        ):
             # "geoffrey hinton" is a person, not an unknown topic phrase
             result.name_terms.append(gram)
             consumed |= span
@@ -383,6 +461,17 @@ def parse(session: Session, query: str) -> NLQuery:
                 # Bangalore, which made the city look like a skill.
                 if _near_vocabulary(gram_l, skills, orgs, locations):
                     continue
+                # A real person's name is a name filter, not a bio keyword.
+                # "Rahul" appears on a portfolio page and used to be swallowed
+                # as a skill, so every Rahul Satija in the graph was hidden.
+                if (
+                    len(parts) == 1
+                    and _could_be_a_name(gram)
+                    and _name_exists(session, gram)
+                ):
+                    result.name_terms.append(gram)
+                    consumed |= span
+                    continue
                 # no topic matches, but a bio or job title might say it
                 if _text_evidence_exists(session, gram_l):
                     result.skill_groups.append(group)
@@ -398,6 +487,7 @@ def parse(session: Session, query: str) -> NLQuery:
                 exact = any(
                     t in skills or t in orgs or t in locations
                     or t in COUNTRIES or t in DEMONYMS or t in ACRONYMS
+                    or t in TECH_SKILLS or t in PLACES
                     for t in parts
                 )
                 # only a two-word phrase blocks its words. A longer phrase that
@@ -468,6 +558,10 @@ def parse(session: Session, query: str) -> NLQuery:
         if df.get(token.lower(), 0) > 0:
             result.unmatched_terms.append(token)
             continue
+        if token.lower() in PLACES:
+            result.locations.append(PLACES[token.lower()])
+            consumed.add(i)
+            continue
         # not gated on capitalisation: people type "sricharan", not "Sricharan"
         if _could_be_a_name(token) and _name_exists(session, token):
             result.name_terms.append(token)
@@ -482,6 +576,7 @@ def parse(session: Session, query: str) -> NLQuery:
     result.organizations = list(dict.fromkeys(result.organizations))
     result.locations = list(dict.fromkeys(result.locations))
     result.countries = list(dict.fromkeys(result.countries))
+    _fill_clause_order(tokens, result)
     return result
 
 
@@ -509,13 +604,76 @@ def _word_match(column, value: str):
         stem = v[:-1].strip()
         if not stem:
             return column.isnot(None)
-        return func.lower(column).like(f"%{stem}%")
+        return func.lower(column).like(f"%{_like_escape(stem)}%", escape="\\")
 
     normalized = func.lower(column)
     for sep in _WORD_EDGES:
         normalized = func.replace(normalized, sep, " ")
     padded = literal(" ").concat(normalized).concat(literal(" "))
-    return padded.like(f"% {v} %")
+    return padded.like(f"% {_like_escape(v)} %", escape="\\")
+
+
+def _like_escape(value: str) -> str:
+    """Keep user text from becoming a LIKE wildcard (% or _)."""
+    return (value or "").replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+LOCATION_TEXT_ATTRS = ("bio", "role", "location", "education")
+
+
+def location_needles(loc: str) -> list[str]:
+    """Spellings that mean the same place as LOC."""
+    raw = (loc or "").split(",")[0].strip().lower()
+    if not raw:
+        return []
+    return list(dict.fromkeys(PLACE_SYNONYMS.get(raw, (raw,))))
+
+
+def location_anywhere(loc: str):
+    """Match a place on the person record, in a bio, or on an affiliation.
+
+    GitHub often leaves `location` blank and writes the city into the bio
+    ("NMIT, Bangalore"). Restricting the filter to Person.location then
+    reports the city as not found for people who clearly have it.
+    """
+    from sqlalchemy import and_, exists as sa_exists
+
+    from .models import Affiliation
+
+    clauses = []
+    for needle in location_needles(loc):
+        clauses.extend([
+            _word_match(Person.location, needle),
+            _word_match(Person.summary, needle),
+            _word_match(Person.current_organization, needle),
+            sa_exists().where(and_(
+                Evidence.person_id == Person.id,
+                Evidence.attribute_type.in_(LOCATION_TEXT_ATTRS),
+                _word_match(Evidence.value, needle),
+            )).correlate(Person),
+            sa_exists().where(and_(
+                Affiliation.person_id == Person.id,
+                Organization.id == Affiliation.organization_id,
+                _word_match(Organization.name, needle),
+            )).correlate(Person),
+        ])
+    if not clauses:
+        return Person.id.is_(None)
+    return or_(*clauses)
+
+
+def place_mentioned(text: str | None) -> str | None:
+    """The gazetteer place named in free text, if any."""
+    if not text:
+        return None
+    low = text.lower()
+    for sep in _WORD_EDGES:
+        low = low.replace(sep, " ")
+    padded = f" {low} "
+    for gram in sorted(PLACES, key=len, reverse=True):
+        if f" {gram} " in padded:
+            return PLACES[gram]
+    return None
 
 
 def _name_clauses(column, token: str):
@@ -532,6 +690,9 @@ def _name_clauses(column, token: str):
         func.lower(column).like(f"% {t} %"),
         func.lower(column).like(f"{t}, %"),
         func.lower(column).like(f"% {t}, %"),
+        # Rahul's | Portfolio Website — apostrophe is a word edge
+        func.lower(column).like(f"{t}'%"),
+        func.lower(column).like(f"% {t}'%"),
     )
 
 
@@ -638,7 +799,7 @@ def _could_be_a_name(token: str) -> bool:
     k8s — which name search would happily match against real surnames.
     """
     t = token.strip().lower()
-    if len(t) < 3 or t in ACRONYMS or t in STOPWORDS:
+    if len(t) < 3 or t in ACRONYMS or t in STOPWORDS or t in TECH_SKILLS or t in PLACES:
         return False
     if any(ch.isdigit() for ch in t):
         return False
@@ -667,14 +828,21 @@ def _full_name_exists(session: Session, phrase: str) -> bool:
             Person.merged_into.is_(None),
         ).limit(20)
     ).scalars().all()
-    # A name is written "Geoffrey Hinton", so the phrase has to open or close
-    # it. Buried in the middle it is a description, not a name: the index holds
-    # author records like "PhD Computer Vision Mariano Cabezas".
-    return any(
-        _looks_like_a_person(n)
-        and (n.lower().startswith(phrase) or n.lower().endswith(phrase))
-        for n in rows
-    )
+    phrase_words = phrase.lower().split()
+    return any(_looks_like_a_person(n) and _phrase_is_name_affix(n, phrase_words) for n in rows)
+
+
+def _phrase_is_name_affix(name: str, phrase_words: list[str]) -> bool:
+    """True when the phrase is the first or last words of the name, not a stem.
+
+    startswith("andrew python") would fire on "Andrew Pythonista" and swallow
+    a skill into a name filter.
+    """
+    words = re.findall(r"[a-z0-9]+", name.lower())
+    n = len(phrase_words)
+    if not n or n > len(words):
+        return False
+    return words[:n] == phrase_words or words[-n:] == phrase_words
 
 
 def _name_exists(session: Session, token: str) -> bool:
@@ -755,10 +923,7 @@ def _filtered_stmt(parsed: NLQuery):
     if parsed.countries:
         stmt = stmt.where(func.upper(Person.country).in_(parsed.countries))
     if parsed.locations:
-        stmt = stmt.where(or_(*[
-            func.lower(Person.location).like(f"%{loc.split(',')[0].strip().lower()}%")
-            for loc in parsed.locations
-        ]))
+        stmt = stmt.where(or_(*[location_anywhere(loc) for loc in parsed.locations]))
     for title in parsed.roles:
         # A job title, checked against what sources say someone's role is.
         # correlate(Person) keeps Affiliation in the subquery's FROM: the outer
@@ -786,8 +951,12 @@ def count_matches(session: Session, parsed: NLQuery) -> int:
     """How many people match in total — not just how many this page returns."""
     if not has_filters(parsed):
         return 0
-    inner = _filtered_stmt(parsed).with_only_columns(Person.id).distinct().subquery()
-    return session.execute(select(func.count()).select_from(inner)).scalar_one()
+    try:
+        inner = _filtered_stmt(parsed).with_only_columns(Person.id).distinct().subquery()
+        return session.execute(select(func.count()).select_from(inner)).scalar_one()
+    except Exception:
+        logger.exception("count_matches failed")
+        return 0
 
 
 FILTER_GROUPS = ("skill_groups", "organizations", "locations", "countries", "name_terms")
@@ -828,8 +997,142 @@ def diagnose_empty(session: Session, parsed: NLQuery) -> dict | None:
     return None
 
 
+def _fill_clause_order(tokens: list[str], result: NLQuery) -> None:
+    """Record constraints left-to-right as the user typed them."""
+    order = []
+    used: set[tuple] = set()
+    i = 0
+    low = [t.lower() for t in tokens]
+    while i < len(low):
+        hit = None
+        width = 1
+        for n in range(min(3, len(low) - i), 0, -1):
+            gram = " ".join(low[i : i + n])
+            raw = " ".join(tokens[i : i + n])
+            for name in result.name_terms:
+                if name.lower() == gram and ("name", name.lower()) not in used:
+                    hit = {"kind": "name_terms", "payload": name, "token": raw, "label": "name"}
+                    used.add(("name", name.lower()))
+                    width = n
+                    break
+            if hit:
+                break
+            for loc in result.locations:
+                loc_l = loc.lower()
+                loc_parts = [p.strip() for p in loc_l.split(",") if p.strip()]
+                loc_first = loc_parts[0] if loc_parts else loc_l
+                place_hit = gram in PLACES and PLACES[gram].lower() in loc_parts + [loc_l]
+                if loc_l == gram or gram in loc_parts or loc_first == gram or place_hit:
+                    if ("loc", loc_l) not in used:
+                        hit = {"kind": "locations", "payload": loc, "token": raw, "label": "location"}
+                        used.add(("loc", loc_l))
+                        width = n
+                    break
+            if hit:
+                break
+            for g in result.skill_groups:
+                term = (g.get("term") or g.get("pattern") or "").lower()
+                if term == gram and ("skill", term) not in used:
+                    hit = {"kind": "skill_groups", "payload": g, "token": raw, "label": "skill"}
+                    used.add(("skill", term))
+                    width = n
+                    break
+            if hit:
+                break
+            for org in result.organizations:
+                if org.lower() == gram and ("org", org.lower()) not in used:
+                    hit = {"kind": "organizations", "payload": org, "token": raw, "label": "org"}
+                    used.add(("org", org.lower()))
+                    width = n
+                    break
+            if hit:
+                break
+            for role in result.roles:
+                if role.lower() == gram and ("role", role.lower()) not in used:
+                    hit = {"kind": "roles", "payload": role, "token": raw, "label": "role"}
+                    used.add(("role", role.lower()))
+                    width = n
+                    break
+            if hit:
+                break
+            if gram in COUNTRIES and ("country", COUNTRIES[gram]) not in used:
+                hit = {
+                    "kind": "countries", "payload": COUNTRIES[gram],
+                    "token": raw, "label": "country",
+                }
+                used.add(("country", COUNTRIES[gram]))
+                width = n
+        if hit:
+            hit["at"] = i
+            order.append(hit)
+            i += width
+        else:
+            i += 1
+    result.clause_order = order
+
+
+def _parsed_from_clauses(base: NLQuery, clauses: list) -> NLQuery:
+    from dataclasses import replace
+
+    p = replace(
+        base,
+        skill_groups=[], skills=[], skill_patterns=[],
+        name_terms=[], locations=[], countries=[], organizations=[], roles=[],
+        clause_order=list(clauses),
+    )
+    for c in clauses:
+        kind, payload = c["kind"], c["payload"]
+        if kind == "skill_groups":
+            p.skill_groups.append(payload)
+        elif kind == "name_terms":
+            p.name_terms.append(payload)
+        elif kind == "locations":
+            p.locations.append(payload)
+        elif kind == "countries":
+            p.countries.append(payload)
+        elif kind == "organizations":
+            p.organizations.append(payload)
+        elif kind == "roles":
+            p.roles.append(payload)
+    p.skills = list(dict.fromkeys(
+        v for g in p.skill_groups for v in g.get("values", [])))
+    p.skill_patterns = list(dict.fromkeys(
+        g["pattern"] for g in p.skill_groups if g.get("pattern")))
+    p.locations = list(dict.fromkeys(p.locations))
+    p.name_terms = list(dict.fromkeys(p.name_terms))
+    p.organizations = list(dict.fromkeys(p.organizations))
+    p.countries = list(dict.fromkeys(p.countries))
+    p.roles = list(dict.fromkeys(p.roles))
+    return p
+
+
+def execute_progressive(session: Session, parsed: NLQuery) -> tuple[list, NLQuery, list]:
+    """AND every constraint; if that is empty, drop terms from the right.
+
+    "Andrew python california" tries all three, then Andrew+Python, then Andrew.
+    Dropped terms are returned so the UI can say which word was not found.
+    """
+    try:
+        clauses = list(parsed.clause_order or [])
+        if not clauses:
+            return execute(session, parsed), parsed, []
+        for n in range(len(clauses), 0, -1):
+            trial = _parsed_from_clauses(parsed, clauses[:n])
+            rows = execute(session, trial)
+            if rows:
+                dropped = [
+                    {"term": c["token"], "as": c["label"]}
+                    for c in clauses[n:]
+                ]
+                return rows, trial, dropped
+        return [], parsed, [{"term": c["token"], "as": c["label"]} for c in clauses]
+    except Exception:
+        logger.exception("progressive search failed; returning no rows")
+        return [], parsed, []
+
+
 def execute(session: Session, parsed: NLQuery) -> list[Person]:
-    """Apply the parsed filters. No ranking: DB order, one page at a time.
+    """Apply the parsed filters, then order by evidence-backed relevance.
 
     If NOTHING in the query matched the corpus vocabulary, return nothing.
     An unfiltered SELECT would hand back arbitrary people that look like
@@ -837,14 +1140,22 @@ def execute(session: Session, parsed: NLQuery) -> list[Person]:
     """
     if not has_filters(parsed):
         return []
-    stmt = _filtered_stmt(parsed)
-    # de-duplicate on id, not whole rows: Postgres cannot DISTINCT a JSON column
-    ids = session.execute(
-        stmt.with_only_columns(Person.id)
-        .distinct()
-        .limit(parsed.limit)
-        .offset(parsed.offset)
-    ).scalars().all()
+    from .rank import relevance_order_by
+
+    try:
+        stmt = _filtered_stmt(parsed)
+        # de-duplicate on id, not whole rows: Postgres cannot DISTINCT a JSON column
+        inner = stmt.with_only_columns(Person.id).distinct().subquery()
+        ids = session.execute(
+            select(inner.c.id)
+            .select_from(inner.join(Person, Person.id == inner.c.id))
+            .order_by(*relevance_order_by(parsed))
+            .limit(parsed.limit)
+            .offset(parsed.offset)
+        ).scalars().all()
+    except Exception:
+        logger.exception("search execute failed")
+        return []
     if not ids:
         return []
     rows = {p.id: p for p in session.execute(
@@ -974,8 +1285,11 @@ def _search_github(query: str, limit: int, parsed: "NLQuery | None" = None) -> l
         place = str(parsed.locations[0]).split(",")[0].strip()
 
     logins: list[str] = []
+    # Do not fall back to a worldwide search when the user named a place:
+    # that turned "Andrew python california" into anyone named Andrew.
+    loc_tries = [place] if place else [None]
     for attempt in attempts[:3]:
-        for loc in ([place, None] if place else [None]):
+        for loc in loc_tries:
             try:
                 logins, _total = conn.search_users(
                     location=loc, query=attempt, per_page=limit
@@ -1012,6 +1326,66 @@ def _search_dblp(query: str, limit: int) -> list[dict]:
     ]
 
 
+def _search_tinyfish(query: str, limit: int, parsed: "NLQuery | None" = None) -> list[dict]:
+    """Public web people-search via TinyFish Search (free). Fetch is separate.
+
+    Scholarly indexes answer researchers. GitHub answers people whose handle
+    matches the query text. TinyFish answers everyone else — a designer with
+    a portfolio, an engineer whose homepage lists their stack — by finding
+    pages and routing each URL to the connector that should read it.
+    """
+    from .tinyfish import configured, route_hit, search as tf_search
+
+    if not configured():
+        return []
+    bits: list[str] = []
+    place = None
+    if parsed is not None:
+        bits.extend(parsed.roles[:2])
+        bits.extend(parsed.skills[:2])
+        bits.extend(parsed.name_terms[:2])
+        if parsed.organizations:
+            bits.append(f'"{parsed.organizations[0]}"')
+        if parsed.locations:
+            place = str(parsed.locations[0]).split(",")[0].strip()
+            bits.append(place)
+        if parsed.countries:
+            place = place or parsed.countries[0]
+    text = " ".join(b for b in bits if b).strip() or query
+    if not text:
+        return []
+    name_only = (
+        parsed is not None
+        and parsed.name_terms
+        and not parsed.roles
+        and not parsed.skills
+        and not parsed.organizations
+    )
+    q = (
+        f'{text} (github.com OR researcher OR engineer OR "personal website")'
+        if name_only
+        else (
+            f'{text} (portfolio OR "personal website" OR "about me" '
+            f'OR github.io OR "I work as" OR researcher OR engineer)'
+        )
+    )
+    hits = tf_search(q, limit=max(limit * 2, 8), location=place)
+    seen: set[tuple[str, str]] = set()
+    out: list[dict] = []
+    for hit in hits:
+        item = route_hit(hit["url"], hit.get("title"), hit.get("snippet"))
+        if item is None:
+            continue
+        key = (item["source"], item["external_id"])
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(item)
+        if len(out) >= limit:
+            break
+    return out
+
+
 # tried in order; later sources only run if earlier ones found nothing useful
 # (name, fn, uses_full_query). Author-name lookups want just the leftover
 # terms; a semantic people search wants the whole question, because stripping
@@ -1022,7 +1396,9 @@ SUGGESTION_SEARCHERS = (
     ("dblp", _search_dblp, False),
     # the leftover words, not the whole question: GitHub matches literal text
     ("github", _search_github, False),
-    # paid, and the only source that reaches non-academic roles: tried last
+    # free web search: people the scholarly indexes and GitHub login-search miss
+    ("tinyfish", _search_tinyfish, True),
+    # paid, and the only remaining source for closed professional graphs: last
     ("exa", _search_exa, True),
 )
 
@@ -1048,7 +1424,7 @@ def _always_run(source: str) -> bool:
     word. Its search is one request, so it always runs; fetching the profiles
     is what the unauthenticated 60/hour budget cannot afford.
     """
-    return source == "github"
+    return source in ("github", "tinyfish")
 
 
 # When GitHub's hourly budget runs out, every further fetch is a wasted
@@ -1075,12 +1451,12 @@ def _note_github_throttled(seconds: float = 900.0) -> None:
 
 
 def _may_fetch_github(stored_so_far: int) -> bool:
-    """With a token, always. Without one, only when nothing else answered."""
+    """With a token, always. Without one, only while the page is still thin."""
     import os
 
     if _github_throttled():
         return False
-    return bool(os.environ.get("GITHUB_TOKEN")) or stored_so_far == 0
+    return bool(os.environ.get("GITHUB_TOKEN")) or stored_so_far < 3
 MIN_USEFUL_SUGGESTIONS = 3
 # providers that bill per call
 PAID_SOURCES = ("exa",)
@@ -1139,10 +1515,14 @@ def _cache_record(
 
 # Sources whose full-profile fetch is a free public API, so a live search can
 # be turned into real stored people without spending anything.
-FREE_FETCH_SOURCES = ("openalex", "semanticscholar", "dblp", "github")
+FREE_FETCH_SOURCES = (
+    "openalex", "semanticscholar", "dblp", "github",
+    "huggingface", "orcid", "web", "stackoverflow",
+)
 # GitHub costs two requests per profile against a 60/hour unauthenticated
-# budget, so it fetches fewer than the scholarly APIs do.
-PER_SOURCE_FETCH_LIMIT = {"github": 5}
+# budget, so it fetches fewer than the scholarly APIs do. Web pages are
+# similarly bounded: each one is a live fetch of someone else's site.
+PER_SOURCE_FETCH_LIMIT = {"github": 5, "web": 5, "huggingface": 5, "orcid": 5}
 
 # Scholarly indexes carry entity records that are not people: conferences,
 # labs, societies, even "Computer Vision Syndrome". Ingesting them as persons
@@ -1162,6 +1542,25 @@ NOT_A_PERSON = re.compile(
     r"|software|digital|media|ventures|partners|holdings|pvt|private|limited)\b",
     re.IGNORECASE,
 )
+
+
+def _github_worth_keeping(profile, term: str) -> bool:
+    """Keep a GitHub profile only when the query is actually about this person.
+
+    Name searches: the display name must contain a query word (Rahul → Rahul
+    Sharma). Skill or role searches: the word must appear in the bio, an
+    employer, a place or a project — not only the login — so a handle like
+    Intelligence08 is not an "AI researcher".
+    """
+    words = [w for w in re.split(r"[^A-Za-z0-9+#.-]+", (term or "").lower()) if len(w) > 2]
+    if not words:
+        return True
+    name = (profile.name or "").strip().lower()
+    if _name_like_query(term):
+        return any(w in name for w in words)
+    if name in words:
+        return False
+    return _corroborated(profile, term)
 
 
 def _corroborated(profile, term: str) -> bool:
@@ -1259,19 +1658,21 @@ def persist_suggestions(session: Session, suggestions: list[dict]) -> int:
                 profile = get_connector(item["source"]).fetch(item["external_id"])
                 if not (profile.name or "").strip():
                     raise ValueError("source returned a profile with no name")
+                term = item.get("_term", "")
                 term_words = {
-                    w for w in re.split(r"[^A-Za-z0-9+#.-]+", item.get("_term", "").lower())
+                    w for w in re.split(r"[^A-Za-z0-9+#.-]+", term.lower())
                     if len(w) > 2
                 }
-                if (profile.name or "").strip().lower() in term_words:
-                    # github.com/Intelligence08 is named "Intelligence": the
-                    # handle matches the query because it IS the query word
+                # A person named Rahul is the right answer to "Rahul". The
+                # old check treated that as a username collision and dropped
+                # every exact-name hit from OpenAlex and GitHub.
+                if not _name_like_query(term) and (profile.name or "").strip().lower() in term_words:
                     raise ValueError(
                         f"{item['external_id']} is named after the search term, not a person"
                     )
-                if item["source"] == "github" and not _corroborated(profile, item.get("_term", "")):
+                if item["source"] == "github" and not _github_worth_keeping(profile, term):
                     raise ValueError(
-                        f"{item['external_id']} matches '{item.get('_term')}' only in "
+                        f"{item['external_id']} matches '{term}' only in "
                         "the username — no supporting evidence"
                     )
                 return item, profile, None
@@ -1360,11 +1761,11 @@ def discovery_suggestions(
         else:
             stored = persist_suggestions(session, keep) if session is not None else 0
         total_stored += stored
-        # A free source that found nothing is not worth remembering: nothing
-        # was bought, and caching the miss would block the retry that a better
-        # parse or a wider corpus would have answered. Paid providers still
-        # cache their misses — that is where the money is.
-        if session is not None and (keep or source in PAID_SOURCES):
+        # A free source that stored nobody is not worth remembering: the
+        # identifiers may be real, but caching the miss locks out the retry
+        # that a recovered fetch (or a name we used to reject) would answer.
+        # Paid providers still cache their misses — that is where the money is.
+        if session is not None and (stored or source in PAID_SOURCES):
             _cache_record(
                 session, source, cache_key, len(keep), stored,
                 [i["person_id"] for i in keep if i.get("person_id")],

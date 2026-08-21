@@ -44,7 +44,11 @@ html{-webkit-text-size-adjust:100%}
 body{
   background:var(--bg); color:var(--ink); font-family:var(--sans);
   font-size:14px; line-height:1.5; -webkit-font-smoothing:antialiased;
+  transition:opacity var(--settle) var(--ease);
 }
+body.is-arriving{animation:arrive var(--settle) var(--ease)}
+body.is-reloading{opacity:0}
+@keyframes arrive{from{opacity:.55}to{opacity:1}}
 a{color:var(--accent); text-decoration:none}
 a:hover{text-decoration:underline}
 button{font:inherit; cursor:pointer}
@@ -62,7 +66,11 @@ button{font:inherit; cursor:pointer}
   border-right:1px solid var(--line); background:var(--surface);
   display:flex; flex-direction:column; position:sticky; top:0; height:100vh;
 }
-.brand{display:flex; align-items:center; gap:9px; padding:20px 18px 18px}
+.brand{
+  display:flex; align-items:center; gap:9px; padding:20px 18px 18px;
+  color:inherit; text-decoration:none; cursor:pointer;
+}
+.brand:hover{color:inherit; text-decoration:none}
 .brand .mark{
   width:26px; height:26px; border-radius:7px; background:var(--ink);
   display:grid; place-items:center; flex:none;
@@ -136,10 +144,17 @@ h1.title{font-size:19px; font-weight:600; letter-spacing:-.02em}
 .searchwrap{position:relative; flex:1}
 .searchwrap svg{position:absolute; left:12px; top:50%; transform:translateY(-50%); stroke:var(--faint)}
 input.search{
-  width:100%; font:inherit; font-size:14px; padding:10px 82px 10px 36px; color:var(--ink);
+  width:100%; font:inherit; font-size:14px; padding:10px 108px 10px 36px; color:var(--ink);
   background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
   transition:border-color .12s, box-shadow .12s;
 }
+.qclear{
+  position:absolute; right:42px; top:50%; transform:translateY(-50%);
+  width:22px; height:22px; border:0; border-radius:6px; padding:0;
+  background:transparent; color:var(--muted); cursor:pointer;
+  font-size:18px; line-height:1;
+}
+.qclear:hover{background:var(--surface2); color:var(--ink)}
 input.search::placeholder{color:var(--faint)}
 input.search:focus{outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft)}
 .kbd{
@@ -160,6 +175,10 @@ input.search:focus{outline:none; border-color:var(--accent); box-shadow:0 0 0 3p
 .btn.danger:hover{background:var(--danger-soft)}
 .btn:disabled{opacity:.5; cursor:default}
 .btn-row{display:flex; gap:6px; flex-wrap:wrap}
+.livebtn{display:inline-flex; align-items:center; gap:7px}
+.livedot{width:7px; height:7px; border-radius:50%; background:var(--faint); flex:0 0 auto}
+.livebtn.on{border-color:color-mix(in srgb, #22c55e 45%, var(--line))}
+.livebtn.on .livedot{background:#22c55e; box-shadow:0 0 0 3px rgba(34,197,94,.18)}
 
 /* One row, never two: these are a hint, not a menu. Anything past the edge
    scrolls sideways rather than pushing the results further down the page. */
@@ -255,6 +274,11 @@ table.list tbody tr:nth-child(n+12){animation-delay:.22s}
 table.list tbody tr:hover{background:var(--surface2)}
 table.list tbody tr:first-child td{border-top:none}
 td.nm{font-weight:600; color:var(--ink); white-space:nowrap}
+td.nm .why{white-space:normal; font-weight:400; max-width:280px}
+.matchscore{
+  display:inline-block; margin-left:8px; font-size:10px; font-weight:600; font-variant-numeric:tabular-nums;
+  color:var(--muted); border:1px solid var(--line2); border-radius:4px; padding:0 5px; vertical-align:middle;
+}
 td.nm .id{display:block; font-family:var(--mono); font-size:10.5px; color:var(--faint); font-weight:400; margin-top:1px}
 td.org{color:var(--ink2)}
 td.org .sub2{font-size:11.5px; color:var(--faint); margin-top:2px}
@@ -283,6 +307,8 @@ td.num{font-variant-numeric:tabular-nums; text-align:right; color:var(--muted)}
   display:inline-block; font-family:var(--mono); font-size:10px; padding:1px 6px; margin:1px 3px 1px 0;
   border-radius:4px; background:var(--surface2); color:var(--muted); border:1px solid var(--line2);
 }
+a.srcpill{color:var(--accent); text-decoration:none; cursor:pointer;}
+a.srcpill:hover{border-color:var(--accent); background:var(--accent-soft);}
 .muted{color:var(--faint)}
 .loadmore{padding:12px; text-align:center; border-top:1px solid var(--line2)}
 

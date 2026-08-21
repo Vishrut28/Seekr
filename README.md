@@ -3,8 +3,9 @@
 *Resource intelligence platform — worldwide people discovery*
 
 **New here? Read [docs/WALKTHROUGH.md](docs/WALKTHROUGH.md)** — what Seekr is,
-how it works, and what it can and cannot do, in plain language. This file is
-the operator reference.
+how it works, and what it can and cannot do, in plain language. Search
+behaviour (AND, places, live vs local) is in [docs/SEARCH.md](docs/SEARCH.md).
+This file is the operator reference.
 
 A data layer that discovers, collects, normalizes, and maintains **evidence-backed
 profiles of publicly discoverable people** — specialized experts and strong
@@ -142,7 +143,7 @@ reassigned.
 |---|---|
 | `GET /v1/persons?...` | faceted people search — see filter table below (no ranking) |
 | `GET /v1/facets?field=` | available filter values + how many people carry each |
-| `GET /v1/query?q=` | natural-language search: query parsed into filters against the live vocabulary; response lists `applied_filters` and `unmatched_terms` honestly; results stay DB-ordered |
+| `GET /v1/query?q=` | natural-language search: query parsed into filters; AND then relax from the right; see [docs/SEARCH.md](docs/SEARCH.md) |
 | `GET /ui` | internal exploration UI (archive-styled; token pasted in-page) |
 | `GET /v1/persons/{id}` | profile by stable UUID |
 | `GET /v1/persons/{id}/evidence?attribute_type=` | evidence with confidence + verification state |
@@ -277,7 +278,7 @@ These are infrastructure, not people sources: they find URLs and fetch pages.
 
 | Provider | Env var | Free tier | Used for |
 |---|---|---|---|
-| Tavily | `TAVILY_API_KEY` | 1,000 credits/month | finding homepages |
+| TinyFish | `TINYFISH_API_KEY` | Search + Fetch free (no credits) | finding homepages; rendering JS-heavy pages. **Never Agent/Browser** |
 | SerpApi | `SERPAPI_API_KEY` | 250 searches/month | homepage search fallback |
 | Firecrawl | `FIRECRAWL_API_KEY` | 1,000 credits/month | rendering JS-heavy pages |
 | ZenRows | `ZENROWS_API_KEY` | 5,000 credits/month | render fallback |

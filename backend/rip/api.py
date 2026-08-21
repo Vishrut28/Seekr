@@ -1,7 +1,8 @@
 """Read API for the downstream ranking tool.
 
-Deliberately ranking-free: filtering and lookup only. Stable person UUIDs,
-full provenance, and a /changes feed for incremental sync.
+Filters decide who matches. Search results are ordered by evidence-backed
+relevance (corroboration and query fit), not by hiring fitness. Stable person
+UUIDs, full provenance, and a /changes feed for incremental sync.
 """
 
 from datetime import datetime
@@ -20,7 +21,7 @@ from .db import READ_ONLY, SessionLocal, init_db
 # Fewer results than this is a thin answer, and thin is worth topping up from
 # live sources even though it is not empty.
 THIN_ANSWER = 10
-from .nlq import _word_match  # whole-word matching, shared with the parser
+from .nlq import _word_match, location_anywhere, place_mentioned  # whole-word matching, shared with the parser
 from .models import (
     Affiliation,
     Authorship,
@@ -38,7 +39,7 @@ from .models import (
 
 app = FastAPI(
     title="Seekr",
-    description="Evidence-backed resource data layer. No ranking - that is downstream.",
+    description="Evidence-backed resource data layer. Search orders by corroboration, not hiring fitness.",
     version="0.1.0",
 )
 
@@ -55,13 +56,30 @@ async def bearer_auth(request, call_next):
         supplied = request.headers.get("authorization", "")
         if supplied != f"Bearer {token}":
             return JSONResponse({"detail": "invalid or missing bearer token"}, status_code=401)
-    return await call_next(request)
+    response = await call_next(request)
+    # The UI is edited on disk; a cached app.js is why an empty search box
+    # can keep showing yesterday's results.
+    if request.url.path == "/ui" or request.url.path.startswith("/static/"):
+        response.headers["Cache-Control"] = "no-store, max-age=0"
+    return response
 
 
 @app.on_event("startup")
 def _startup() -> None:
     try:
         init_db()
+        if not READ_ONLY:
+            from .ingest import backfill_blank_locations
+
+            db = SessionLocal()
+            try:
+                backfill_blank_locations(db)
+            except Exception:
+                import logging
+
+                logging.getLogger("rip").exception("location backfill failed")
+            finally:
+                db.close()
     except Exception:
         # read-only deployments serve a pre-built snapshot; if the DB is
         # missing/immutable, let routes fail individually instead of
@@ -85,7 +103,7 @@ def _person_summary(p: Person) -> dict:
         "merged_into": p.merged_into,
         "canonical_name": p.canonical_name,
         "aliases": p.aliases,
-        "location": p.location,
+        "location": p.location or place_mentioned(p.summary),
         "summary": p.summary,
         "current_role": p.current_role,
         "current_organization": p.current_organization,
@@ -129,7 +147,11 @@ def ui():
     index = FRONTEND_DIR / "index.html"
     if not index.exists():
         raise HTTPException(500, f"frontend not found at {FRONTEND_DIR}")
-    return HTMLResponse(index.read_text())
+    html = index.read_text()
+    stamp = str(int((FRONTEND_DIR / "app.js").stat().st_mtime))
+    html = html.replace('href="/static/styles.css"', f'href="/static/styles.css?v={stamp}"')
+    html = html.replace('src="/static/app.js"', f'src="/static/app.js?v={stamp}"')
+    return HTMLResponse(html, headers={"Cache-Control": "no-store, max-age=0"})
 
 
 @app.get("/")
@@ -164,16 +186,16 @@ def list_persons(
     updated_since: datetime | None = Query(None, description="record changed since this time"),
     has_cv: bool | None = Query(None, description="has a published CV/résumé link"),
     has_email: bool | None = Query(None, description="has a public email"),
-    sort: str = Query("relevance", description="relevance (insertion order) | recent | name"),
+    sort: str = Query("relevance", description="relevance (evidence score) | recent | name"),
     limit: int = Query(50, le=500),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
 ):
     """Faceted people search.
 
-    Every parameter is a *filter*, never a score: `sort` only reorders by a
-    factual field (recency, name) and never by fitness for a role. Ranking
-    stays in the downstream tool.
+    Every parameter except `sort` is a *filter*. `sort=relevance` orders by
+    corroboration and query fit; `recent` and `name` stay factual. This is
+    not a hiring-fitness score.
     """
     from sqlalchemy import and_, exists as sa_exists
 
@@ -222,7 +244,7 @@ def list_persons(
             clauses.append(_word_match(Person.location, name))
         stmt = stmt.where(or_(*clauses))
     if location:
-        stmt = stmt.where(_word_match(Person.location, location))
+        stmt = stmt.where(location_anywhere(location))
     if source:
         stmt = stmt.where(sa_exists().where(and_(
             IdentityLink.person_id == Person.id,
@@ -287,17 +309,39 @@ def list_persons(
     page = stmt.with_only_columns(Person.id).distinct()
     if order is not None:
         page = page.order_by(order)
+    else:
+        from .rank import relevance_order_by
+
+        # DISTINCT + ORDER BY extra expressions is invalid on Postgres; score
+        # against the de-duplicated id set instead.
+        inner = page.subquery()
+        page = (
+            select(inner.c.id)
+            .select_from(inner.join(Person, Person.id == inner.c.id))
+            .order_by(*relevance_order_by(
+                skill=skill, organization=organization,
+                current_organization=current_organization, role=role, q=q,
+            ))
+        )
     ids = db.execute(page.limit(limit).offset(offset)).scalars().all()
     rows = {p.id: p for p in db.execute(
         select(Person).where(Person.id.in_(ids))).scalars()} if ids else {}
     persons = [rows[i] for i in ids if i in rows]
 
+    results = [_person_summary(p) for p in persons]
+    if sort not in ("recent", "name"):
+        from .rank import attach_match_ranking
+
+        attach_match_ranking(
+            db, results, skill=skill, organization=organization,
+            current_organization=current_organization, role=role, q=q,
+        )
     response = {
         "count": len(persons),
         "total_matches": total,
         "has_more": offset + len(persons) < total,
         "next_offset": offset + len(persons) if offset + len(persons) < total else None,
-        "results": [_person_summary(p) for p in persons],
+        "results": results,
     }
     if total == 0 and not _DIAGNOSING.get():
         # Which filter emptied it? Combining five filters and getting nothing
@@ -825,7 +869,7 @@ def nl_query(
     ),
     db: Session = Depends(get_db),
 ):
-    """Natural-language search. Read-only, no ranking — DB order.
+    """Natural-language search. Filters from the query; results ordered by evidence.
 
     The response is explicit about which terms became filters and which
     could not be applied; never assume an unlisted constraint was enforced.
@@ -834,25 +878,44 @@ def nl_query(
     OpenAlex, Semantic Scholar and dblp that an operator may choose to
     ingest. `discover=queue` also adds them to the discovery-lead queue so a
     worker ingests them later. Neither mode ingests during the request.
-    Suggestions are not results and are not ranked.
+    Suggestions are not results.
     """
-    from .nlq import count_matches, diagnose_empty, execute, has_filters, parse
+    from .nlq import count_matches, diagnose_empty, execute_progressive, has_filters, parse
 
     # tolerate direct calls (tests) where FastAPI has not resolved the params
     limit = limit if isinstance(limit, int) else 0
     offset = offset if isinstance(offset, int) else 0
-    parsed = parse(db, q)
+    asked = parse(db, q)
     if limit:
-        parsed.limit = limit
-    parsed.offset = offset
-    persons = execute(db, parsed)
-    matched_nothing = not has_filters(parsed)
-    total = count_matches(db, parsed)
+        asked.limit = limit
+    asked.offset = offset
+    persons, parsed, not_found = execute_progressive(db, asked)
+    matched_nothing = not has_filters(asked)
+    total = count_matches(db, parsed) if has_filters(parsed) else 0
+
+    def filters_payload(p):
+        return {
+            "skills": p.skills,
+            "skill_patterns": p.skill_patterns,
+            "organizations": p.organizations,
+            "locations": p.locations,
+            "countries": p.countries,
+            "name_terms": p.name_terms, "roles": p.roles,
+            "limit": p.limit,
+            "offset": p.offset,
+        }
+
+    def clauses_payload(p):
+        return [{"term": c["token"], "as": c["label"]} for c in (p.clause_order or [])]
+
     def build_results(rows):
         """Summaries plus a small evidence-count attribute sample per person."""
         ids = [r.id for r in rows]
         attr_map: dict = {pid: {} for pid in ids}
         org_map: dict = {pid: [] for pid in ids}
+        extra_urls: dict = {pid: [] for pid in ids}
+        source_links: dict = {pid: [] for pid in ids}
+        place_hint: dict = {}
         if ids:
             for pid, at, val, src in db.execute(
                 select(Evidence.person_id, Evidence.attribute_type, Evidence.value,
@@ -874,11 +937,41 @@ def nl_query(
             ).all():
                 if org_name not in org_map[pid]:
                     org_map[pid].append(org_name)
+            for pid, url, src in db.execute(
+                select(IdentityLink.person_id, SourceRecord.url, SourceRecord.source)
+                .join(SourceRecord, SourceRecord.id == IdentityLink.source_record_id)
+                .where(IdentityLink.person_id.in_(ids), SourceRecord.url.isnot(None))
+            ).all():
+                if url and url not in extra_urls[pid]:
+                    extra_urls[pid].append(url)
+                if src and url and not any(x.get("url") == url for x in source_links[pid]):
+                    source_links[pid].append({"source": src, "url": url})
+            need_place = [p.id for p in rows if not (p.location or place_mentioned(p.summary))]
+            if need_place:
+                for pid, val in db.execute(
+                    select(Evidence.person_id, Evidence.value).where(
+                        Evidence.person_id.in_(need_place),
+                        Evidence.attribute_type.in_(["bio", "location", "education", "role"]),
+                    )
+                ).all():
+                    if pid in place_hint:
+                        continue
+                    hit = place_mentioned(val)
+                    if hit:
+                        place_hint[pid] = hit
 
         wanted_orgs = {o.lower() for o in parsed.organizations}
         out = []
         for person in rows:
             summary = _person_summary(person)
+            seen = list(summary.get("profile_urls") or [])
+            for url in extra_urls.get(person.id, []):
+                if url not in seen:
+                    seen.append(url)
+            summary["profile_urls"] = seen
+            summary["source_links"] = source_links.get(person.id, [])
+            if not summary.get("location"):
+                summary["location"] = place_hint.get(person.id)
             attrs = [
                 {**a, "sources": sorted(a["sources"])}
                 for a in attr_map.get(person.id, {}).values()
@@ -894,20 +987,16 @@ def nl_query(
         return out
 
     results = build_results(persons)
+    from .rank import attach_match_ranking
+
+    attach_match_ranking(db, results, parsed)
 
     response = {
         "query": q,
-        "applied_filters": {
-            "skills": parsed.skills,
-            "skill_patterns": parsed.skill_patterns,
-            "organizations": parsed.organizations,
-            "locations": parsed.locations,
-            "countries": parsed.countries,
-            "name_terms": parsed.name_terms, "roles": parsed.roles,
-            "limit": parsed.limit,
-            "offset": parsed.offset,
-        },
-        "unmatched_terms": parsed.unmatched_terms,
+        "applied_filters": filters_payload(parsed),
+        "applied_clauses": clauses_payload(parsed),
+        "not_found": not_found,
+        "unmatched_terms": asked.unmatched_terms,
         # what we searched for instead of what was typed, so a corrected
         # query never silently answers a different question
         "corrections": parsed.corrections,
@@ -934,7 +1023,7 @@ def nl_query(
         # grew — at 50,000 people almost every query returns something, so the
         # corpus stopped growing from searches exactly when it looked healthy.
         "discover_available": bool(
-            not persons or parsed.unmatched_terms or len(persons) < THIN_ANSWER
+            not persons or asked.unmatched_terms or not_found or len(persons) < THIN_ANSWER
         ),
         # on the deployed read-only snapshot a live search still answers the
         # question, but nothing it finds can be kept — say so rather than
@@ -947,77 +1036,95 @@ def nl_query(
     # Metered providers stay opt-in.
     allow_paid = mode in ("true", "queue", "1")
     explicit = mode in ("true", "queue", "1")
-    # An explicit request is a request. discover_available is a hint for the
-    # UI about whether the button is worth pressing, not a veto over someone
-    # who already pressed it.
-    if explicit or (mode == "auto" and response["discover_available"]):
+    # Auto live-search when the corpus returned nobody, or when the question
+    # is just a name and we only have a handful of locals (one portfolio page
+    # named "Rahul" is not an answer). Broader queries stay local-only so a
+    # skill search does not hit GitHub on every keystroke. Press Live to go
+    # upstream on purpose.
+    name_only = bool(
+        asked.name_terms
+        and not asked.skills
+        and not asked.skill_patterns
+        and not asked.organizations
+        and not asked.roles
+    )
+    if explicit or (mode == "auto" and (
+        not persons or (name_only and len(persons) < THIN_ANSWER)
+    )):
         from .nlq import discovery_suggestions, queue_suggestions
 
-        # Live results are persisted when the provider returned a full person
-        # payload: we already paid for that data, so keeping it means the same
-        # query is answered from the graph next time instead of being re-bought.
-        suggestions = discovery_suggestions(db, parsed, allow_paid=allow_paid)
-        stored = sum(1 for s in suggestions if s.get("stored"))
-        # id-only entries replayed from a cached search: they belong in the
-        # results, not in the list of candidates a user can add
-        replayed = [s for s in suggestions if s.get("replayed")]
-        suggestions = [s for s in suggestions if not s.get("replayed")]
-        for s in suggestions:
-            s.pop("_raw", None)
-            s.pop("_connector", None)
-        response["discovery_suggestions"] = suggestions
-        response["stored_from_live"] = stored
-        response["replayed_from_cache"] = len(replayed)
-        if stored or replayed:
-            # The corpus just grew, and so did the vocabulary: terms that were
-            # unmatched a moment ago (a company name we had never seen) are now
-            # real filters. Re-parse before re-running, or the people we just
-            # stored stay invisible to the very query that fetched them.
-            parsed = parse(db, q)
-            if limit:
-                parsed.limit = limit
-            parsed.offset = offset
-            persons = execute(db, parsed)
-            # People the live provider returned FOR THIS QUERY are answers in
-            # their own right. The corpus filter can only express what the
-            # corpus already knows, so a freshly fetched person often fails it
-            # ("Rust" is nobody's stored topic yet) — appending them keeps the
-            # results the user actually paid a round-trip for.
-            seen = {p.id for p in persons}
-            live_ids = [
-                s_["person_id"]
-                for s_ in suggestions + replayed
-                if s_.get("person_id")
-            ]
-            if live_ids:
-                from .models import Person as _Person
+        try:
+            # Live results are persisted when the provider returned a full person
+            # payload: we already paid for that data, so keeping it means the same
+            # query is answered from the graph next time instead of being re-bought.
+            suggestions = discovery_suggestions(db, asked, allow_paid=allow_paid)
+            stored = sum(1 for s in suggestions if s.get("stored"))
+            # id-only entries replayed from a cached search: they belong in the
+            # results, not in the list of candidates a user can add
+            replayed = [s for s in suggestions if s.get("replayed")]
+            suggestions = [s for s in suggestions if not s.get("replayed")]
+            for s in suggestions:
+                s.pop("_raw", None)
+                s.pop("_connector", None)
+            response["discovery_suggestions"] = suggestions
+            response["stored_from_live"] = stored
+            response["replayed_from_cache"] = len(replayed)
+            if stored or replayed:
+                # The corpus just grew, and so did the vocabulary: terms that were
+                # unmatched a moment ago (a company name we had never seen) are now
+                # real filters. Re-parse before re-running, or the people we just
+                # stored stay invisible to the very query that fetched them.
+                asked = parse(db, q)
+                if limit:
+                    asked.limit = limit
+                asked.offset = offset
+                persons, parsed, not_found = execute_progressive(db, asked)
+                live_ids = [
+                    s_["person_id"]
+                    for s_ in suggestions
+                    if s_.get("person_id") and s_.get("stored")
+                ]
+                live_ids.extend(s_["person_id"] for s_ in replayed if s_.get("person_id"))
+                rows = build_results(persons)
+                live_set = set(live_ids)
+                for row in rows:
+                    # so a caller can tell a corpus match from a just-fetched one
+                    row["from_live_search"] = row["id"] in live_set
+                attach_match_ranking(db, rows, parsed)
+                have = {r["id"] for r in rows}
+                missing = [pid for pid in dict.fromkeys(live_ids) if pid and pid not in have]
+                if missing:
+                    extra_people = db.execute(
+                        select(Person).where(
+                            Person.id.in_(missing),
+                            Person.merged_into.is_(None),
+                        )
+                    ).scalars().all()
+                    extra_rows = build_results(extra_people)
+                    for row in extra_rows:
+                        row["from_live_search"] = True
+                    rows.extend(extra_rows)
+                rows.sort(key=lambda r: (-(r.get("match_score") or 0), r.get("canonical_name") or ""))
+                response["results"] = rows
+                response["count"] = len(rows)
+                # People the live search returned are results, so the total has to
+                # count them. Reporting only the corpus count printed "1 of 0
+                # matching" — a row on screen that the total said did not exist.
+                response["total_matches"] = max(count_matches(db, parsed), len(rows))
+                response["unmatched_terms"] = asked.unmatched_terms
+                response["applied_filters"] = filters_payload(parsed)
+                response["applied_clauses"] = clauses_payload(parsed)
+                response["not_found"] = not_found
+            if mode == "queue":
+                response["queued_leads"] = queue_suggestions(db, suggestions, q)
+        except Exception:
+            import logging
 
-                extra = db.execute(
-                    select(_Person).where(
-                        _Person.id.in_(live_ids), _Person.merged_into.is_(None)
-                    )
-                ).scalars().all()
-                persons = persons + [p for p in extra if p.id not in seen]
-            rows = build_results(persons)
-            live_set = set(live_ids)
-            for row in rows:
-                # so a caller can tell a corpus match from a just-fetched one
-                row["from_live_search"] = row["id"] in live_set
-            response["results"] = rows
-            response["count"] = len(persons)
-            # People the live search returned are results, so the total has to
-            # count them. Reporting only the corpus count printed "1 of 0
-            # matching" — a row on screen that the total said did not exist.
-            response["total_matches"] = max(count_matches(db, parsed), len(persons))
-            response["unmatched_terms"] = parsed.unmatched_terms
-            response["applied_filters"] = {
-                "skills": parsed.skills, "skill_patterns": parsed.skill_patterns,
-                "organizations": parsed.organizations, "locations": parsed.locations,
-                "countries": parsed.countries, "name_terms": parsed.name_terms, "roles": parsed.roles,
-                "limit": parsed.limit, "offset": parsed.offset,
-            }
-        if mode == "queue":
-            response["queued_leads"] = queue_suggestions(db, suggestions, q)
+            logging.getLogger("rip").exception("live discovery failed")
+            response["discovery_suggestions"] = response.get("discovery_suggestions") or []
+            response["discovery_error"] = (
+                "Live search failed; showing matches already in Seekr."
+            )
     return response
 
 
@@ -1195,6 +1302,15 @@ def list_feedback(
     if person_id:
         stmt = stmt.where(MatchFeedback.person_id == person_id)
     rows = db.execute(stmt.order_by(MatchFeedback.id).limit(limit)).scalars().all()
+    names = {}
+    if rows:
+        from .models import Person
+
+        ids = [r.person_id for r in rows]
+        names = {
+            p.id: p.canonical_name
+            for p in db.execute(select(Person).where(Person.id.in_(ids))).scalars()
+        }
     return {
         "count": len(rows),
         "next_since_id": rows[-1].id if rows else since_id,
@@ -1204,6 +1320,7 @@ def list_feedback(
                 "id": r.id, "person_id": r.person_id, "query": r.query_raw,
                 "verdict": r.verdict, "note": r.note, "voter": r.voter,
                 "created_at": r.created_at,
+                "canonical_name": names.get(r.person_id),
             }
             for r in rows
         ],

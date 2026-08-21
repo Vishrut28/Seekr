@@ -146,6 +146,9 @@ for a million people.
 public scholarly or code footprint. Cross-source identity resolution. Telling
 you *why* it believes something.
 
+How typed search works now — AND then relax, skills vs names vs places, cities
+in bios, and when live APIs run — is in [SEARCH.md](SEARCH.md).
+
 **Corporate roles** now work through Exa, a commercial search API: "product
 designers at Swiggy Bangalore" returns real people with roles and cities. Read
 the tradeoff first — Exa's person records are largely LinkedIn-derived. Seekr

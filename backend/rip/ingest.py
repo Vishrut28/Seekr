@@ -102,6 +102,55 @@ def _set_person_field(
         _record_attribute_conflict(session, person, field, str(old), str(value), record)
 
 
+def _location_named_in_profile(profile: NormalizedProfile) -> str | None:
+    """City a source wrote in the bio when it left the location field blank."""
+    from .nlq import place_mentioned
+
+    hint = place_mentioned(profile.summary)
+    if hint:
+        return hint
+    for item in profile.evidence:
+        if item.attribute_type in ("bio", "education"):
+            hint = place_mentioned(item.value)
+            if hint:
+                return hint
+    return None
+
+
+def backfill_blank_locations(session: Session, limit: int = 2000) -> int:
+    """Fill Person.location from bio/summary for records ingested before we did."""
+    from sqlalchemy import or_
+
+    from .nlq import place_mentioned
+
+    people = session.execute(
+        select(Person).where(
+            Person.merged_into.is_(None),
+            or_(Person.location.is_(None), Person.location == ""),
+        ).limit(limit)
+    ).scalars().all()
+    filled = 0
+    for person in people:
+        hint = place_mentioned(person.summary)
+        if not hint:
+            for (val,) in session.execute(
+                select(Evidence.value).where(
+                    Evidence.person_id == person.id,
+                    Evidence.attribute_type.in_(("bio", "education")),
+                )
+            ):
+                hint = place_mentioned(val)
+                if hint:
+                    break
+        if not hint:
+            continue
+        person.location = hint
+        filled += 1
+    if filled:
+        session.commit()
+    return filled
+
+
 def _record_attribute_conflict(
     session: Session, person: Person, field: str, old: str, new: str, record: SourceRecord
 ) -> None:
@@ -311,7 +360,9 @@ def ingest_profile(session: Session, profile: NormalizedProfile) -> Person:
 
     # person scalar fields (fill blanks, log conflicts)
     _set_person_field(session, person, "canonical_name", profile.name, record)
-    _set_person_field(session, person, "location", profile.location, record)
+    stated_location = (profile.location or "").strip() or None
+    location = stated_location or _location_named_in_profile(profile)
+    _set_person_field(session, person, "location", location, record)
     # Only what the source actually stated. A country inferred from the
     # location text is not a claim any source made, and storing it here would
     # invent provenance and manufacture conflicts between sources. The country
@@ -328,11 +379,17 @@ def ingest_profile(session: Session, profile: NormalizedProfile) -> Person:
     urls = set(person.profile_urls or [])
     urls.add(profile.url)
     urls.update(profile.websites)
+    urls.update(profile.linked_urls)
     person.profile_urls = sorted(u for u in urls if u)
 
     # location is also an evidence-backed claim
-    if profile.location:
-        _add_evidence(session, person, record, "location", profile.location, confidence=0.7)
+    if stated_location:
+        _add_evidence(session, person, record, "location", stated_location, confidence=0.7)
+    elif location:
+        _add_evidence(
+            session, person, record, "location", location,
+            extracted_info="named in bio", confidence=0.5,
+        )
 
     for item in profile.evidence:
         _add_evidence(

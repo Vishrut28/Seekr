@@ -131,3 +131,25 @@ def test_location_conflict_preserved(session):
         e.value for e in session.query(Evidence).filter_by(attribute_type="location")
     }
     assert locations == {"Berlin, Germany", "Zurich, Switzerland"}
+
+
+def test_blank_location_is_copied_from_bio(session):
+    from rip.normalize import EvidenceItem
+    from tests.test_resolution import make_profile
+
+    person = ingest_profile(
+        session,
+        make_profile(
+            location=None,
+            summary="NMIT, Bangalore",
+            evidence=[EvidenceItem(attribute_type="bio", value="NMIT, Bangalore")],
+        ),
+    )
+    assert person.location == "Bangalore"
+    person.location = None
+    session.commit()
+    from rip.ingest import backfill_blank_locations
+
+    assert backfill_blank_locations(session) == 1
+    session.refresh(person)
+    assert person.location == "Bangalore"
