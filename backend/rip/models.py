@@ -19,6 +19,7 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -39,6 +40,19 @@ def new_uuid() -> str:
 
 class Person(Base):
     __tablename__ = "person"
+    __table_args__ = (
+        # (merged_into, id) rather than separate single-column indexes:
+        # every /v1/persons and /v1/query paging query filters
+        # merged_into.is_(None) AND orders by Person.id for deterministic
+        # pagination. Without a composite index covering both, SQLite (and
+        # Postgres) can satisfy the filter from an index but still has to
+        # materialize and sort the full matching set before LIMIT can apply
+        # — confirmed via EXPLAIN QUERY PLAN ("USE TEMP B-TREE") and a real
+        # benchmark showing roughly 2x latency on a 10k-person corpus. This
+        # index lets the same scan satisfy the filter AND deliver rows
+        # already in id order, eliminating that sort step entirely.
+        Index("ix_person_merged_into_id", "merged_into", "id"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_uuid)
     canonical_name: Mapped[str | None] = mapped_column(String(255), index=True)
@@ -50,8 +64,11 @@ class Person(Base):
     current_organization: Mapped[str | None] = mapped_column(String(255))
     profile_urls: Mapped[list] = mapped_column(JSON, default=list)
     # tombstone: set when this person was merged into another; the ID stays
-    # resolvable so downstream references never break
-    merged_into: Mapped[str | None] = mapped_column(String(36), index=True)
+    # resolvable so downstream references never break. Indexed via the
+    # composite (merged_into, id) index above — a separate single-column
+    # index here would be redundant (merged_into is its leading column) and
+    # cost extra on every write for no read benefit.
+    merged_into: Mapped[str | None] = mapped_column(String(36))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 
@@ -344,7 +361,10 @@ class MergeCandidate(Base):
     score: Mapped[float] = mapped_column(Float)
     signals: Mapped[dict] = mapped_column(JSON, default=dict)
     status: Mapped[str] = mapped_column(String(32), default="pending", index=True)
-    # "pending" | "merged" | "rejected"
+    # "pending" | "merged" | "rejected" | "deferred"
+    # "deferred" is not a decision: it means the pair had no evidence either
+    # way, so there is nothing for a human to weigh. It leaves the review queue
+    # and returns to it by itself if either person later gains evidence.
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
@@ -361,8 +381,15 @@ class DiscoveryLead(Base):
     discovered_via_record_id: Mapped[int | None] = mapped_column(ForeignKey("source_record.id"))
     reason: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(32), default="pending", index=True)
-    # "pending" | "ingested" | "error" | "skipped"
+    # "pending" | "claimed" | "ingested" | "error" | "skipped"
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    # Which worker took this lead, and when. Several workers drain one queue,
+    # so a lead is claimed before it is fetched — without it two workers read
+    # the same pending rows and ingested the same person twice. A claim older
+    # than discover.CLAIM_TTL_SECONDS belonged to a worker that died, and goes
+    # back to pending.
+    claimed_by: Mapped[str | None] = mapped_column(String(64))
+    claimed_at: Mapped[datetime | None] = mapped_column(DateTime)
 
 
 class SearchCache(Base):
@@ -389,6 +416,31 @@ class SearchCache(Base):
     # the search was actually looking for, so the person it found would not
     # come back. Remembering the ids makes a repeat query free AND complete.
     person_ids: Mapped[list | None] = mapped_column(JSON, default=list)
+
+
+class SourceThrottle(Base):
+    """Rate-limit backoff state for one external source, shared across every
+    worker process via the database rather than kept as an in-process
+    Python global.
+
+    A module-level variable (the original design for GitHub's throttle) is
+    invisible to sibling worker processes under gunicorn/uvicorn multi-
+    worker deployment — each process has its own memory, so if worker A
+    gets rate-limited, workers B/C/D have no way to know and each
+    independently keeps spending requests until THEY also get rate-limited,
+    multiplying wasted round-trips by however many workers are running.
+    SearchCache already solves the identical class of problem (remembering
+    something across requests/processes) by living in the database instead
+    of process memory; this does the same for "should we even try this
+    source right now."
+    """
+
+    __tablename__ = "source_throttle"
+    __table_args__ = (UniqueConstraint("source", name="uq_source_throttle"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    source: Mapped[str] = mapped_column(String(64), index=True)
+    blocked_until: Mapped[datetime] = mapped_column(DateTime)
 
 
 class Shortlist(Base):
@@ -496,3 +548,8 @@ class IngestionRun(Base):
     error: Mapped[str | None] = mapped_column(Text)
     started_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
+# Registers the search index tables and the session hooks that keep them
+# current. Imported last: it refers to the models above.
+from . import search_index as _search_index  # noqa: E402,F401

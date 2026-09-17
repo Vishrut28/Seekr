@@ -15,6 +15,7 @@ import contextvars
 import os
 import pathlib
 import re
+import shutil
 
 from fastapi import Depends, FastAPI, HTTPException, Query
 from sqlalchemy import String as SAString
@@ -26,9 +27,23 @@ from pathlib import Path
 from .db import READ_ONLY, SessionLocal, init_db
 
 # Fewer results than this is a thin answer, and thin is worth topping up from
-# live sources even though it is not empty.
+# live sources even though it is not empty. Scaled down per applied filter —
+# see _applied_filter_count and its use in nl_query.
 THIN_ANSWER = 10
-from .nlq import _word_match  # whole-word matching, shared with the parser
+
+
+def _applied_filter_count(parsed) -> int:
+    """How many distinct constraints this query actually applied.
+
+    Used to judge whether a short result list is "thin" (the corpus came up
+    short) or simply "precise" (the query asked for something specific and
+    got exactly that). Mirrors nlq.has_filters's list of filter groups.
+    """
+    return sum(bool(x) for x in (
+        parsed.skill_groups, parsed.organizations, parsed.locations,
+        parsed.countries, parsed.name_terms, parsed.roles,
+    ))
+from .nlq import _word_match, place_mentioned  # whole-word matching, shared with the parser
 from .models import (
     Affiliation,
     Authorship,
@@ -93,7 +108,7 @@ def _person_summary(p: Person) -> dict:
         "merged_into": p.merged_into,
         "canonical_name": p.canonical_name,
         "aliases": p.aliases,
-        "location": p.location,
+        "location": p.location or place_mentioned(p.summary),
         "summary": p.summary,
         "current_role": p.current_role,
         "current_organization": p.current_organization,
@@ -185,21 +200,52 @@ def list_persons(
     """
     from sqlalchemy import and_, exists as sa_exists
 
+    from . import search_index as si
+
     stmt = select(Person).where(Person.merged_into.is_(None))
 
-    if q:
+    # Text filters answered by the search index: one seek-driven lookup for all
+    # of them instead of a LIKE scan each. Same whole-word semantics as the
+    # SQL below, which still handles anything the index cannot express — the
+    # loose "go*" form — and every database whose index is not built yet.
+    indexed: set[str] = set()
+    if si.is_ready(db):
+        text_filters = (
+            ("q", q, ("n", "na")), ("skill", skill, ("s",)),
+            ("organization", organization, ("ow",)), ("education", education, ("ew",)),
+            ("current_organization", current_organization, ("co",)),
+            ("role", role, ("r",)), ("location", location, ("l",)),
+            ("technology", technology, ("k",)),
+        )
+        constraints = []
+        for name, value, fields in text_filters:
+            if not value or value.strip().endswith("*"):
+                continue
+            alts = [a for a in (si.phrase_alt(f, value) for f in fields) if a]
+            if alts:
+                constraints.append(si.Constraint(name, alts))
+                indexed.add(name)
+        if country and country.strip():
+            constraints.append(si.Constraint("country", [si.exact_alt("c", country.strip().lower())]))
+            indexed.add("country")
+        if constraints:
+            matched = si.match_select(db, constraints)
+            stmt = stmt.where(Person.id.in_(matched) if matched is not None else Person.id.is_(None))
+
+    if q and "q" not in indexed:
         stmt = stmt.where(
             _word_match(Person.canonical_name, q)
             | func.lower(func.cast(Person.aliases, SAString)).like(f'%"{q.lower()}%')
         )
-    if skill:
+    if skill and "skill" not in indexed:
         stmt = stmt.where(sa_exists().where(and_(
             Evidence.person_id == Person.id,
             Evidence.attribute_type.in_(["skill", "research_interest", "specialization"]),
             _word_match(Evidence.value, skill),
         )))
-    for value, relation in ((organization, None), (education, "studied_at")):
-        if not value:
+    for value, relation, name in ((organization, None, "organization"),
+                                  (education, "studied_at", "education")):
+        if not value or name in indexed:
             continue
         conds = [
             Affiliation.person_id == Person.id,
@@ -209,9 +255,9 @@ def list_persons(
         if relation:
             conds.append(Affiliation.relation == relation)
         stmt = stmt.where(sa_exists().where(and_(*conds)))
-    if current_organization:
+    if current_organization and "current_organization" not in indexed:
         stmt = stmt.where(_word_match(Person.current_organization, current_organization))
-    if role:
+    if role and "role" not in indexed:
         stmt = stmt.where(
             _word_match(Person.current_role, role)
             | sa_exists().where(and_(
@@ -219,7 +265,7 @@ def list_persons(
                 _word_match(Affiliation.role, role),
             ))
         )
-    if country:
+    if country and "country" not in indexed:
         # A stated country, or a location that names it. Without the second
         # half, country=IN missed every GitHub developer whose location reads
         # "Bangalore, India" — the source gave a place, not an ISO code.
@@ -229,7 +275,7 @@ def list_persons(
         for name in names_for_country(country):
             clauses.append(_word_match(Person.location, name))
         stmt = stmt.where(or_(*clauses))
-    if location:
+    if location and "location" not in indexed:
         stmt = stmt.where(_word_match(Person.location, location))
     if source:
         stmt = stmt.where(sa_exists().where(and_(
@@ -237,7 +283,7 @@ def list_persons(
             SourceRecord.id == IdentityLink.source_record_id,
             SourceRecord.source == source.lower(),
         )))
-    if technology:
+    if technology and "technology" not in indexed:
         stmt = stmt.where(sa_exists().where(and_(
             Contribution.person_id == Person.id,
             Project.id == Contribution.project_id,
@@ -292,9 +338,31 @@ def list_persons(
         "recent": Person.updated_at.desc(),
         "name": Person.canonical_name.asc(),
     }.get(sort)
-    page = stmt.with_only_columns(Person.id).distinct()
+    # `sort="relevance"` deliberately means "no fitness ranking" here — that
+    # judgement belongs to /v1/query, not this endpoint — but paging still
+    # has to be reproducible: without ANY order_by, which rows land on which
+    # page is left to the engine and isn't guaranteed stable across two
+    # identical requests. Person.id costs nothing extra and makes
+    # offset/limit paging stable without expressing an opinion about who the
+    # "best" match is. It also breaks ties within "recent"/"name" sort, where
+    # two people can otherwise share a sort key.
+    #
+    # GROUP BY only when actually needed: Postgres rejects an ORDER BY
+    # expression that isn't in the SELECT list when DISTINCT is used, which
+    # "recent" (Person.updated_at) and "name" (Person.canonical_name) both
+    # violate — GROUP BY has no such restriction. But ordering by Person.id
+    # while selecting Person.id is always legal DISTINCT + ORDER BY (the
+    # order column IS the select-list column), and measurably cheaper:
+    # GROUP BY forces SQLite into "USE TEMP B-TREE FOR GROUP BY" — a full
+    # materialize-and-sort of every matching row before LIMIT can apply —
+    # even for the common case with no join/fan-out risk at all. Confirmed
+    # via EXPLAIN QUERY PLAN and a real benchmark (roughly 2x slower on a
+    # 10k-person corpus for the default sort) before narrowing this back
+    # down to only the two sorts that actually require it.
     if order is not None:
-        page = page.order_by(order)
+        page = stmt.with_only_columns(Person.id).group_by(Person.id).order_by(order, Person.id)
+    else:
+        page = stmt.with_only_columns(Person.id).distinct().order_by(Person.id)
     ids = db.execute(page.limit(limit).offset(offset)).scalars().all()
     rows = {p.id: p for p in db.execute(
         select(Person).where(Person.id.in_(ids))).scalars()} if ids else {}
@@ -386,14 +454,43 @@ _ALL_FILTERS_NONE = {
 
 @app.get("/v1/facets")
 def facets(
-    field: str = Query(..., description="country | source | organization | skill | role"),
+    field: str = Query(..., description="country | source | organization | skill | role | technology"),
     limit: int = Query(30, le=200),
     db: Session = Depends(get_db),
 ):
     """Available filter values and how many people carry each.
 
     Counts describe the corpus; they are not a ranking of people.
+
+    Every call is a GROUP BY over a whole table (technology flattens every
+    project in Python), and the UI asks for several on each page load. The
+    answer only changes when people are written, so it is cached per
+    database: invalidated at once by writes in this process, and after
+    RIP_VOCAB_TTL seconds for writes made by a separate ingest process.
     """
+    import time as _time
+
+    from . import search_index as si
+
+    per_db = _FACET_CACHE.setdefault(si._bind_key(db), {})
+    key = (si.generation(db), field, limit)
+    hit = per_db.get(key)
+    if hit is not None and _time.monotonic() - hit[0] < _FACET_TTL:
+        return hit[1]
+    result = _facets_uncached(field, limit, db)
+    if len(per_db) > 256:
+        per_db.clear()
+    per_db[key] = (_time.monotonic(), result)
+    return result
+
+
+import weakref as _weakref
+
+_FACET_CACHE: "_weakref.WeakKeyDictionary" = _weakref.WeakKeyDictionary()
+_FACET_TTL = float(os.environ.get("RIP_VOCAB_TTL", "60"))
+
+
+def _facets_uncached(field: str, limit: int, db: Session) -> dict:
     if field == "country":
         rows = db.execute(
             select(Person.country, func.count(Person.id))
@@ -401,11 +498,28 @@ def facets(
             .group_by(Person.country).order_by(func.count(Person.id).desc()).limit(limit)
         ).all()
     elif field == "source":
+        from .connectors import CONNECTORS
+        from .nlq import PAID_SOURCES, enabled_searchers
+
         rows = db.execute(
             select(SourceRecord.source, func.count(func.distinct(IdentityLink.person_id)))
             .join(IdentityLink, IdentityLink.source_record_id == SourceRecord.id)
             .group_by(SourceRecord.source).order_by(func.count(IdentityLink.id).desc())
         ).all()
+        counts = {v: n for v, n in rows if v}
+        # Always list every free connector this deployment runs, even when a
+        # source has nobody stored yet — the sidebar was counting only
+        # ingested sources and dropped to 8 until web/HF/SO had a person.
+        catalog = [n for n, _fn, _full in enabled_searchers() if n not in PAID_SOURCES]
+        for name in CONNECTORS:
+            if name not in PAID_SOURCES and name not in catalog:
+                catalog.append(name)
+        values = [{"value": s, "people": int(counts.get(s, 0))} for s in catalog]
+        values.extend(
+            {"value": s, "people": int(counts[s])}
+            for s in counts if s not in CONNECTORS
+        )
+        return {"field": field, "values": values}
     elif field == "organization":
         rows = db.execute(
             select(Organization.name, func.count(func.distinct(Affiliation.person_id)))
@@ -422,8 +536,42 @@ def facets(
             .group_by(Evidence.value)
             .order_by(func.count(func.distinct(Evidence.person_id)).desc()).limit(limit)
         ).all()
+    elif field == "technology":
+        # The `technology` PERSON filter searches Project.technologies (see
+        # list_persons), not Evidence — a different vocabulary entirely from
+        # "skill" (project tech stacks like "Rust"/"Kubernetes" versus
+        # research/skill descriptions like "Distributed Systems"). Without
+        # its own facet here, the only autocomplete available for this
+        # filter field was the skill facet — real, but the wrong list,
+        # meaning a suggested value could return zero results and the
+        # actual matching values were never surfaced at all.
+        #
+        # Project.technologies is a JSON array column, not a plain string
+        # column — there is no single SQL expression that unnests and
+        # counts it identically on SQLite and Postgres (SQLite's json_each()
+        # and Postgres's jsonb_array_elements are unrelated functions), so
+        # this is flattened and counted in Python instead, matching how
+        # _output_signals elsewhere in this file already prefers a plain
+        # Python aggregation over engine-specific SQL for the same reason.
+        from .models import Contribution, Project
+
+        rows = db.execute(
+            select(Project.technologies, Contribution.person_id)
+            .join(Contribution, Contribution.project_id == Project.id)
+        ).all()
+        by_tech: dict[str, set[str]] = {}
+        for techs, pid in rows:
+            for t in (techs or []):
+                t = str(t).strip()
+                if t:
+                    by_tech.setdefault(t, set()).add(pid)
+        values = sorted(
+            ({"value": t, "people": len(pids)} for t, pids in by_tech.items()),
+            key=lambda v: -v["people"],
+        )[:limit]
+        return {"field": field, "values": values}
     else:
-        raise HTTPException(422, "field must be country, source, organization, skill or role")
+        raise HTTPException(422, "field must be country, source, organization, skill, role or technology")
     return {"field": field, "values": [{"value": v, "people": n} for v, n in rows if v]}
 
 
@@ -615,66 +763,27 @@ def get_documents(person_id: str, db: Session = Depends(get_db)):
 @app.get("/v1/persons/{person_id}/graph")
 def get_graph(
     person_id: str,
-    depth: int = Query(1, ge=1, le=1, description="hops from the person (1 supported)"),
-    limit_coauthors: int = Query(20, le=100),
+    depth: int = Query(1, ge=1, le=3, description="co-author hops from the person (1-3)"),
+    limit_coauthors: int = Query(20, ge=1, le=100,
+                                 description="strongest collaborators followed per person"),
+    max_nodes: int = Query(200, ge=1, le=1000, description="stop adding people past this"),
     db: Session = Depends(get_db),
 ):
-    """Neighborhood of one person: organizations and co-authors.
+    """Neighborhood of one person: organizations, and co-authors out to DEPTH hops.
 
-    Co-authors are capped by shared-publication count purely to bound the
-    payload; the count is a factual edge weight, not a ranking of people.
+    Each person contributes at most LIMIT_COAUTHORS edges, their strongest by
+    shared publications, and the walk stops adding people at MAX_NODES
+    (`truncated` says when it did). Both caps bound the payload; the
+    shared-publication count is a factual edge weight, not a ranking of people.
+    Organizations are drawn for the person asked about only.
     """
+    from .graph import neighborhood
+
     person = db.get(Person, person_id)
     if person is None:
         raise HTTPException(404, "person not found")
-
-    nodes = [{"id": person.id, "type": "person", "label": person.canonical_name}]
-    edges = []
-
-    org_rows = db.execute(
-        select(Organization, Affiliation)
-        .join(Affiliation, Affiliation.organization_id == Organization.id)
-        .where(Affiliation.person_id == person_id)
-    ).all()
-    for org, aff in org_rows:
-        node_id = f"org-{org.id}"
-        if not any(n["id"] == node_id for n in nodes):
-            nodes.append({"id": node_id, "type": "organization", "label": org.name})
-        edges.append({
-            "from": person.id, "to": node_id, "type": aff.relation,
-            "role": aff.role, "is_current": aff.is_current,
-        })
-
-    my_pub_ids = [
-        pid for (pid,) in db.execute(
-            select(Authorship.publication_id).where(Authorship.person_id == person_id)
-        ).all()
-    ]
-    if my_pub_ids:
-        coauthor_rows = db.execute(
-            select(
-                Person.id, Person.canonical_name,
-                func.count(Authorship.publication_id).label("shared"),
-                func.min(Authorship.publication_id),
-            )
-            .join(Authorship, Authorship.person_id == Person.id)
-            .where(
-                Authorship.publication_id.in_(my_pub_ids),
-                Authorship.person_id != person_id,
-                Person.merged_into.is_(None),
-            )
-            .group_by(Person.id)
-            .order_by(func.count(Authorship.publication_id).desc())
-            .limit(limit_coauthors)
-        ).all()
-        for other_id, other_name, shared, via_pub in coauthor_rows:
-            nodes.append({"id": other_id, "type": "person", "label": other_name})
-            edges.append({
-                "from": person.id, "to": other_id, "type": "coauthor",
-                "shared_publications": shared, "via_publication_id": via_pub,
-            })
-
-    return {"person_id": person_id, "depth": depth, "nodes": nodes, "edges": edges}
+    return neighborhood(db, person, depth=depth, limit_coauthors=limit_coauthors,
+                        max_nodes=max_nodes)
 
 
 @app.get("/v1/persons/{person_id}/conflicts")
@@ -844,31 +953,46 @@ def nl_query(
     worker ingests them later. Neither mode ingests during the request.
     Suggestions are not results and are not ranked.
     """
-    from .nlq import count_matches, diagnose_empty, execute, has_filters, parse
+    from .nlq import (query_understanding, count_matches, diagnose_empty, execute,
+                      execute_progressive, has_filters, parse)
 
     # tolerate direct calls (tests) where FastAPI has not resolved the params
     limit = limit if isinstance(limit, int) else 0
     offset = offset if isinstance(offset, int) else 0
-    parsed = parse(db, q)
+    asked = parse(db, q)
     if limit:
-        parsed.limit = limit
-    parsed.offset = offset
-    persons = execute(db, parsed)
-    matched_nothing = not has_filters(parsed)
-    total = count_matches(db, parsed)
+        asked.limit = limit
+    asked.offset = offset
+    persons, parsed, not_found = execute_progressive(db, asked)
+    matched_nothing = not has_filters(asked)
+    total = count_matches(db, parsed) if has_filters(parsed) else 0
+    # Per-person evidence/affiliation cache, shared across every
+    # build_results() call in this request — not just within one call. When
+    # live discovery fires, execute_progressive() re-runs and build_results()
+    # is called a second time; most person ids overlap with the first call
+    # (the same corpus matches, now alongside anyone newly stored), and
+    # re-querying their evidence/affiliations is pure duplicate work — an
+    # EXISTING person's evidence/affiliations do not change mid-request,
+    # only new people are ingested by discovery. Keyed on person_id so the
+    # second call only queries the delta (new/extra people), not everyone.
+    _attr_cache: dict = {}
+    _org_cache: dict = {}
+
     def build_results(rows):
         """Summaries plus a small evidence-count attribute sample per person."""
         ids = [r.id for r in rows]
-        attr_map: dict = {pid: {} for pid in ids}
-        org_map: dict = {pid: [] for pid in ids}
-        if ids:
+        new_ids = [pid for pid in ids if pid not in _attr_cache]
+        for pid in new_ids:
+            _attr_cache[pid] = {}
+            _org_cache[pid] = []
+        if new_ids:
             for pid, at, val, src in db.execute(
                 select(Evidence.person_id, Evidence.attribute_type, Evidence.value,
                        Evidence.source)
-                .where(Evidence.person_id.in_(ids),
+                .where(Evidence.person_id.in_(new_ids),
                        Evidence.attribute_type.in_(["skill", "research_interest"]))
             ).all():
-                entry = attr_map[pid].setdefault(
+                entry = _attr_cache[pid].setdefault(
                     (at, val),
                     {"attribute_type": at, "value": val, "evidence_count": 0, "sources": set()},
                 )
@@ -878,10 +1002,10 @@ def nl_query(
             for pid, org_name in db.execute(
                 select(Affiliation.person_id, Organization.name)
                 .join(Organization, Organization.id == Affiliation.organization_id)
-                .where(Affiliation.person_id.in_(ids))
+                .where(Affiliation.person_id.in_(new_ids))
             ).all():
-                if org_name not in org_map[pid]:
-                    org_map[pid].append(org_name)
+                if org_name not in _org_cache[pid]:
+                    _org_cache[pid].append(org_name)
 
         wanted_orgs = {o.lower() for o in parsed.organizations}
         out = []
@@ -889,10 +1013,10 @@ def nl_query(
             summary = _person_summary(person)
             attrs = [
                 {**a, "sources": sorted(a["sources"])}
-                for a in attr_map.get(person.id, {}).values()
+                for a in _attr_cache.get(person.id, {}).values()
             ]
             summary["attributes"] = sorted(attrs, key=lambda a: -a["evidence_count"])[:6]
-            summary["organizations"] = org_map.get(person.id, [])
+            summary["organizations"] = _org_cache.get(person.id, [])
             # the affiliation that satisfied the org filter — often NOT the
             # current one, so showing only current_organization looks wrong
             summary["matched_organization"] = next(
@@ -900,6 +1024,11 @@ def nl_query(
             )
             # Why this person ranks where they do. A score with no breakdown is
             # an assertion; the components name the evidence behind it.
+            # a partial match says which constraints it does not meet
+            partial = getattr(person, "partial_match", None)
+            summary["match"] = "partial" if partial else "full"
+            if partial:
+                summary["missing"] = partial["missing"]
             relevance = getattr(person, "relevance", None)
             if relevance:
                 summary["score"] = relevance.get("score")
@@ -922,7 +1051,15 @@ def nl_query(
             "limit": parsed.limit,
             "offset": parsed.offset,
         },
+        "applied_clauses": [
+            {"term": c["token"], "as": c["label"]} for c in (parsed.clause_order or [])
+        ],
+        "not_found": not_found,
         "unmatched_terms": parsed.unmatched_terms,
+        # asked to select people by gender, religion, age, ...: never applied
+        "protected_terms": parsed.protected_terms,
+        # "not at Google", "both X and Y", "at least 20 papers"
+        **query_understanding(parsed),
         # what we searched for instead of what was typed, so a corrected
         # query never silently answers a different question
         "corrections": parsed.corrections,
@@ -948,8 +1085,19 @@ def nl_query(
         # alone was the old test, and it quietly stopped firing as the graph
         # grew — at 50,000 people almost every query returns something, so the
         # corpus stopped growing from searches exactly when it looked healthy.
+        #
+        # "Thin" is judged relative to how constrained the query was, not
+        # against one flat number. A query with several applied filters is
+        # SUPPOSED to return a short, precise list — "5 filters, 4 results" is
+        # a correct, specific answer, not a weak one, and treating it as thin
+        # sent every precise query through a live-search round trip it didn't
+        # need. Each extra applied constraint halves what counts as thin
+        # enough to top up, down to a floor of 1 (still worth going live if
+        # even a tightly-filtered query comes back completely empty-handed
+        # after one match — but 2+ is left alone).
         "discover_available": bool(
-            not persons or parsed.unmatched_terms or len(persons) < THIN_ANSWER
+            not persons or asked.unmatched_terms or not_found
+            or len(persons) < max(1, THIN_ANSWER >> max(0, _applied_filter_count(parsed) - 1))
         ),
         # on the deployed read-only snapshot a live search still answers the
         # question, but nothing it finds can be kept — say so rather than
@@ -991,11 +1139,29 @@ def nl_query(
             from .nlq import invalidate_vocab
 
             invalidate_vocab()  # the cache predates the people we just stored
-            parsed = parse(db, q)
+            # A "stored" suggestion is not always a brand-new person:
+            # ingest_profile() runs identity resolution, which can attach a
+            # freshly-discovered profile's evidence to someone who ALREADY
+            # existed in the corpus (and so may already be sitting in
+            # _attr_cache/_org_cache from the FIRST build_results() call
+            # above). Evict exactly those ids before the second call, so the
+            # cache-reuse optimization only ever skips a query for someone
+            # whose evidence provably did not change in between — never for
+            # someone discovery may have just added to.
+            for s_ in suggestions:
+                touched_pid = s_.get("person_id")
+                if touched_pid:
+                    _attr_cache.pop(touched_pid, None)
+                    _org_cache.pop(touched_pid, None)
+            asked = parse(db, q)
             if limit:
-                parsed.limit = limit
-            parsed.offset = offset
-            persons = execute(db, parsed)
+                asked.limit = limit
+            asked.offset = offset
+            persons, parsed, not_found = execute_progressive(db, asked)
+            response["not_found"] = not_found
+            response["applied_clauses"] = [
+                {"term": c["token"], "as": c["label"]} for c in (parsed.clause_order or [])
+            ]
             # People the live provider returned FOR THIS QUERY are answers in
             # their own right. The corpus filter can only express what the
             # corpus already knows, so a freshly fetched person often fails it
@@ -1028,6 +1194,8 @@ def nl_query(
             # matching" — a row on screen that the total said did not exist.
             response["total_matches"] = max(count_matches(db, parsed), len(persons))
             response["unmatched_terms"] = parsed.unmatched_terms
+            response["protected_terms"] = parsed.protected_terms
+            response.update(query_understanding(parsed))
             response["applied_filters"] = {
                 "skills": parsed.skills, "skill_patterns": parsed.skill_patterns,
                 "organizations": parsed.organizations, "locations": parsed.locations,
@@ -1241,16 +1409,64 @@ def person_dossier(person_id: str, db: Session = Depends(get_db)):
     return HTMLResponse(render_html(collect(db, person)))
 
 
+def _find_chrome_binary() -> str | None:
+    """Locate a Chromium-based browser for headless PDF rendering, across
+    platforms.
+
+    The original path list here was Mac/Linux only (/Applications/...,
+    /usr/bin/...) — on Windows this endpoint answered 501 unconditionally,
+    regardless of whether a browser was actually installed, because none of
+    the hardcoded paths could ever match. Microsoft Edge is included
+    specifically for Windows: it is Chromium-based, supports the same
+    --headless --print-to-pdf flags Chrome does, and ships pre-installed on
+    every modern Windows system — so this works out of the box there even
+    without a separate Chrome install.
+    """
+    if os.environ.get("CHROME_BINARY"):
+        return os.environ["CHROME_BINARY"]
+
+    # Bare command names first: catches anything already on PATH, on any
+    # platform, without guessing an install location at all.
+    for name in ("google-chrome", "google-chrome-stable", "chromium",
+                 "chromium-browser", "chrome", "msedge", "microsoft-edge"):
+        found = shutil.which(name)
+        if found:
+            return found
+
+    program_files = os.environ.get("ProgramFiles", r"C:\Program Files")
+    program_files_x86 = os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")
+    local_app_data = os.environ.get("LocalAppData", "")
+    candidates = [
+        # macOS
+        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+        "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+        # Linux
+        "/usr/bin/google-chrome", "/usr/bin/google-chrome-stable",
+        "/usr/bin/chromium", "/usr/bin/chromium-browser",
+        "/usr/bin/microsoft-edge", "/usr/bin/microsoft-edge-stable",
+        # Windows — both Program Files locations (installers vary), plus a
+        # per-user AppData install that needs no admin rights to have made
+        os.path.join(program_files, "Google", "Chrome", "Application", "chrome.exe"),
+        os.path.join(program_files_x86, "Google", "Chrome", "Application", "chrome.exe"),
+        os.path.join(local_app_data, "Google", "Chrome", "Application", "chrome.exe"),
+        os.path.join(program_files, "Microsoft", "Edge", "Application", "msedge.exe"),
+        os.path.join(program_files_x86, "Microsoft", "Edge", "Application", "msedge.exe"),
+    ]
+    for c in candidates:
+        if c and pathlib.Path(c).exists():
+            return c
+    return None
+
+
 @app.get("/v1/persons/{person_id}/dossier.pdf")
 def person_dossier_pdf(person_id: str, db: Session = Depends(get_db)):
     """The same dossier as a PDF.
 
-    Rendered by headless Chrome, which is how the screener produces its
-    reports too. Chrome is not in the container image, so this answers 501
-    where it is missing rather than failing obscurely — the HTML above always
-    works, and a browser can print it.
+    Rendered by headless Chrome (or Edge — see _find_chrome_binary), which
+    is how the screener produces its reports too. Answers 501 when no
+    Chromium-based browser can be found rather than failing obscurely — the
+    HTML dossier above always works regardless, and a browser can print it.
     """
-    import shutil
     import subprocess
     import tempfile
 
@@ -1262,11 +1478,7 @@ def person_dossier_pdf(person_id: str, db: Session = Depends(get_db)):
     if person is None or person.merged_into:
         raise HTTPException(404, "no such person")
 
-    chrome = os.environ.get("CHROME_BINARY") or next(
-        (c for c in (
-            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-            "/usr/bin/google-chrome", "/usr/bin/chromium", "/usr/bin/chromium-browser",
-        ) if shutil.which(c) or pathlib.Path(c).exists()), None)
+    chrome = _find_chrome_binary()
     if not chrome:
         raise HTTPException(501, "no Chrome available to render a PDF; use the "
                                  "HTML dossier at /dossier and print it")
@@ -1341,8 +1553,8 @@ def query_stream(
 
     from starlette.responses import StreamingResponse
 
-    from .nlq import (SUGGESTION_SEARCHERS, discovery_suggestions, execute,
-                      parse, relevance_scores)
+    from .nlq import (query_understanding, discovery_suggestions, enabled_searchers, execute,
+                      execute_progressive, parse, relevance_scores)
 
     events: "_queue.Queue[dict | None]" = _queue.Queue()
 
@@ -1356,7 +1568,11 @@ def query_stream(
                 "skills": parsed.skills, "organizations": parsed.organizations,
                 "locations": parsed.locations, "countries": parsed.countries,
                 "roles": parsed.roles, "name_terms": parsed.name_terms,
-            }, "unmatched_terms": parsed.unmatched_terms,
+            }, "applied_clauses": [
+                {"term": c["token"], "as": c["label"]} for c in (parsed.clause_order or [])
+            ], "unmatched_terms": parsed.unmatched_terms,
+                "protected_terms": parsed.protected_terms,
+                **query_understanding(parsed),
                 "corrections": parsed.corrections})
 
             def on_source(name, state, **facts):
@@ -1372,7 +1588,8 @@ def query_stream(
                 parsed = parse(session, q)
                 if limit:
                     parsed.limit = limit
-            persons = execute(session, parsed)
+            persons, applied, not_found = execute_progressive(session, parsed)
+            parsed = applied
             # People a live source just returned are answers in their own
             # right. The corpus filter can only express what the corpus
             # already knows, so someone fetched seconds ago usually fails it —
@@ -1411,6 +1628,7 @@ def query_stream(
                 "type": "results",
                 "count": len(rows),
                 "stored_from_live": stored,
+                "not_found": not_found,
                 "results": rows,
             })
         except Exception as exc:                     # the stream must always end
@@ -1426,7 +1644,7 @@ def query_stream(
         # out at once rather than popping them in one at a time
         yield "data: " + _json.dumps({
             "type": "plan",
-            "sources": [name for name, _fn, _full in SUGGESTION_SEARCHERS],
+            "sources": [name for name, _fn, _full in enabled_searchers()],
         }) + "\n\n"
         while True:
             item = events.get()

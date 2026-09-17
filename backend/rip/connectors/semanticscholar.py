@@ -22,6 +22,9 @@ API = "https://api.semanticscholar.org/graph/v1"
 AUTHOR_FIELDS = "name,affiliations,homepage,externalIds,paperCount,citationCount,hIndex"
 PAPER_FIELDS = "title,year,venue,externalIds,citationCount,authors"
 MAX_PAPERS = 50
+# On a paper with more authors than this, being one of them says little about
+# working on its subject (see OpenAlexConnector.search_authors_by_topic).
+MAX_TOPIC_TEAM = 15
 
 
 class SemanticScholarConnector(BaseConnector):
@@ -51,6 +54,38 @@ class SemanticScholarConnector(BaseConnector):
             }
             for a in data.get("data") or []
         ]
+
+    def search_authors_by_topic(self, topic: str, limit: int = 10) -> list[dict]:
+        """Authors of papers on TOPIC, most papers on it first.
+
+        One request: paper search returns author ids and names inline. The
+        shared unauthenticated pool answers this with 429s more often than
+        not, so the live search only asks when SEMANTIC_SCHOLAR_API_KEY is set
+        (a free key, requested at semanticscholar.org/product/api).
+        """
+        data = self.get_json(
+            f"{API}/paper/search",
+            params={"query": topic, "fields": "authors,citationCount",
+                    "limit": min(100, max(10, limit * 5))},
+        )
+        found: dict[str, dict] = {}
+        order: list[str] = []
+        for paper in data.get("data") or []:
+            authors = paper.get("authors") or []
+            if len(authors) > MAX_TOPIC_TEAM:
+                continue
+            for a in authors:
+                aid, name = a.get("authorId"), a.get("name")
+                if not aid or not name:
+                    continue
+                if aid not in found:
+                    found[aid] = {"id": str(aid), "name": name, "affiliations": [],
+                                  "papers": None, "citations": None, "on_topic": 0}
+                    order.append(aid)
+                found[aid]["on_topic"] += 1
+        # stable: equal counts keep search-relevance order
+        ranked = sorted(order, key=lambda aid: -found[aid]["on_topic"])
+        return [found[aid] for aid in ranked[:limit]]
 
     def fetch(self, identifier: str) -> NormalizedProfile:
         author_id = identifier.rstrip("/").rsplit("/", 1)[-1]

@@ -17,7 +17,20 @@ from ..normalize import (
     OrgAffiliation,
     PublicationData,
 )
+from ..textnorm import contains_phrase, words
 from .base import BaseConnector
+
+
+def _names_self(keyword: str, names: list[str]) -> bool:
+    """Is this keyword the person advertising their own name?
+
+    ORCID keywords are free text, and some records use them for search-engine
+    visibility: "Rahul Kumar ceo", "Rahul Gupta Helping People". Stored as
+    research interests, every such phrase became subject vocabulary, and a
+    search for "Rahul Mulajkar" read "Rahul" as a subject.
+    """
+    kw = words(keyword)
+    return any(len(name) >= 2 and contains_phrase(kw, name) for name in names)
 
 API = "https://pub.orcid.org/v3.0"
 
@@ -45,6 +58,31 @@ class OrcidConnector(BaseConnector):
         headers["Accept"] = "application/json"
         return headers
 
+    def search_authors(self, name: str, limit: int = 10) -> list[dict]:
+        """Public expanded-search: ORCID iDs for a name, no key required."""
+        q = (name or "").strip()
+        if not q:
+            return []
+        data = self.get_json(
+            f"{API}/expanded-search/",
+            params={"q": q, "rows": max(1, min(int(limit), 50))},
+        )
+        out = []
+        for row in data.get("expanded-result") or []:
+            orcid = (row.get("orcid-id") or "").strip()
+            if not orcid:
+                continue
+            given = (row.get("given-names") or "").strip()
+            family = (row.get("family-names") or "").strip()
+            out.append({
+                "id": orcid,
+                "name": " ".join(p for p in (given, family) if p) or None,
+                "affiliation": (row.get("institution-name") or [None])[0],
+            })
+            if len(out) >= limit:
+                break
+        return out
+
     def fetch(self, identifier: str) -> NormalizedProfile:
         orcid_id = identifier.rstrip("/").rsplit("/", 1)[-1].upper()
         record = self.get_json(f"{API}/{orcid_id}/record")
@@ -69,6 +107,11 @@ class OrcidConnector(BaseConnector):
             if o.get("content")
         ]
 
+        # the name in either order, and any other name they list for themselves.
+        # Given + family as well as the credit name, which is sometimes a
+        # headline of its own ("Rahul Gupta - Humanitarian • Social Worker").
+        own_names = [words(n) for n in (name, f"{given} {family}", f"{family} {given}", *aliases)
+                     if n and n.strip()]
         evidence = [
             EvidenceItem(
                 attribute_type="research_interest",
@@ -78,7 +121,7 @@ class OrcidConnector(BaseConnector):
                 confidence=0.5,
             )
             for k in ((person.get("keywords") or {}).get("keyword") or [])
-            if k.get("content")
+            if k.get("content") and not _names_self(k["content"], own_names)
         ]
 
         websites = [

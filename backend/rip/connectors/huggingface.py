@@ -21,6 +21,48 @@ class HuggingFaceConnector(BaseConnector):
     source_type = "ml_hub"
     min_request_interval = 0.5
 
+    def search_users(self, name: str, limit: int = 10) -> list[dict]:
+        """Hub user search. Falls back to model authors if quicksearch is empty."""
+        q = (name or "").strip()
+        if len(q) < 2:
+            return []
+        try:
+            rows = self.get_json(f"{API}/quicksearch", params={"q": q, "type": "user"})
+        except Exception:
+            rows = []
+        if not isinstance(rows, list):
+            rows = (rows or {}).get("users") or (rows or {}).get("results") or []
+        out = []
+        seen: set[str] = set()
+        for row in rows:
+            user = (row.get("id") or row.get("user") or row.get("name") or "").strip()
+            if not user or user in seen:
+                continue
+            seen.add(user)
+            out.append({"id": user, "name": row.get("fullname") or row.get("name") or user})
+            if len(out) >= limit:
+                return out
+        if out:
+            return out
+        try:
+            models = self.get_json(
+                f"{API}/models",
+                params={"search": q, "limit": max(limit * 3, 12), "sort": "likes", "direction": -1},
+            )
+        except Exception:
+            return []
+        if not isinstance(models, list):
+            models = []
+        for m in models:
+            user = ((m.get("id") or "").split("/")[0] if "/" in (m.get("id") or "") else "") or ""
+            if not user or user in seen:
+                continue
+            seen.add(user)
+            out.append({"id": user, "name": user})
+            if len(out) >= limit:
+                break
+        return out
+
     def fetch(self, identifier: str) -> NormalizedProfile:
         username = identifier.rstrip("/").rsplit("/", 1)[-1]
         overview = self.get_json(f"{API}/users/{username}/overview")

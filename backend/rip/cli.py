@@ -83,16 +83,71 @@ def cmd_search_s2(args) -> None:
     print(json.dumps(SemanticScholarConnector().search_authors(args.name), indent=2))
 
 
+def _in_processes(command: str, args) -> bool:
+    """Run COMMAND in `args.processes` worker processes. False when asked for one.
+
+    Separate processes, not threads: ingest is Python work between network
+    waits, and a thread pool would serialise it on the interpreter lock. Each
+    child opens its own database connection and marks itself one of N, which
+    widens its request spacing N times over (connectors.base.worker_processes)
+    so the fleet stays exactly as polite to every source as a single worker.
+    """
+    import multiprocessing
+    import os
+
+    processes = getattr(args, "processes", 1) or 1
+    if processes <= 1 or getattr(args, "shard", None) is not None:
+        return False
+    os.environ["RIP_WORKER_PROCESSES"] = str(processes)
+    # migrate and index once, here: N children each running ALTER TABLE or an
+    # index rebuild against one database at the same moment would race
+    init_db()
+    context = multiprocessing.get_context("spawn")
+    children = [
+        context.Process(target=_child, args=(command, vars(args), i, processes),
+                        name=f"rip-{command}-{i}")
+        for i in range(processes)
+    ]
+    print(f"{command}: {processes} processes", flush=True)
+    for child in children:
+        child.start()
+    try:
+        for child in children:
+            child.join()
+    except KeyboardInterrupt:
+        # every child got the same interrupt and is finishing its batch
+        for child in children:
+            child.join()
+    code = max((child.exitcode or 0) for child in children)
+    if code:
+        sys.exit(code)
+    return True
+
+
+def _child(command: str, arg_dict: dict, index: int, total: int) -> None:
+    """One worker process: the same command, on its share of the work."""
+    args = argparse.Namespace(**{**arg_dict, "processes": 1, "shard": (index, total)})
+    if command == "ingest-leads":
+        # --limit is the total asked for, not a quota per process
+        args.limit = -(-args.limit // total)
+    {"refresh": cmd_refresh, "ingest-leads": cmd_ingest_leads, "worker": cmd_worker}[command](args)
+
+
 def cmd_refresh(args) -> None:
     """Re-fetch source records not observed recently (run from cron for freshness)."""
+    if _in_processes("refresh", args):
+        return
     init_db()
     cutoff = datetime.now(timezone.utc) - timedelta(hours=args.older_than_hours)
     with SessionLocal() as session:
-        stale = (
-            session.execute(select(SourceRecord).where(SourceRecord.last_observed < cutoff))
-            .scalars()
-            .all()
-        )
+        stmt = select(SourceRecord).where(SourceRecord.last_observed < cutoff)
+        shard = getattr(args, "shard", None)
+        if shard is not None:
+            # records split by id across processes: every stale record is
+            # refreshed by exactly one of them
+            index, total = shard
+            stmt = stmt.where(SourceRecord.id % total == index)
+        stale = session.execute(stmt).scalars().all()
         print(f"{len(stale)} stale source records")
         connectors = {}
         failures = 0
@@ -131,6 +186,8 @@ def cmd_discover(args) -> None:
 def cmd_ingest_leads(args) -> None:
     from .discover import drain_leads
 
+    if _in_processes("ingest-leads", args):
+        return
     warn_missing_tokens(enriching=not getattr(args, 'no_enrich', False))
 
     init_db()
@@ -144,13 +201,52 @@ def cmd_ingest_leads(args) -> None:
             sys.exit(1)
 
 
+def cmd_review_triage(session, triage, yes: bool) -> None:
+    """Judge the review queue on evidence and report it in plain language."""
+    from collections import Counter
+
+    out = triage(session, apply=yes)
+    total = sum(len(v) for v in out.values())
+    print(f"{total} pairs were waiting for a human\n")
+    labels = {
+        "stale": "answered already (one side merged away or removed)",
+        "rejected": "two different people, on the evidence",
+        "deferred": "nothing to decide: no shared paper, co-author or organization",
+        "merged": "proven the same person",
+        "pending": "left for you: real evidence, short of proof",
+    }
+    for bucket, label in labels.items():
+        rows = out[bucket]
+        if not rows:
+            continue
+        print(f"  {len(rows):4d}  {label}")
+        for reason, n in Counter(r["reason"] for r in rows).most_common(4):
+            print(f"          {n:4d}  {reason}")
+    for bucket, header in (("merged", "merged"), ("pending", "still yours to decide")):
+        if out[bucket]:
+            print(f"\n  {header}:")
+            for r in out[bucket][:20]:
+                a, b = r.get("names", ["?", "?"])
+                print(f"    #{r['candidate_id']:<5} {a!r} / {b!r}  {r['reason']}")
+            if len(out[bucket]) > 20:
+                print(f"    ... and {len(out[bucket]) - 20} more")
+    if yes:
+        print(f"\ndone: {len(out['merged'])} merged, {len(out['rejected'])} rejected, "
+              f"{len(out['deferred'])} deferred, {len(out['pending'])} left pending "
+              f"(every merge is reversible: rip.cli review split <link_id>)")
+    else:
+        print("\nnothing written. re-run with --yes to carry this out")
+
+
 def cmd_review(args) -> None:
-    from .review import approve_link, list_suspicious, resolve_duplicate, split_link
+    from .review import approve_link, list_suspicious, resolve_duplicate, split_link, triage
 
     init_db()
     with SessionLocal() as session:
         if args.action == "list":
             print(json.dumps(list_suspicious(session), indent=2, default=str))
+        elif args.action == "triage":
+            cmd_review_triage(session, triage, args.yes)
         elif args.action == "approve":
             link = approve_link(session, args.link_id)
             print(f"link {link.id} approved")
@@ -344,7 +440,7 @@ def cmd_queue_stats(args) -> None:
         for source, n in sorted(pending_by_source.items(), key=lambda kv: -kv[1]):
             print(f"  {source:16} {n:>8,}")
         print(f"  {'TOTAL':16} {total_pending:>8,}")
-        for status in ("ingested", "error", "skipped"):
+        for status in ("claimed", "ingested", "error", "skipped"):
             n = sum(c for _, st, c in rows if st == status)
             if n:
                 print(f"{status}: {n:,}")
@@ -370,38 +466,84 @@ def cmd_purge_nonpersons(args) -> None:
     look like a surname. New ones are rejected at ingest; this clears the ones
     that arrived before that guard existed.
     """
+    from collections import defaultdict
+
     from sqlalchemy import delete, select
 
     from . import models as M
     from .db import SessionLocal
-    from .nlq import _looks_like_a_person
+    from .personhood import assess
+    from .resolution import sync_name_tokens
 
     session = SessionLocal()
     rows = session.execute(
         select(M.Person.id, M.Person.canonical_name).where(M.Person.merged_into.is_(None))
     ).all()
-    doomed = [(i, n) for i, n in rows if not _looks_like_a_person(n)]
+    sources: dict[str, set] = defaultdict(set)
+    for pid, src in session.execute(
+        select(M.IdentityLink.person_id, M.SourceRecord.source)
+        .join(M.SourceRecord, M.SourceRecord.id == M.IdentityLink.source_record_id)
+    ).all():
+        sources[pid].add(src)
+
+    doomed, renames = [], []
+    for pid, name in rows:
+        # judged as a page title only when every record behind it is a page
+        kind = "web" if sources.get(pid) == {"web"} else next(iter(sources.get(pid) or {None}))
+        verdict = assess(name, kind)
+        if not verdict.is_person:
+            doomed.append((pid, name, verdict.reason))
+        elif verdict.name and verdict.name != name:
+            renames.append((pid, name, verdict.name, verdict.aliases))
+
     print(f"{len(doomed)} of {len(rows)} records are not people")
-    for _, name in doomed[:20]:
-        print(f"   - {name[:70]}")
+    for _, name, reason in doomed[:20]:
+        print(f"   - {name[:70]}  ({reason})")
     if len(doomed) > 20:
         print(f"   ... and {len(doomed) - 20} more")
-    if not doomed:
+    print(f"{len(renames)} names are page titles or carry decoration, and would be cleaned")
+    for _, old, new, _ in renames[:20]:
+        print(f"   ~ {old[:55]!r} -> {new!r}")
+    if len(renames) > 20:
+        print(f"   ... and {len(renames) - 20} more")
+    if not doomed and not renames:
         return
     if not getattr(args, "yes", False):
-        print("\nre-run with --yes to delete them")
+        print("\nre-run with --yes to delete and rename them")
         return
-    ids = [i for i, _ in doomed]
+
+    for pid, old, new, aliases in renames:
+        person = session.get(M.Person, pid)
+        person.canonical_name = new
+        # "Rahul M Mulajkar,Rahul Mukundrao Mulajkar,RMM" keeps its other
+        # spellings as aliases, as the same name does at ingest
+        extra = [a for a in aliases if a not in (person.aliases or []) and a != new]
+        if extra:
+            person.aliases = [*(person.aliases or []), *extra]
+        session.add(M.ChangeLog(person_id=pid, field="canonical_name",
+                                old_value=old, new_value=new))
+        sync_name_tokens(session, person)
+    session.commit()      # the search index re-indexes renamed people here
+    print(f"  renamed: {len(renames)}")
+    if not doomed:
+        return
+
+    ids = [i for i, _, _ in doomed]
     for name in ("Affiliation", "AttributeConflict", "Authorship", "ChangeLog",
                  "Contribution", "Evidence", "IdentityLink", "MergeCandidate",
-                 "PersonKey", "PersonNameToken"):
-        model = getattr(M, name, None)
+                 "PersonKey", "PersonNameToken", "SearchTerm", "SearchDoc",
+                 "ShortlistMember", "MatchFeedback"):
+        from . import search_index as SI
+
+        model = getattr(M, name, None) or getattr(SI, name, None)
         col = getattr(model, "person_id", None) if model else None
         if col is None:
             continue
         n = session.execute(delete(model).where(col.in_(ids))).rowcount
         if n:
             print(f"  {model.__tablename__}: {n}")
+    # the other side of a proposed duplicate pair points at them too
+    session.execute(delete(M.MergeCandidate).where(M.MergeCandidate.candidate_person_id.in_(ids)))
     print(f"  person: {session.execute(delete(M.Person).where(M.Person.id.in_(ids))).rowcount}")
     session.commit()
 
@@ -442,6 +584,7 @@ def cmd_merge_orgs(args) -> None:
         ) or 0
 
     merged = 0
+    touched: set[str] = set()
     for orgs in dupes.values():
         # Keep the spelling most sources used. Longest-name lost "Google" to
         # "Google Inc.", which is not what anyone calls it.
@@ -449,6 +592,9 @@ def cmd_merge_orgs(args) -> None:
         for other in orgs:
             if other.id == keeper.id:
                 continue
+            touched.update(session.execute(
+                select(Affiliation.person_id).where(Affiliation.organization_id == other.id)
+            ).scalars())
             session.execute(
                 update(Affiliation)
                 .where(Affiliation.organization_id == other.id)
@@ -456,8 +602,95 @@ def cmd_merge_orgs(args) -> None:
             )
             session.execute(delete(Organization).where(Organization.id == other.id))
             merged += 1
+    # a bulk UPDATE bypasses the ORM hooks that keep the search index current
+    from .search_index import index_people
+
+    index_people(session, touched)
     session.commit()
     print(f"merged {merged} duplicate organization records")
+
+
+def cmd_dedupe(args) -> None:
+    """Merge people stored more than once — only where evidence proves it."""
+    from sqlalchemy import select
+
+    from . import dedupe
+    from .db import SessionLocal
+    from .models import IdentityLink, Person, SourceRecord
+
+    session = SessionLocal()
+
+    def label(pid: str) -> str:
+        person = session.get(Person, pid)
+        sources = session.execute(
+            select(SourceRecord.source, SourceRecord.external_id)
+            .join(IdentityLink, IdentityLink.source_record_id == SourceRecord.id)
+            .where(IdentityLink.person_id == pid)
+        ).all()
+        return f"{person.canonical_name} [{', '.join(f'{s}:{e}' for s, e in sources)}]"
+
+    planned = dedupe.plan(session)
+    print(f"examined {planned.groups_examined} names held by more than one record")
+    print(f"{len(planned.merges)} proven duplicates would be merged")
+    for keep, gone, j in planned.merges:
+        print(f"   + {label(gone)}\n       into {label(keep)}\n       ({j.reason})")
+    print(f"{len(planned.reviews)} possible duplicates would be queued for review")
+    for a, b, j in planned.reviews[:15]:
+        print(f"   ? {label(a)}  ~  {label(b)}\n       ({j.reason})")
+    if len(planned.reviews) > 15:
+        print(f"   ... and {len(planned.reviews) - 15} more")
+    if not (planned.merges or planned.reviews):
+        return
+    if not getattr(args, "yes", False):
+        print("\nre-run with --yes to merge and queue them "
+              "(every merge is reversible: rip.cli review split <link_id>)")
+        return
+    merged, queued = dedupe.apply(session, planned)
+    # A merge pools evidence, which can surface new review pairs (or, rarely,
+    # new proof). Re-plan until nothing changes; bounded, since every merge
+    # removes a record.
+    for _ in range(5):
+        again = dedupe.plan(session)
+        if not (again.merges or again.reviews):
+            break
+        m, q = dedupe.apply(session, again)
+        merged, queued = merged + m, queued + q
+        if not (m or q):
+            break
+    print(f"merged {merged}; queued {queued} for review (rip.cli review list)")
+
+
+def cmd_reindex(args) -> None:
+    """Rebuild the search index from the tables (no network)."""
+    import time
+
+    from .db import SessionLocal
+    from .search_index import rebuild
+
+    session = SessionLocal()
+    started = time.monotonic()
+
+    def progress(done: int, total: int) -> None:
+        print(f"  ...{done}/{total}", flush=True)
+
+    n = rebuild(session, batch=args.batch, progress=progress)
+    print(f"indexed {n} people in {time.monotonic() - started:.1f}s")
+    # Name blocking keys too: they change when name handling does (spelling
+    # groups), and a person ingested before that would not block with a new
+    # record spelling their name the other way.
+    from sqlalchemy import select as _select
+
+    from .models import Person
+    from .resolution import sync_name_tokens
+
+    synced = 0
+    for person in session.execute(
+        _select(Person).where(Person.merged_into.is_(None))
+    ).scalars():
+        sync_name_tokens(session, person)
+        synced += 1
+    session.commit()
+    print(f"name blocking keys refreshed for {synced} people")
 
 
 def cmd_audit_protected(args) -> None:
@@ -545,6 +778,8 @@ def cmd_worker(args) -> None:
     """Drain the discovery-lead queue continuously."""
     import time
 
+    if _in_processes("worker", args):
+        return
     from .discover import drain_leads
 
     init_db()
@@ -664,6 +899,8 @@ def main() -> None:
 
     p_refresh = sub.add_parser("refresh", help="re-fetch stale source records")
     p_refresh.add_argument("--older-than-hours", type=float, default=24.0)
+    p_refresh.add_argument("--processes", type=int, default=1,
+                           help="refresh in N processes, each on its share of the records")
 
     p_discover = sub.add_parser("discover", help="mine stored records for new people (leads)")
     p_discover.add_argument(
@@ -676,12 +913,19 @@ def main() -> None:
     p_leads.add_argument("--limit", type=int, default=25)
     p_leads.add_argument("--source", default=None)
     p_leads.add_argument("--no-enrich", action="store_true")
+    p_leads.add_argument("--processes", type=int, default=1,
+                         help="drain in N processes; each claims its own leads")
 
     p_review = sub.add_parser("review", help="review suspicious merges and duplicates")
-    p_review.add_argument("action", choices=["list", "approve", "split", "merge", "dismiss"])
+    p_review.add_argument(
+        "action", choices=["list", "triage", "approve", "split", "merge", "dismiss"])
     p_review.add_argument(
         "link_id", nargs="?", type=int,
         help="identity link id (approve/split) or merge-candidate id (merge/dismiss)",
+    )
+    p_review.add_argument(
+        "--yes", action="store_true",
+        help="triage: carry out the decisions instead of only reporting them",
     )
 
     p_reparse = sub.add_parser("reparse", help="re-normalize stored raw payloads (no network)")
@@ -734,12 +978,20 @@ def main() -> None:
                              help="remove index entities stored as people (labs, conferences)")
     p_purge.add_argument("--yes", action="store_true", help="actually delete; otherwise dry-run")
 
+    p_dedupe = sub.add_parser("dedupe", help="merge people stored twice, on evidence only")
+    p_dedupe.add_argument("--yes", action="store_true", help="actually merge; otherwise dry-run")
+
+    p_reindex = sub.add_parser("reindex", help="rebuild the search index from the tables")
+    p_reindex.add_argument("--batch", type=int, default=1000)
+
     p_worker = sub.add_parser("worker", help="continuously drain the discovery-lead queue")
     p_worker.add_argument("--poll-interval", type=float, default=30.0)
     p_worker.add_argument("--limit", type=int, default=25)
     p_worker.add_argument("--source", default=None)
     p_worker.add_argument("--no-enrich", action="store_true")
     p_worker.add_argument("--once", action="store_true", help="single pass then exit")
+    p_worker.add_argument("--processes", type=int, default=1,
+                          help="run N workers; --limit is each one's batch size")
 
     p_serve = sub.add_parser("serve", help="run the API and UI (full build)")
     p_serve.add_argument("--host", default="127.0.0.1",
@@ -784,6 +1036,10 @@ def main() -> None:
         cmd_check_db(args)
     elif args.command == "purge-nonpersons":
         cmd_purge_nonpersons(args)
+    elif args.command == "reindex":
+        cmd_reindex(args)
+    elif args.command == "dedupe":
+        cmd_dedupe(args)
     elif args.command == "audit-protected":
         cmd_audit_protected(args)
     elif args.command == "merge-orgs":

@@ -1,7 +1,14 @@
-"""Web page connector — fetches ONE public page (no spidering).
+"""Web page connector — a public homepage and a few pages it links to.
 
 Identifier: a URL. Used mainly by the enrichment chain to pick up a person's
 homepage from a GitHub blog field or a dblp/ORCID researcher URL.
+
+Not a crawler: besides the page itself, at most MAX_SUBPAGES pages on the
+same site are read, and only ones the page links to as About, CV,
+Publications or Research — where academic sites keep the ORCID, the CV link
+and the profile links a landing page often leaves out. Every page is checked
+against robots.txt, and subpages are fetched directly, never through a paid
+renderer.
 
 Extracts only what a page publishes about itself: title, JSON-LD Person /
 ProfilePage blocks, Open Graph metadata, emails the page displays, and links
@@ -35,6 +42,21 @@ ANCHOR_RE = re.compile(r"<a\b[^>]*href=[\"']([^\"']+)[\"'][^>]*>(.*?)</a>", re.S
 ORCID_RE = re.compile(r"\b(\d{4}-\d{4}-\d{4}-\d{3}[\dX])\b")
 TAG_RE = re.compile(r"<[^>]+>")
 MAX_HTML = 400_000
+MAX_SUBPAGES = int(os.environ.get("RIP_WEB_MAX_SUBPAGES", "3"))
+# What a subpage is called, in its link text or its last path segment, most
+# useful first. Whole labels only: "About this dataset" is not an About page.
+SUBPAGE_KINDS = (
+    ("about", re.compile(r"^\s*(about(\s+me)?|bio(graphy)?)\s*$", re.I),
+     re.compile(r"^(about|about-me|bio|biography)$", re.I)),
+    ("cv", re.compile(r"^\s*(cv|curriculum\s+vitae|r[eé]sum[eé])\s*$", re.I),
+     re.compile(r"^(cv|vita|resume|curriculum-vitae)$", re.I)),
+    ("publications", re.compile(r"^\s*(publications?|papers|selected\s+publications)\s*$", re.I),
+     re.compile(r"^(publications?|papers|pubs)$", re.I)),
+    ("research", re.compile(r"^\s*research(\s+interests)?\s*$", re.I),
+     re.compile(r"^research$", re.I)),
+)
+NOT_A_PAGE = (".pdf", ".doc", ".docx", ".ps", ".gz", ".zip", ".png", ".jpg", ".jpeg",
+              ".gif", ".svg", ".bib", ".tex", ".ppt", ".pptx")
 
 logger = logging.getLogger("rip.connectors.web")
 
@@ -46,14 +68,22 @@ class WebConnector(BaseConnector):
 
     def _robots_allows(self, url: str) -> bool:
         parsed = urlparse(url)
-        robots_url = f"{parsed.scheme}://{parsed.netloc}/robots.txt"
-        parser = urllib.robotparser.RobotFileParser()
-        try:
-            resp = self._client.get(robots_url, timeout=10.0)
-            if resp.status_code >= 400:
-                return True  # no robots.txt published -> crawling permitted
-            parser.parse(resp.text.splitlines())
-        except Exception:
+        site = f"{parsed.scheme}://{parsed.netloc}"
+        # one robots.txt per site per connector, not one per page
+        cache = self.__dict__.setdefault("_robots_cache", {})
+        if site not in cache:
+            parser = urllib.robotparser.RobotFileParser()
+            try:
+                resp = self._client.get(f"{site}/robots.txt", timeout=10.0)
+                if resp.status_code >= 400:
+                    parser = None  # no robots.txt published -> crawling permitted
+                else:
+                    parser.parse(resp.text.splitlines())
+            except Exception:
+                parser = None
+            cache[site] = parser
+        parser = cache[site]
+        if parser is None:
             return True
         return parser.can_fetch(self.default_headers()["User-Agent"], url)
 
@@ -66,7 +96,49 @@ class WebConnector(BaseConnector):
         if not self._robots_allows(url):
             raise PermissionError(f"robots.txt disallows fetching {url}")
         html = self._fetch_html(url)[:MAX_HTML]
-        return self.normalize(url, html)
+        pages = []
+        for sub_url in self.subpages(url, html):
+            if not self._robots_allows(sub_url):
+                continue
+            try:
+                sub_html = self.get_text(sub_url)
+            except Exception as exc:  # a missing subpage costs the page nothing
+                logger.info("subpage %s not fetched: %s", sub_url, exc)
+                continue
+            if sub_html:
+                pages.append({"url": sub_url, "html": sub_html[:MAX_HTML]})
+        return self.normalize(url, html, pages)
+
+    @staticmethod
+    def subpages(url: str, html: str, limit: int | None = None) -> list[str]:
+        """Same-site pages this page links to as About, CV, Publications or
+        Research, most useful kind first."""
+        limit = MAX_SUBPAGES if limit is None else limit
+        if limit <= 0:
+            return []
+        home_host = (urlparse(url).netloc or "").lower().removeprefix("www.")
+        here = normalize_url(url)
+        best: dict[str, str] = {}
+        for href, anchor_html in ANCHOR_RE.findall(html):
+            absolute = urljoin(url, unescape(href)).split("#")[0]
+            parts = urlparse(absolute)
+            if parts.scheme not in ("http", "https"):
+                continue
+            if (parts.netloc or "").lower().removeprefix("www.") != home_host:
+                continue  # another site is not this person's page
+            if parts.path.lower().endswith(NOT_A_PAGE) or parts.query:
+                continue
+            if normalize_url(absolute) == here:
+                continue
+            text = unescape(TAG_RE.sub(" ", anchor_html))
+            segment = parts.path.rstrip("/").rsplit("/", 1)[-1]
+            segment = re.sub(r"\.(html?|php|aspx?)$", "", segment, flags=re.I)
+            for kind, label_re, path_re in SUBPAGE_KINDS:
+                if kind not in best and (label_re.match(text) or path_re.match(segment)):
+                    best[kind] = absolute
+                    break
+        ordered = [best[kind] for kind, _, _ in SUBPAGE_KINDS if kind in best]
+        return list(dict.fromkeys(ordered))[:limit]
 
     def _fetch_html(self, url: str) -> str:
         """Plain request first; fall back to a render service only if needed.
@@ -129,7 +201,7 @@ class WebConnector(BaseConnector):
         return resp.text
 
     def renormalize(self, external_id: str, raw: dict) -> NormalizedProfile:
-        return self.normalize(raw["url"], raw["html"])
+        return self.normalize(raw["url"], raw["html"], raw.get("pages"))
 
     def _json_ld(self, html: str) -> list[dict]:
         blocks = []
@@ -144,7 +216,35 @@ class WebConnector(BaseConnector):
             blocks.extend(data if isinstance(data, list) else [data])
         return [b for b in blocks if isinstance(b, dict)]
 
-    def normalize(self, url: str, html: str) -> NormalizedProfile:
+    def normalize(self, url: str, html: str, pages: list[dict] | None = None) -> NormalizedProfile:
+        """The page, plus what its subpages add. The page speaks for the
+        person first: a subpage only fills what the page left out (name,
+        summary, ORCID) and adds links, CV documents and declared skills."""
+        profile = self._normalize_page(url, html)
+        for page in pages or []:
+            sub = self._normalize_page(page["url"], page["html"])
+            profile.name = profile.name or sub.name
+            profile.summary = profile.summary or sub.summary
+            profile.orcid = profile.orcid or sub.orcid
+            profile.emails = list(dict.fromkeys([*profile.emails, *sub.emails]))[:3]
+            profile.linked_urls = list(dict.fromkeys([*profile.linked_urls, *sub.linked_urls]))[:25]
+            known_orgs = {o.name.lower() for o in profile.organizations}
+            profile.organizations += [o for o in sub.organizations
+                                      if o.name.lower() not in known_orgs]
+            have = {(e.attribute_type, e.value) for e in profile.evidence}
+            has_bio = any(e.attribute_type == "bio" for e in profile.evidence)
+            for item in sub.evidence:
+                if (item.attribute_type, item.value) in have:
+                    continue
+                if item.attribute_type == "bio" and has_bio:
+                    continue
+                profile.evidence.append(item)
+                have.add((item.attribute_type, item.value))
+        if pages:
+            profile.raw = {"url": url, "html": html, "pages": list(pages)}
+        return profile
+
+    def _normalize_page(self, url: str, html: str) -> NormalizedProfile:
         external_id = normalize_url(url) or url
 
         title_match = re.search(r"<title[^>]*>(.*?)</title>", html, re.S | re.I)

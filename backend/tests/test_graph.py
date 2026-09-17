@@ -1,92 +1,140 @@
-"""Phase 6: person neighborhood graph."""
+"""The graph endpoint beyond one hop: co-authors of co-authors, bounded so the
+answer stays a picture of who works with whom."""
 
 import pytest
+from fastapi.testclient import TestClient
 
-from rip.api import get_graph
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
+
+from rip import api
+from rip.db import Base
 from rip.ingest import ingest_profile
-from rip.normalize import OrgAffiliation, PublicationData
-from tests.test_resolution import make_profile
+from rip.normalize import NormalizedProfile, OrgAffiliation, PublicationData
 
 
-def _person(session, name, external_id, pubs=(), org=None):
-    return ingest_profile(
-        session,
-        make_profile(
-            source="openalex",
-            external_id=external_id,
-            url=f"https://openalex.org/{external_id}",
-            raw={"id": external_id},
-            name=name,
-            usernames=[],
-            organizations=[OrgAffiliation(name=org, is_current=True)] if org else [],
-            publications=[
-                PublicationData(title=t, external_id=f"doi:{t}", doi=t) for t in pubs
-            ],
-        ),
+def researcher(ext, name, papers, orgs=()):
+    return NormalizedProfile(
+        source="openalex", source_type="scholarly", external_id=ext,
+        url=f"https://openalex.org/{ext}", raw={}, name=name,
+        organizations=[OrgAffiliation(name=o) for o in orgs],
+        publications=[PublicationData(title=title, external_id=pid, raw_authors=[])
+                      for pid, title in papers],
     )
 
 
-def test_graph_has_org_and_coauthor_edges(session):
-    a = _person(session, "Ada One", "A1", pubs=["paper-x", "paper-y"], org="Acme Labs")
-    b = _person(session, "Bob Two", "A2", pubs=["paper-x"], org="Globex")
-    c = _person(session, "Cy Three", "A3", pubs=["paper-y"])
-
-    graph = get_graph(a.id, depth=1, limit_coauthors=20, db=session)
-    node_ids = {n["id"] for n in graph["nodes"]}
-    assert a.id in node_ids and b.id in node_ids and c.id in node_ids
-    assert any(n["type"] == "organization" and n["label"] == "Acme Labs" for n in graph["nodes"])
-
-    coauthor_edges = [e for e in graph["edges"] if e["type"] == "coauthor"]
-    assert {e["to"] for e in coauthor_edges} == {b.id, c.id}
-    assert all(e["shared_publications"] == 1 for e in coauthor_edges)
-    assert all(e["via_publication_id"] for e in coauthor_edges)
-
-    org_edges = [e for e in graph["edges"] if e["type"] == "worked_at"]
-    assert len(org_edges) == 1 and org_edges[0]["is_current"] is True
+@pytest.fixture()
+def session():
+    """One in-memory database every thread sees: the test client serves
+    requests on its own thread, and a per-thread SQLite connection would hand
+    it an empty database."""
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False},
+                           poolclass=StaticPool)
+    Base.metadata.create_all(engine)
+    with sessionmaker(bind=engine, expire_on_commit=False)() as s:
+        yield s
+    engine.dispose()
 
 
-def test_shared_publication_count_is_an_edge_weight(session):
-    a = _person(session, "Ada One", "A1", pubs=["p1", "p2", "p3"])
-    b = _person(session, "Bob Two", "A2", pubs=["p1", "p2", "p3"])
-    _person(session, "Cy Three", "A3", pubs=["p1"])
-    graph = get_graph(a.id, depth=1, limit_coauthors=20, db=session)
-    weights = {e["to"]: e["shared_publications"] for e in graph["edges"] if e["type"] == "coauthor"}
-    assert weights[b.id] == 3
-    # no ranking fields leak into the payload
-    assert "score" not in str(graph) and "rank" not in str(graph)
+@pytest.fixture()
+def client(session):
+    api.app.dependency_overrides[api.get_db] = lambda: session
+    yield TestClient(api.app)
+    api.app.dependency_overrides.clear()
 
 
-def test_coauthor_limit_bounds_payload(session):
-    a = _person(session, "Ada One", "A1", pubs=["shared"])
-    for i in range(2, 12):
-        _person(session, f"Co {i}", f"A{i}", pubs=["shared"])
-    graph = get_graph(a.id, depth=1, limit_coauthors=5, db=session)
-    assert len([e for e in graph["edges"] if e["type"] == "coauthor"]) == 5
+def ids(session):
+    from rip.models import Person
+
+    return {p.canonical_name: p.id for p in session.query(Person).all()}
 
 
-def test_isolated_person_has_only_self(session):
-    a = _person(session, "Solo Person", "A9")
-    graph = get_graph(a.id, depth=1, limit_coauthors=20, db=session)
-    assert graph["nodes"] == [{"id": a.id, "type": "person", "label": "Solo Person"}]
-    assert graph["edges"] == []
+@pytest.fixture()
+def chain(session):
+    """Ada -- Ben -- Cy -- Di -- Eve, each pair sharing one paper; Ada and Ben
+    share a second. Ada works at Acme."""
+    ingest_profile(session, researcher("A", "Ada Lovelace", [("P1", "one"), ("P5", "five")],
+                                       orgs=["Acme Labs"]))
+    ingest_profile(session, researcher("B", "Ben Carter", [("P1", "one"), ("P2", "two"),
+                                                           ("P5", "five")]))
+    ingest_profile(session, researcher("C", "Cy Dorsey", [("P2", "two"), ("P3", "three")]))
+    ingest_profile(session, researcher("D", "Di Evans", [("P3", "three"), ("P4", "four")]))
+    ingest_profile(session, researcher("E", "Eve Frost", [("P4", "four")]))
+    return ids(session)
 
 
-def test_unknown_person_404s(session):
-    from fastapi import HTTPException
-
-    with pytest.raises(HTTPException) as exc:
-        get_graph("no-such-uuid", depth=1, limit_coauthors=20, db=session)
-    assert exc.value.status_code == 404
+def people(body):
+    return {n["label"]: n.get("hop") for n in body["nodes"] if n["type"] == "person"}
 
 
-def test_merged_person_excluded_from_coauthors(session):
-    from rip.review import merge_persons
+def test_depth_one_is_the_person_their_organizations_and_co_authors(client, chain):
+    body = client.get(f"/v1/persons/{chain['Ada Lovelace']}/graph").json()
+    assert people(body) == {"Ada Lovelace": 0, "Ben Carter": 1}
+    assert [n["label"] for n in body["nodes"] if n["type"] == "organization"] == ["Acme Labs"]
+    coauthor = [e for e in body["edges"] if e["type"] == "coauthor"]
+    assert len(coauthor) == 1 and coauthor[0]["shared_publications"] == 2
+    assert body["truncated"] is False
 
-    a = _person(session, "Ada One", "A1", pubs=["p1"])
-    b = _person(session, "Bob Two", "A2", pubs=["p1"])
-    c = _person(session, "Bob Twoo", "A3", pubs=["p1"])
-    merge_persons(session, b.id, c.id)
-    graph = get_graph(a.id, depth=1, limit_coauthors=20, db=session)
-    coauthor_ids = {e["to"] for e in graph["edges"] if e["type"] == "coauthor"}
-    assert c.id not in coauthor_ids  # tombstone hidden
-    assert b.id in coauthor_ids
+
+def test_each_hop_reaches_one_step_further(client, chain):
+    ada = chain["Ada Lovelace"]
+    assert people(client.get(f"/v1/persons/{ada}/graph?depth=2").json()) == \
+        {"Ada Lovelace": 0, "Ben Carter": 1, "Cy Dorsey": 2}
+    body = client.get(f"/v1/persons/{ada}/graph?depth=3").json()
+    assert people(body) == {"Ada Lovelace": 0, "Ben Carter": 1, "Cy Dorsey": 2, "Di Evans": 3}
+    # a path, not a star: every edge joins one hop to the next
+    pairs = {(e["from"], e["to"]) for e in body["edges"] if e["type"] == "coauthor"}
+    assert pairs == {(ada, chain["Ben Carter"]), (chain["Ben Carter"], chain["Cy Dorsey"]),
+                     (chain["Cy Dorsey"], chain["Di Evans"])}
+
+
+def test_depth_is_capped_at_three(client, chain):
+    assert client.get(f"/v1/persons/{chain['Ada Lovelace']}/graph?depth=4").status_code == 422
+
+
+def test_an_edge_between_two_people_already_drawn_is_drawn_once(client, session):
+    """A triangle: Ada, Ben and Cy all wrote P1."""
+    for ext, name in (("A", "Ada Lovelace"), ("B", "Ben Carter"), ("C", "Cy Dorsey")):
+        ingest_profile(session, researcher(ext, name, [("P1", "shared")]))
+    who = ids(session)
+    body = client.get(f"/v1/persons/{who['Ada Lovelace']}/graph?depth=2").json()
+    edges = [frozenset((e["from"], e["to"])) for e in body["edges"] if e["type"] == "coauthor"]
+    assert len(edges) == len(set(edges)) == 3            # Ada-Ben, Ada-Cy, Ben-Cy
+
+
+def test_the_walk_stops_adding_people_at_max_nodes_and_says_so(client, session):
+    ingest_profile(session, researcher("hub", "Hub Person", [(f"P{i}", f"p{i}") for i in range(8)]))
+    for i in range(8):
+        ingest_profile(session, researcher(f"x{i}", f"Coauthor Number{i}", [(f"P{i}", f"p{i}")]))
+    hub = ids(session)["Hub Person"]
+    body = client.get(f"/v1/persons/{hub}/graph?max_nodes=4").json()
+    assert len(people(body)) == 4 and body["truncated"] is True
+    capped = client.get(f"/v1/persons/{hub}/graph?limit_coauthors=3").json()
+    assert len(people(capped)) == 4 and capped["truncated"] is False
+
+
+def test_a_consortium_paper_is_not_followed_past_the_first_hop(client, session, monkeypatch):
+    """Everyone on a huge collaboration is everyone's co-author; expanding a
+    frontier across one says nothing about who works with whom."""
+    from rip import graph
+
+    monkeypatch.setattr(graph, "MAX_TEAM_FOR_EXPANSION", 5)
+    ingest_profile(session, researcher("A", "Ada Lovelace", [("P1", "small")]))
+    ingest_profile(session, researcher("B", "Ben Carter", [("P1", "small"), ("BIG", "consortium")]))
+    for i in range(8):
+        ingest_profile(session, researcher(f"m{i}", f"Member Number{i}", [("BIG", "consortium")]))
+    who = ids(session)
+    near = people(client.get(f"/v1/persons/{who['Ben Carter']}/graph").json())
+    assert len(near) == 10                               # one hop: shown as it is
+    far = people(client.get(f"/v1/persons/{who['Ada Lovelace']}/graph?depth=2").json())
+    assert far == {"Ada Lovelace": 0, "Ben Carter": 1}   # not followed through BIG
+
+
+def test_merged_away_people_are_not_drawn(client, chain, session):
+    from rip.models import Person
+
+    session.get(Person, chain["Ben Carter"]).merged_into = chain["Ada Lovelace"]
+    session.commit()
+    body = client.get(f"/v1/persons/{chain['Ada Lovelace']}/graph?depth=3").json()
+    assert people(body) == {"Ada Lovelace": 0}

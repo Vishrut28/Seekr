@@ -31,6 +31,7 @@ from .models import (
     SourceRecord,
 )
 from .normalize import NormalizedProfile, strong_keys
+from .textnorm import words
 
 FUZZY_NAME_THRESHOLD = 92.0
 # near-miss band: not confident enough to merge, confident enough to queue
@@ -68,6 +69,10 @@ def name_tokens(*names: str | None) -> set[str]:
             for p in _norm_name(name).replace("-", " ").split()
             if p.strip("'’,")
         ]
+        # spelling variants block together: "aggarwal" is also "agarwal"
+        from .names import spelling_key
+
+        parts = [spelling_key(p) if p.isalpha() else p for p in parts]
         words = [p for p in parts if len(p) >= 2]
         tokens.update(words)
         if len(parts) >= 2:
@@ -189,10 +194,28 @@ def _same_source_person_ids(
     return set(rows)
 
 
+def _spelled(name: str) -> str:
+    """A name with each word in its transliteration group's form: "Rahul
+    Aggarwal" and "Rahul Agarwal" compare as the same name. Look-alike names
+    (Katherine / Kathryn) and nicknames are not folded — too weak to merge on
+    (see names.py)."""
+    from .names import spelling_key
+
+    return " ".join(spelling_key(w) for w in _norm_name(name).split())
+
+
 def _score(profile_name: str, person: Person) -> float:
-    target = _norm_name(profile_name)
-    names = [person.canonical_name, *(person.aliases or [])]
-    return max(fuzz.token_sort_ratio(target, _norm_name(n)) for n in names if n)
+    target = _spelled(profile_name)
+    scores = [fuzz.token_sort_ratio(target, _spelled(person.canonical_name))] \
+        if person.canonical_name else []
+    for alias in person.aliases or []:
+        # An alias that identifies nobody, compared with a name that identifies
+        # nobody, proves nothing: "Karan Singh" carries the alias "K Singh", and
+        # every "K. Singh" in the graph scored 100 against it. Enough for a
+        # merge at a shared institute; wrong for most of them.
+        if alias and (_identifiable(alias) or _identifiable(profile_name)):
+            scores.append(fuzz.token_sort_ratio(target, _spelled(alias)))
+    return max(scores, default=0.0)
 
 
 def resolve(
@@ -266,6 +289,19 @@ def resolve(
     return None, "new", 1.0, {}
 
 
+def _identifiable(name: str | None) -> bool:
+    """Does this name name someone, on its own?
+
+    "Karan Singh" does; "K. Singh" and a bare "Rahul" do not. A name-only
+    near miss on a name like those is a question nobody can answer, and the
+    real queue filled with them: one Karan Singh against thirty separate
+    "K. Singh" records that share no paper, co-author or organization. With a
+    shared organization the pair is still queued — that is evidence, and the
+    branch above handles it.
+    """
+    return sum(1 for word in words(name) if len(word) > 1) >= 2
+
+
 def find_near_misses(
     session: Session, profile: NormalizedProfile, candidates=None, org_map=None
 ) -> list[tuple[Person, float, dict]]:
@@ -296,7 +332,8 @@ def find_near_misses(
                 "name_score": score, "shared_org": org,
                 "reason": f"Name similarity {score:.0f}/100 with shared organization '{org}' (below auto-merge bar)",
             }))
-        elif not shared and score >= NEAR_MISS_NAME_ONLY_THRESHOLD:
+        elif not shared and score >= NEAR_MISS_NAME_ONLY_THRESHOLD \
+                and _identifiable(profile.name) and _identifiable(person.canonical_name):
             out.append((person, score, {
                 "name_score": score, "shared_org": None,
                 "reason": f"Near-identical name ({score:.0f}/100) but no shared organization",

@@ -27,6 +27,35 @@ class StackOverflowConnector(BaseConnector):
             params["key"] = key
         return params
 
+    def search_users(self, name: str, limit: int = 10) -> list[dict]:
+        """Display-name search. Empty when the name is too short to be useful."""
+        q = (name or "").strip()
+        if len(q) < 3:
+            return []
+        data = self.get_json(
+            f"{API}/users",
+            params=self._params({
+                "inname": q,
+                "sort": "reputation",
+                "order": "desc",
+                "pagesize": max(1, min(int(limit), 30)),
+            }),
+        )
+        out = []
+        for row in data.get("items") or []:
+            uid = row.get("user_id")
+            if not uid:
+                continue
+            out.append({
+                "id": str(uid),
+                "name": row.get("display_name"),
+                "affiliation": None,
+                "location": row.get("location"),
+            })
+            if len(out) >= limit:
+                break
+        return out
+
     def fetch(self, identifier: str) -> NormalizedProfile:
         user_id = identifier.rstrip("/").rsplit("/", 1)[-1]
         users = self.get_json(f"{API}/users/{user_id}", params=self._params())

@@ -143,3 +143,124 @@ def test_person_without_cv_reports_none(session):
 
     person = ingest_profile(session, orcid_profile())
     assert get_documents(person.id, db=session)["cvs"] == []
+
+
+# --- subpages -------------------------------------------------------------------
+
+HOME = """<html><head><title>Asha Rao</title>
+<meta name="description" content="I study soil microbial ecology."></head><body>
+<a href="/about.html">About</a>
+<a href="https://www.asharao.org/cv/">CV</a>
+<a href="publications">Publications</a>
+<a href="/research">Research</a>
+<a href="/teaching">Teaching</a>
+<a href="https://other.org/about">About</a>
+<a href="/files/cv.pdf">CV (PDF)</a>
+<a href="https://asharao.org/">Home</a>
+</body></html>"""
+
+ABOUT = """<html><head><title>About Asha Rao</title>
+<meta name="description" content="About page blurb."></head><body>
+ORCID 0000-0003-3541-7853
+<a href="https://github.com/asharao">GitHub</a>
+</body></html>"""
+
+CV_PAGE = """<html><body><a href="/files/rao-cv-2026.pdf">Download CV</a></body></html>"""
+
+
+def test_subpages_are_same_site_and_named_as_such():
+    found = WebConnector.subpages("https://asharao.org/", HOME, limit=10)
+    assert found == [
+        "https://asharao.org/about.html",
+        "https://www.asharao.org/cv/",
+        "https://asharao.org/publications",
+        "https://asharao.org/research",
+    ]
+    # a limit keeps the most useful kinds
+    assert WebConnector.subpages("https://asharao.org/", HOME, limit=2) == found[:2]
+    assert WebConnector.subpages("https://asharao.org/", HOME, limit=0) == []
+
+
+def test_a_link_merely_mentioning_a_kind_is_not_that_page():
+    html = '<a href="/data">About this dataset</a><a href="/talks">CVPR talk</a>'
+    assert WebConnector.subpages("https://asharao.org/", html, limit=10) == []
+
+
+def test_other_sites_documents_and_the_page_itself_are_not_followed():
+    html = ('<a href="https://other.org/about">About</a>'
+            '<a href="/files/cv.pdf">CV</a>'
+            '<a href="https://asharao.org/about">About</a>')
+    assert WebConnector.subpages("https://asharao.org/about", html, limit=10) == []
+
+
+def fake_connector(pages, disallowed=()):
+    conn = WebConnector.__new__(WebConnector)
+    fetched = []
+
+    def get_text(url, params=None):
+        fetched.append(url)
+        if url not in pages:
+            raise RuntimeError("404")
+        return pages[url]
+
+    conn.get_text = get_text
+    conn._fetch_html = get_text
+    conn._robots_allows = lambda url: not any(d in url for d in disallowed)
+    return conn, fetched
+
+
+def test_subpages_add_what_the_home_page_left_out(monkeypatch):
+    monkeypatch.setattr("rip.connectors.web.MAX_SUBPAGES", 3)
+    conn, fetched = fake_connector({
+        "https://asharao.org/": HOME,
+        "https://asharao.org/about.html": ABOUT,
+        "https://www.asharao.org/cv/": CV_PAGE,
+    })
+    p = conn.fetch("https://asharao.org/")
+    # the page speaks first: its own name and summary are kept
+    assert p.name == "Asha Rao"
+    assert p.summary == "I study soil microbial ecology."
+    assert [e.value for e in p.evidence if e.attribute_type == "bio"] == [
+        "I study soil microbial ecology."]
+    # ...and subpages fill the rest
+    assert p.orcid == "0000-0003-3541-7853"
+    assert "https://github.com/asharao" in p.linked_urls
+    cv = [e for e in p.evidence if e.attribute_type == "cv_url"]
+    assert "https://www.asharao.org/files/rao-cv-2026.pdf" in [e.value for e in cv]
+    assert any(e.url == "https://www.asharao.org/cv/" for e in cv)   # provenance
+    # three subpages at most; a missing one is skipped
+    assert fetched == ["https://asharao.org/", "https://asharao.org/about.html",
+                       "https://www.asharao.org/cv/", "https://asharao.org/publications"]
+    # stored, so a reparse sees the same pages
+    again = conn.renormalize(p.external_id, p.raw)
+    assert again.orcid == p.orcid and again.linked_urls == p.linked_urls
+
+
+def test_robots_is_honored_for_each_subpage(monkeypatch):
+    monkeypatch.setattr("rip.connectors.web.MAX_SUBPAGES", 3)
+    conn, fetched = fake_connector({
+        "https://asharao.org/": HOME,
+        "https://asharao.org/about.html": ABOUT,
+    }, disallowed=("about",))
+    p = conn.fetch("https://asharao.org/")
+    assert "https://asharao.org/about.html" not in fetched
+    assert p.orcid is None
+
+
+def test_robots_txt_is_read_once_per_site():
+    connector = WebConnector.__new__(WebConnector)
+    calls = []
+
+    class FakeResp:
+        status_code = 200
+        text = "User-agent: *\nDisallow: /private"
+
+    class FakeClient:
+        def get(self, url, timeout=None):
+            calls.append(url)
+            return FakeResp()
+
+    connector._client = FakeClient()
+    assert connector._robots_allows("https://site.example/a") is True
+    assert connector._robots_allows("https://site.example/private/b") is False
+    assert calls == ["https://site.example/robots.txt"]

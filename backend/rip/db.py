@@ -70,6 +70,9 @@ def _migrate() -> None:
         "person": [("merged_into", "VARCHAR(36)"), ("country", "VARCHAR(2)")],
         "search_cache": [("person_ids", "TEXT")],
         "organization": [("norm_name", "VARCHAR(255)")],
+        "discovery_lead": [("claimed_by", "VARCHAR(64)"), ("claimed_at", "TIMESTAMP")],
+        # filled by the search-index rebuild that INDEX_VERSION 9 triggers
+        "search_doc": [("publications", "INTEGER DEFAULT 0"), ("citations", "INTEGER DEFAULT 0")],
     }
     _backfill_name_tokens(inspector)
     for table, columns in additive.items():
@@ -82,6 +85,53 @@ def _migrate() -> None:
                     conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
     # after the columns exist, not before: this fills one of them
     _backfill_org_norm_names(inspect(engine))
+    _create_missing_indexes(inspect(engine))
+    _build_search_index()
+
+
+def _build_search_index() -> None:
+    """Build the search index for a corpus that predates it (or an older
+    INDEX_VERSION). One pass over every person; afterwards the session hooks
+    keep it current incrementally."""
+    import logging
+    import time
+
+    from .search_index import needs_rebuild, rebuild
+
+    if READ_ONLY:
+        return
+    with SessionLocal() as session:
+        if not needs_rebuild(session):
+            return
+        log = logging.getLogger("rip.db")
+        log.warning("building search index (one-time, after upgrade)...")
+        started = time.monotonic()
+        n = rebuild(session)
+        log.warning("search index built for %d people in %.1fs", n, time.monotonic() - started)
+
+
+def _create_missing_indexes(inspector) -> None:
+    """Additive index migrations — mirrors the additive-column pattern above.
+
+    Base.metadata.create_all() only creates brand-new tables; it does not add
+    an index to a table that already exists. A database created before
+    ix_person_merged_into_id existed would otherwise keep paying the
+    "materialize and sort before LIMIT" cost that index exists to remove
+    (see the comment on Person.__table_args__) forever, on every deploy.
+    """
+    from sqlalchemy import text
+
+    indexes = {
+        "person": [("ix_person_merged_into_id", "merged_into, id")],
+    }
+    for table, specs in indexes.items():
+        if table not in inspector.get_table_names():
+            continue
+        existing = {ix["name"] for ix in inspector.get_indexes(table)}
+        for name, columns in specs:
+            if name not in existing:
+                with engine.begin() as conn:
+                    conn.execute(text(f"CREATE INDEX {name} ON {table} ({columns})"))
 
 
 def _backfill_org_norm_names(inspector) -> None:

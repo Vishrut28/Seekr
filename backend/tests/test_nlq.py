@@ -225,6 +225,16 @@ def test_suggestions_fall_through_to_other_sources(session, monkeypatch):
     assert "ingest semanticscholar S1" in s2_hit["ingest_command"]
 
 
+def test_live_searchers_cover_all_free_connectors():
+    from rip.connectors import CONNECTORS
+    from rip.nlq import PAID_SOURCES, SUGGESTION_SEARCHERS
+
+    live = {name for name, _fn, _full in SUGGESTION_SEARCHERS}
+    free = set(CONNECTORS) - set(PAID_SOURCES)
+    assert free <= live
+    assert "exa" in live
+
+
 def test_later_sources_skipped_once_enough_found(session, monkeypatch):
     from rip.api import nl_query
 
@@ -441,7 +451,11 @@ def test_facets_list_available_values(session):
     countries = facets(field="country", limit=10, db=session)
     assert countries["values"] == [{"value": "IN", "people": 1}]
     sources = facets(field="source", limit=10, db=session)
-    assert {v["value"] for v in sources["values"]} == {"github"}
+    names = {v["value"] for v in sources["values"]}
+    assert {"github", "openalex", "orcid", "wikidata", "huggingface",
+            "stackoverflow", "web", "dblp", "semanticscholar"} <= names
+    assert "exa" not in names
+    assert next(v["people"] for v in sources["values"] if v["value"] == "github") == 1
 
     from fastapi import HTTPException
     try:
@@ -452,12 +466,11 @@ def test_facets_list_available_values(session):
 
 
 def test_place_name_is_never_treated_as_a_person_name(session):
-    """Regression: "python developers in Hyderabad" searched for people NAMED
-    Hyderabad, guaranteeing zero results instead of reporting the gap."""
+    """Regression: Hyderabad is a place filter, not a person-name filter."""
     seed(session)
     parsed = parse(session, "top python developers in Hyderabad")
     assert parsed.name_terms == []            # not a name filter
-    assert "Hyderabad" in parsed.unmatched_terms  # reported honestly
+    assert "Hyderabad" in parsed.locations     # recognized as a city
 
 
 def test_capitalised_word_is_a_name_filter_only_when_someone_has_it(session):
@@ -910,14 +923,16 @@ def test_vocabulary_cache_does_not_leak_between_databases(session):
     from rip.db import Base
 
     seed(session)
-    assert parse(session, "rust developers").skill_groups  # populates the cache
+    assert parse(session, "distributed systems experts").skill_groups  # populates the cache
 
     other = create_engine("sqlite://")
     Base.metadata.create_all(other)
     with sessionmaker(bind=other)() as empty:
         # an empty corpus knows no vocabulary — if the cache leaked it would
         # answer with the first database's skills
-        assert parse(empty, "rust developers").skill_groups == []
+        assert parse(empty, "distributed systems experts").skill_groups == []
+        # known tech words still parse as skills even on an empty corpus
+        assert parse(empty, "rust developers").skill_groups
 
 
 def _with_project(session, *, name, login, tech, stars, last_active, skill="Rust"):
@@ -950,9 +965,21 @@ def test_shipped_work_lifts_an_otherwise_identical_profile(session):
 
 
 def test_off_topic_fame_does_not_outrank_on_topic_work(session):
-    """A famous unrelated repo says you ship; it does not say you ship *this*."""
+    """A famous unrelated repo says you ship; it does not say you ship *this*.
+
+    stars=3000 (not the original 800): the smaller value produced a genuine
+    but wafer-thin margin (~0.01, confirmed by direct measurement) that was
+    never a robust assertion of the invariant this test names — it happened
+    to hold under one specific recency half-life and would flip under a
+    fully plausible tuning change elsewhere in the scoring (e.g.
+    PROJECT_RECENCY_HALF_LIFE_DAYS, added when project/publication recency
+    was split by kind). Raising the on-topic star count pushes its own
+    output component close enough to the same ceiling that the assertion
+    holds on the actual invariant (on-topic beats off-topic-fame) rather
+    than on a coincidence of exactly how much recency happened to add.
+    """
     _with_project(session, name="On Topic", login="ontopic", tech="Rust",
-                  stars=800, last_active="2026-06-01")
+                  stars=3000, last_active="2026-06-01")
     _with_project(session, name="Famous Elsewhere", login="famous", tech="Cobol",
                   stars=90000, last_active="2026-06-01")
     rows = execute(session, parse(session, "rust"))
@@ -993,6 +1020,63 @@ def test_citations_count_like_stars_so_researchers_are_not_buried(session):
     assert out["Paper Person"] == out["Repo Person"]
 
 
+def test_publication_recency_decays_slower_than_project_recency(session):
+    """Same age, same weighted impact — a paper should retain a HIGHER
+    recency score than a repository at that age, because citations
+    accumulate for years after publication in a way that "still being
+    pushed to" does not. Isolates exactly the behavior this change adds:
+    dated signals decaying on a rate specific to their kind, rather than one
+    blanket half-life for every kind of date.
+    """
+    from rip.normalize import PublicationData
+
+    old_date = "2022-01-01"  # comfortably in the past regardless of "now"
+    _with_project(session, name="Old Repo", login="oldrepo", tech="Robotics",
+                  stars=600, last_active=old_date, skill="Robotics")
+    ingest_profile(
+        session,
+        make_profile(
+            name="Old Paper", external_id="oldpaper", url="https://github.com/oldpaper",
+            raw={"login": "oldpaper"}, usernames=["github:oldpaper"],
+            evidence=[EvidenceItem(attribute_type="skill", value="Robotics", confidence=0.7)],
+            publications=[PublicationData(
+                title="An old robotics result", external_id="W2", citations=600,
+                published_date=old_date, topics=["Robotics"],
+            )],
+        ),
+    )
+    rows = execute(session, parse(session, "robotics"))
+    recency = {p.canonical_name: p.relevance["components"]["recency"] for p in rows}
+    impact = {p.canonical_name: p.relevance["components"]["output"] for p in rows}
+    # equal impact confirms this isolates recency, not output, as the cause
+    # of any score difference between the two
+    assert impact["Old Paper"] == impact["Old Repo"]
+    assert recency["Old Paper"] > recency["Old Repo"]
+
+
+def test_recency_score_pure_function_known_values():
+    """Direct check of the decay function itself, independent of the DB
+    plumbing above: a date exactly one half-life old must score ~0.5, and
+    an unknown date must return None (not a guessed default — the caller
+    decides what "no date at all" means, this function just says "I don't
+    know")."""
+    from datetime import datetime
+
+    from rip.nlq import _recency_score
+
+    now = datetime(2026, 1, 1)
+    one_half_life_ago = datetime(2025, 1, 1)  # 365 days before `now`
+    assert abs(_recency_score(now, one_half_life_ago, 365.0) - 0.5) < 0.01
+    assert _recency_score(now, now, 365.0) == 1.0
+    assert _recency_score(now, None, 365.0) is None
+    # a longer half-life must score the SAME age higher — direct proof the
+    # half-life parameter actually controls decay speed, not just a
+    # cosmetic constant
+    assert _recency_score(now, one_half_life_ago, 1460.0) > _recency_score(
+        now, one_half_life_ago, 365.0
+    )
+
+
 def test_protected_attributes_are_redacted_before_they_become_evidence(session, caplog):
     """A bio that mentions family or pronouns must not make them searchable."""
     import logging
@@ -1024,3 +1108,97 @@ def test_protected_attributes_are_redacted_before_they_become_evidence(session, 
     ingest_profile(session, bio("Researching how technology is affecting children and society"))
     kept = [e.value for e in session.query(Evidence).filter_by(attribute_type="bio").all()]
     assert any("affecting children and society" in v for v in kept)
+
+
+def test_tech_word_is_never_a_name_filter(session):
+    """Regression: once someone surnamed Python is ingested, 'python' must stay a skill."""
+    seed(session)
+    ingest_profile(
+        session,
+        make_profile(
+            external_id="py", url="https://github.com/py",
+            raw={"login": "py"}, name="Ada Python", usernames=["github:py"],
+        ),
+    )
+    parsed = parse(session, "python developers")
+    assert parsed.name_terms == []
+    assert any(g.get("pattern") == "python" or "Python" in g.get("values", [])
+               for g in parsed.skill_groups)
+
+
+def test_name_in_corpus_is_not_swallowed_as_skill(session):
+    """A lone first name that exists in the graph is a name filter, not a bio keyword."""
+    ingest_profile(
+        session,
+        make_profile(name="Rahul Kumar", usernames=["github:rahulk"],
+                     evidence=[EvidenceItem(attribute_type="bio",
+                                            value="CEO at Example Corp")]),
+    )
+    parsed = parse(session, "rahul")
+    assert parsed.name_terms == ["rahul"]
+    assert parsed.skill_groups == []
+
+
+def test_progressive_and_drops_rightmost_constraint(session):
+    """When AND yields nothing, relax from the right and report what was dropped."""
+    from rip.nlq import execute_progressive
+
+    ingest_profile(
+        session,
+        make_profile(name="Andrew Cole", usernames=["github:andrew"],
+                     evidence=[EvidenceItem(attribute_type="skill", value="Python")]),
+    )
+    asked = parse(session, "Andrew python california")
+    rows, applied, dropped = execute_progressive(session, asked)
+    assert [p.canonical_name for p in rows] == ["Andrew Cole"]
+    assert any(d["term"].lower() == "california" for d in dropped)
+    assert "california" not in applied.locations
+
+
+def test_location_matches_bio_not_only_person_location(session):
+    """Bangalore written only in a bio must satisfy a Bangalore location filter."""
+    ingest_profile(
+        session,
+        make_profile(
+            name="Bio Bangalore",
+            location=None,
+            evidence=[EvidenceItem(attribute_type="bio", value="NMIT, Bangalore")],
+        ),
+    )
+    ingest_profile(
+        session,
+        make_profile(
+            external_id="berlin", url="https://github.com/berlin",
+            raw={"login": "berlin"}, name="Berlin Person",
+            usernames=["github:berlin"], location="Berlin, Germany",
+        ),
+    )
+    parsed = parse(session, "bangalore")
+    names = [p.canonical_name for p in execute(session, parsed)]
+    assert "Bio Bangalore" in names
+    assert "Berlin Person" not in names
+
+
+def test_name_only_query_ranks_exact_match_first(session):
+    ingest_profile(session, make_profile(name="Rahul Satija", usernames=["github:rs1"]))
+    ingest_profile(
+        session,
+        make_profile(external_id="r2", url="https://github.com/r2", raw={"login": "r2"},
+                     name="Someone Rahul", usernames=["github:r2"]),
+    )
+    rows = execute(session, parse(session, "Rahul Satija"))
+    assert rows[0].canonical_name == "Rahul Satija"
+    assert rows[0].relevance["components"].get("name_fit", 0) >= 0.9
+
+
+def test_nl_query_reports_not_found(session):
+    from rip.api import nl_query
+
+    ingest_profile(
+        session,
+        make_profile(name="Andrew Cole", usernames=["github:andrew"],
+                     evidence=[EvidenceItem(attribute_type="skill", value="Python")]),
+    )
+    resp = nl_query(q="Andrew python california", discover="false", db=session)
+    assert resp["count"] >= 1
+    assert any(d["term"].lower() == "california" for d in resp["not_found"])

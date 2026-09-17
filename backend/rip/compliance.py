@@ -19,6 +19,77 @@ from __future__ import annotations
 
 import re
 
+# Asking for people BY a protected attribute. Stored text is screened above;
+# a query needs the same rule: "women in robotics" became a filter on the
+# topic "Women's Health", and a working one would have been worse — a gender
+# filter on a hiring search.
+#
+# Two kinds of word, because most of them have innocent readings:
+#   people    plural nouns that can only mean people ("women", "muslims") —
+#             always a request to select by the attribute
+#   modifier  adjectives that select people only when they describe people:
+#             "female engineers", "young founders", "muslim doctors" — but not
+#             "Christian Rabl" (a given name), "white box testing", "male
+#             infertility" (a subject)
+PROTECTED_PEOPLE: dict[str, str] = {
+    **dict.fromkeys(("women", "men", "girls", "boys", "ladies", "females", "males",
+                     "gentlemen", "transwomen", "transmen"), "gender"),
+    **dict.fromkeys(("millennials", "boomers", "seniors", "elderly"), "age"),
+    **dict.fromkeys(("mothers", "fathers", "moms", "mums", "dads", "wives", "husbands"),
+                    "family_status"),
+    **dict.fromkeys(("hindus", "muslims", "christians", "jews", "sikhs", "buddhists",
+                     "catholics", "atheists"), "religion"),
+    **dict.fromkeys(("dalits", "brahmins", "latinos", "latinas", "hispanics", "asians",
+                     "caucasians"), "ethnicity"),
+}
+PROTECTED_MODIFIERS: dict[str, str] = {
+    **dict.fromkeys(("female", "male", "woman", "transgender", "nonbinary", "non-binary"),
+                    "gender"),
+    **dict.fromkeys(("young", "younger", "old", "older", "elderly", "senior-citizen",
+                     "millennial", "genz"), "age"),
+    **dict.fromkeys(("married", "unmarried", "single", "divorced", "pregnant"), "family_status"),
+    **dict.fromkeys(("hindu", "muslim", "christian", "jewish", "sikh", "buddhist",
+                     "catholic", "atheist", "religious"), "religion"),
+    **dict.fromkeys(("dalit", "brahmin", "upper-caste", "black", "white", "hispanic",
+                     "latino", "latina", "asian", "caucasian"), "ethnicity"),
+    **dict.fromkeys(("disabled", "handicapped", "gay", "lesbian", "straight", "queer",
+                     "lgbt", "lgbtq"), "disability_or_orientation"),
+}
+# Nouns that make a modifier describe people.
+PEOPLE_NOUNS = frozenset((
+    "people", "persons", "person", "individuals", "folks", "candidates", "applicants",
+    "talent", "hires", "employees", "staff", "workers", "professionals", "experts",
+    "specialists", "engineers", "engineer", "developers", "developer", "programmers",
+    "coders", "researchers", "researcher", "scientists", "scientist", "academics",
+    "professors", "professor", "faculty", "students", "student", "doctors", "doctor",
+    "physicians", "nurses", "lawyers", "founders", "founder", "entrepreneurs",
+    "leaders", "executives", "managers", "manager", "designers", "designer",
+    "analysts", "consultants", "authors", "writers", "artists", "speakers",
+    "investors", "members", "team", "teams", "candidate", "women", "men",
+))
+
+
+def protected_in_query(tokens: list[str]) -> list[tuple[int, str, str]]:
+    """(index, word, attribute) for every query word selecting people by a
+    protected attribute."""
+    folded = [t.lower() for t in tokens]
+    out = []
+    for i, word in enumerate(folded):
+        if word in PROTECTED_PEOPLE:
+            out.append((i, tokens[i], PROTECTED_PEOPLE[word]))
+            continue
+        if word not in PROTECTED_MODIFIERS:
+            continue
+        # the next word, or the one after another protected modifier
+        # ("young female engineers"), has to be a word for people
+        j = i + 1
+        while j < len(folded) and folded[j] in PROTECTED_MODIFIERS:
+            j += 1
+        if j < len(folded) and folded[j] in PEOPLE_NOUNS:
+            out.append((i, tokens[i], PROTECTED_MODIFIERS[word]))
+    return out
+
+
 # Anchors that make a mention personal rather than topical.
 _MINE = r"(?:i'?m|i am|my|me|he|she|they|his|her|their|our)"
 

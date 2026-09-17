@@ -6,6 +6,15 @@ from rip.db import Base
 from rip import models  # noqa: F401
 
 
+@pytest.fixture(autouse=True)
+def _fresh_connectors():
+    """Connectors are shared per process; no test may inherit another's."""
+    yield
+    from rip.connectors import reset_connectors
+
+    reset_connectors()
+
+
 @pytest.fixture()
 def session():
     engine = create_engine("sqlite://")

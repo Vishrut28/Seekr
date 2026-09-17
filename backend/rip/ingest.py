@@ -179,7 +179,8 @@ def _add_evidence(
     url: str | None = None,
     published_at: datetime | None = None,
     confidence: float = 0.5,
-) -> None:
+) -> tuple[str, str]:
+    """Store one claim; returns the (attribute_type, value) actually stored."""
     # Free text arrives as whatever a source chose to write. Protected
     # attributes are redacted before the value becomes queryable evidence —
     # the raw payload still holds the original, so provenance is intact and
@@ -201,7 +202,7 @@ def _add_evidence(
     ).scalar_one_or_none()
     if existing is not None:
         existing.observed_at = _utcnow()
-        return
+        return attribute_type, value
     # same claim already made by a different source? mark both corroborated
     peers = (
         session.execute(
@@ -234,6 +235,51 @@ def _add_evidence(
             verification_state=state,
         )
     )
+    return attribute_type, value
+
+
+# Claims that stay true of the past when a source changes them: someone who
+# moved from Berlin to Zurich did live in Berlin, and the change is a recorded
+# conflict (see _set_person_field), not a retraction.
+HISTORICAL_ATTRS = frozenset({"location", "role"})
+
+
+def _retract_evidence(session: Session, person: Person, record: SourceRecord,
+                      asserted: set[tuple[str, str]]) -> int:
+    """Remove what this record used to claim and no longer does.
+
+    Evidence used to be additive forever: a keyword a person deleted from
+    ORCID, or one a parser learned to reject ("Rahul Kumar ceo" is a name, not
+    an interest), stayed searchable after every refresh and reparse. The raw
+    payload is the record's word; anything it no longer supports goes, and a
+    claim left with a single source is no longer corroborated. History
+    (HISTORICAL_ATTRS) is kept.
+    """
+    session.flush()
+    stale = [
+        e for e in session.execute(
+            select(Evidence).where(Evidence.person_id == person.id,
+                                   Evidence.source_record_id == record.id)
+        ).scalars()
+        if (e.attribute_type, e.value) not in asserted
+        and e.attribute_type not in HISTORICAL_ATTRS
+    ]
+    for item in stale:
+        session.delete(item)
+    session.flush()
+    for item in stale:
+        peers = session.execute(
+            select(Evidence).where(
+                Evidence.person_id == person.id,
+                Evidence.attribute_type == item.attribute_type,
+                Evidence.value == item.value,
+            )
+        ).scalars().all()
+        if len({p.source_record_id for p in peers}) < 2:
+            for p in peers:
+                if p.verification_state == "corroborated":
+                    p.verification_state = "unverified"
+    return len(stale)
 
 
 def _get_or_create_org(session: Session, name: str, org_type: str | None, url: str | None) -> Organization:
@@ -260,8 +306,29 @@ def _get_or_create_org(session: Session, name: str, org_type: str | None, url: s
 
 
 def ingest_profile(session: Session, profile: NormalizedProfile) -> Person:
-    """Run one normalized profile through resolution + persistence. Idempotent."""
+    """Run one normalized profile through resolution + persistence. Idempotent.
+
+    Raises personhood.NotAPerson, before anything is written, for a record
+    that is not a person (a job post, a listicle, a community account).
+    """
     from sqlalchemy import func as _func
+
+    from .personhood import NotAPerson, assess
+
+    # A page title is not a name: "Dhruv Dixit's Profile | YMGrad" is stored
+    # as Dhruv Dixit. The raw payload keeps the original, so nothing is lost,
+    # and the title is deliberately NOT kept as an alias — its words ("profile",
+    # "ymgrad") would become searchable as if they were part of a name.
+    verdict = assess(profile.name, profile.source)
+    if not verdict.is_person:
+        raise NotAPerson(f"{profile.source}:{profile.external_id} is not a person "
+                         f"({verdict.reason}): {profile.name!r}")
+    if verdict.name and verdict.name != profile.name:
+        logger.info("cleaned name %r -> %r", profile.name, verdict.name)
+        profile.name = verdict.name
+    for alias in verdict.aliases:
+        if alias not in profile.aliases:
+            profile.aliases.append(alias)
 
     changelog_watermark = (
         session.execute(select(_func.max(ChangeLog.id))).scalar() or 0
@@ -353,15 +420,18 @@ def ingest_profile(session: Session, profile: NormalizedProfile) -> Person:
     person.profile_urls = sorted(u for u in urls if u)
 
     # location is also an evidence-backed claim
+    asserted: set[tuple[str, str]] = set()
     if profile.location:
-        _add_evidence(session, person, record, "location", profile.location, confidence=0.7)
+        asserted.add(_add_evidence(session, person, record, "location", profile.location,
+                                   confidence=0.7))
 
     for item in profile.evidence:
-        _add_evidence(
+        asserted.add(_add_evidence(
             session, person, record, item.attribute_type, item.value,
             extracted_info=item.extracted_info, url=item.url,
             published_at=item.published_at, confidence=item.confidence,
-        )
+        ))
+    _retract_evidence(session, person, record, asserted)
 
     # organizations + affiliations
     for org_aff in profile.organizations:

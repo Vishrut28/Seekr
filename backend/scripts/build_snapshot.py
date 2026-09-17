@@ -68,6 +68,27 @@ def main() -> None:
     mode = sqlite3.connect(f"file:{DEST}?mode=ro", uri=True).execute(
         "PRAGMA journal_mode"
     ).fetchone()[0]
+    if os.path.getsize(DEST) > MAX_BYTES:
+        # The search index is a read-path accelerator, not data: without it
+        # /v1/query falls back to plain SQL filters and returns the same people,
+        # just more slowly. Give up speed before giving up people.
+        con = sqlite3.connect(DEST)
+        try:
+            dropped = False
+            for table in ("search_term", "search_doc", "search_index_state"):
+                try:
+                    con.execute(f"DROP TABLE {table}")
+                    dropped = True
+                except sqlite3.OperationalError:
+                    pass
+            if dropped:
+                con.commit()
+                con.execute("VACUUM")
+                print("snapshot over the size limit with the search index; "
+                      "shipping without it (search uses the slower SQL fallback)")
+        finally:
+            con.close()
+
     size_mb = os.path.getsize(DEST) / 1e6
     print(f"snapshot {DEST}: {size_mb:.1f} MB, journal_mode={mode}")
     if mode == "wal":

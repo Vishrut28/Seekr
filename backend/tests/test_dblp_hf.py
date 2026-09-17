@@ -101,6 +101,19 @@ HF_DATASETS = [
 ]
 
 
+def test_huggingface_search_users():
+    conn = HuggingFaceConnector.__new__(HuggingFaceConnector)
+
+    def fake_get(url, params=None):
+        if "quicksearch" in url:
+            return [{"id": "jdoe", "fullname": "Jane Doe"}]
+        raise AssertionError(url)
+
+    conn.get_json = fake_get
+    found = HuggingFaceConnector.search_users(conn, "Jane", limit=5)
+    assert found[0]["id"] == "jdoe"
+
+
 def test_huggingface_normalization_and_ingest(session):
     profile = HuggingFaceConnector.normalize(
         HuggingFaceConnector.__new__(HuggingFaceConnector),

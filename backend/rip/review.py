@@ -202,15 +202,18 @@ def merge_persons(session: Session, keep_id: str, merge_id: str) -> Person:
         if not getattr(keep, field) and getattr(merged, field):
             setattr(keep, field, getattr(merged, field))
 
-    # retarget any other pending candidates that referenced the merged person
+    # close any pending candidate for this very pair: it has just been answered
+    # with "one person", which is the opposite of the "rejected" it used to be
+    # recorded as — and rejected is read back as a veto against ever merging
+    # them, so a later re-run undid nothing but remembered a wrong verdict.
     for mc in session.execute(
         select(MergeCandidate).where(
             (MergeCandidate.person_id == merge_id)
             | (MergeCandidate.candidate_person_id == merge_id),
-            MergeCandidate.status == "pending",
+            MergeCandidate.status.in_(("pending", "deferred")),
         )
     ).scalars():
-        mc.status = "rejected" if keep_id in (mc.person_id, mc.candidate_person_id) else mc.status
+        mc.status = "merged" if keep_id in (mc.person_id, mc.candidate_person_id) else mc.status
 
     session.add(
         ChangeLog(
@@ -244,6 +247,111 @@ def resolve_duplicate(session: Session, candidate_id: int, action: str) -> dict:
     mc.status = "rejected"
     session.commit()
     return {"candidate_id": candidate_id, "status": "rejected"}
+
+
+def _living(session: Session, person_id: str) -> Person | None:
+    """Where a person ended up: follow merges to the surviving record."""
+    seen: set[str] = set()
+    person = session.get(Person, person_id)
+    while person is not None and person.merged_into and person.id not in seen:
+        seen.add(person.id)
+        person = session.get(Person, person.merged_into)
+    return person
+
+
+def _sweep_agrees(session: Session, a_id: str, b_id: str) -> bool:
+    """Would the whole-group sweep merge these two?
+
+    A pair judged on its own cannot know that one of the records matches a
+    third person almost as well — the case the real graph produced, where one
+    "Vishesh Jain" record overlapped two others with different ORCIDs. The
+    sweep applies the vetoes and that ambiguity guard across the name group, so
+    a queued pair is merged only if it agrees.
+    """
+    from . import dedupe
+
+    clusters: dict[str, set[str]] = {}
+    for keep, gone, _ in dedupe.plan(session, person_ids=[a_id, b_id]).merges:
+        clusters.setdefault(keep, {keep}).add(gone)
+    return any({a_id, b_id} <= cluster for cluster in clusters.values())
+
+
+def triage(session: Session, apply: bool = False) -> dict:
+    """Judge every pending duplicate pair on evidence, so the queue keeps only
+    the pairs that are genuinely a person's call.
+
+    Ingest queues a pair whenever two names look alike, and a name is not
+    evidence: the real graph ended up with one "Karan Singh" queued against
+    thirty separate "K. Singh" records sharing no paper, no co-author and no
+    organization. Nobody can decide those, and they bury the few that matter.
+
+    Outcomes, all reversible:
+      merged    proof of one person (undo: rip.cli review split <link_id>)
+      rejected  a veto — different ORCIDs, or a source that disambiguates
+                people itself listing them as two
+      deferred  no evidence either way: leaves the queue, and returns to it by
+                itself if either person later gains evidence
+      pending   left for a human, because the evidence is real but not proof
+
+    With APPLY false, nothing is written: the same decisions are only reported.
+    """
+    from . import dedupe
+
+    out: dict[str, list] = {"merged": [], "rejected": [], "deferred": [],
+                            "pending": [], "stale": []}
+    candidates = session.execute(
+        select(MergeCandidate).where(MergeCandidate.status == "pending")
+        .order_by(MergeCandidate.id)
+    ).scalars().all()
+
+    for mc in candidates:
+        a, b = _living(session, mc.person_id), _living(session, mc.candidate_person_id)
+        entry = {"candidate_id": mc.id, "person_id": mc.person_id,
+                 "duplicate_person_id": mc.candidate_person_id}
+        if a is None or b is None or a.id == b.id:
+            # answered since it was queued: one side was merged away or removed
+            same = a is not None and b is not None and a.id == b.id
+            entry["reason"] = "already one person" if same else "one side is gone"
+            out["stale"].append(entry)
+            if apply:
+                mc.status = "merged" if same else "rejected"
+            continue
+
+        feats = dedupe.load_features(session, [a.id, b.id])
+        judged = dedupe.judge(feats[a.id], feats[b.id], names_vouched=True)
+        entry |= {"names": [a.canonical_name, b.canonical_name],
+                  "reason": judged.reason, "signals": judged.signals}
+
+        if judged.decision == "merge" and not _sweep_agrees(session, a.id, b.id):
+            # Judging one pair cannot see that this record matches a different
+            # person nearly as well — the sweep can, and says so.
+            entry["reason"] = (f"proven match, but it matches a different person "
+                               f"almost as well: {judged.reason}")
+            out["pending"].append(entry)
+        elif judged.decision == "merge":
+            keep, gone = sorted((a.id, b.id), key=lambda pid: (feats[pid].weight, pid),
+                                reverse=True)
+            entry |= {"keep": keep, "merge": gone}
+            out["merged"].append(entry)
+            if apply and dedupe.merge_pair(session, keep, gone, judged.reason):
+                mc.status = "merged"
+        elif judged.decision == "review":
+            out["pending"].append(entry)
+        elif judged.reason == "no evidence they are the same person" \
+                or judged.reason == "names differ":
+            out["deferred"].append(entry)
+            if apply:
+                mc.status = "deferred"
+                mc.signals = {**(mc.signals or {}), "triage": judged.reason}
+        else:                                   # a veto: two different people
+            out["rejected"].append(entry)
+            if apply:
+                mc.status = "rejected"
+                mc.signals = {**(mc.signals or {}), "triage": judged.reason}
+
+    if apply:
+        session.commit()
+    return out
 
 
 def split_link(session: Session, link_id: int) -> Person:

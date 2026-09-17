@@ -83,6 +83,22 @@ def orcid_profile():
     return OrcidConnector.normalize(OrcidConnector.__new__(OrcidConnector), ORCID_RECORD)
 
 
+def test_orcid_search_authors_maps_expanded_search():
+    conn = OrcidConnector.__new__(OrcidConnector)
+
+    def fake_get(url, params=None):
+        assert "expanded-search" in url
+        return {"expanded-result": [
+            {"orcid-id": "0000-0002-1111-2222", "given-names": "Jane",
+             "family-names": "Doe", "institution-name": ["Acme"]},
+        ]}
+
+    conn.get_json = fake_get
+    found = OrcidConnector.search_authors(conn, "Jane Doe", limit=5)
+    assert found[0]["id"] == "0000-0002-1111-2222"
+    assert found[0]["name"] == "Jane Doe"
+
+
 def test_orcid_normalization(session):
     profile = orcid_profile()
     assert profile.name == "Jane Doe"
@@ -110,3 +126,31 @@ def test_orcid_merges_with_openalex_via_orcid_key(session):
     assert session.query(Person).count() == 1
     # same DOI publication from both sources deduped
     assert session.query(Publication).filter_by(doi="10.1234/abcd").count() == 1
+
+
+def test_keywords_advertising_the_persons_own_name_are_not_interests():
+    """"Rahul Kumar ceo" is a name, not a research interest: stored as one, it
+    made "Rahul" subject vocabulary and broke every search for a Rahul."""
+    import copy
+
+    record = copy.deepcopy(ORCID_RECORD)
+    record["person"]["keywords"] = {"keyword": [
+        {"content": "Jane Doe ceo"}, {"content": "Doe Jane Helping People"},
+        {"content": "distributed systems"}, {"content": "Doe"},
+        {"content": "J Doe official"}]}
+    profile = OrcidConnector.__new__(OrcidConnector).normalize(record)
+    interests = [e.value for e in profile.evidence if e.attribute_type == "research_interest"]
+    # a lone surname is not a full name, and may be a real subject ("Doppler")
+    assert interests == ["distributed systems", "Doe"]
+
+
+def test_a_decorated_credit_name_still_identifies_self_advertising_keywords():
+    import copy
+
+    record = copy.deepcopy(ORCID_RECORD)
+    record["person"]["name"]["credit-name"] = {"value": "Jane Doe - Engineer • Speaker"}
+    record["person"]["keywords"] = {"keyword": [{"content": "Jane Doe Helping People"},
+                                                {"content": "consensus protocols"}]}
+    profile = OrcidConnector.__new__(OrcidConnector).normalize(record)
+    assert [e.value for e in profile.evidence if e.attribute_type == "research_interest"] == [
+        "consensus protocols"]

@@ -131,33 +131,146 @@ def discover_github_contributors(
     return added
 
 
-def drain_leads(
-    session: Session, limit: int = 25, source: str | None = None,
-    enrich_chain: bool = False,
-) -> tuple[int, int]:
-    """Ingest pending leads. Returns (ingested, failed)."""
-    stmt = (
-        select(DiscoveryLead)
+# A claim older than this belonged to a worker that died mid-batch; its leads
+# go back to the queue. Long enough that a slow batch (25 leads, each an
+# enrichment chain across several rate-limited sources) is never mistaken for
+# a dead one.
+CLAIM_TTL_SECONDS = 1800
+# How often one lead is retried when its write collides with another worker's.
+WRITE_RETRIES = 3
+
+
+def worker_id() -> str:
+    """A name for this process that no other worker shares."""
+    import os
+    import socket
+    import uuid
+
+    return f"{socket.gethostname()[:24]}:{os.getpid()}:{uuid.uuid4().hex[:8]}"
+
+
+def claim_leads(
+    session: Session, worker: str, limit: int, source: str | None = None
+) -> list[DiscoveryLead]:
+    """Atomically take up to LIMIT pending leads for WORKER.
+
+    One conditional UPDATE does the taking, so two workers can never hold the
+    same lead: on SQLite the statement runs under the database's single write
+    lock; on Postgres the candidate rows are read FOR UPDATE SKIP LOCKED, so a
+    second worker skips rows the first is taking instead of waiting for them
+    and then finding them gone.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    from sqlalchemy import update
+
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    session.execute(
+        update(DiscoveryLead)
+        .where(DiscoveryLead.status == "claimed",
+               DiscoveryLead.claimed_at < now - timedelta(seconds=CLAIM_TTL_SECONDS))
+        .values(status="pending", claimed_by=None, claimed_at=None)
+        .execution_options(synchronize_session=False)
+    )
+    pick = (
+        select(DiscoveryLead.id)
         .where(DiscoveryLead.status == "pending")
-        .order_by(DiscoveryLead.created_at)
+        .order_by(DiscoveryLead.created_at, DiscoveryLead.id)
         .limit(limit)
     )
     if source:
-        stmt = stmt.where(DiscoveryLead.source == source)
-    leads = session.execute(stmt).scalars().all()
+        pick = pick.where(DiscoveryLead.source == source)
+    if session.get_bind().dialect.name == "postgresql":
+        pick = pick.with_for_update(skip_locked=True)
+    session.execute(
+        update(DiscoveryLead)
+        .where(DiscoveryLead.id.in_(pick.scalar_subquery()),
+               DiscoveryLead.status == "pending")
+        .values(status="claimed", claimed_by=worker, claimed_at=now)
+        .execution_options(synchronize_session=False)
+    )
+    session.commit()
+    # populate_existing: the UPDATEs above bypassed the session, so lead objects
+    # it already holds (a worker reuses its session across batches) would keep
+    # showing whoever claimed them before
+    return session.execute(
+        select(DiscoveryLead)
+        .where(DiscoveryLead.claimed_by == worker, DiscoveryLead.status == "claimed")
+        .order_by(DiscoveryLead.created_at, DiscoveryLead.id)
+        .execution_options(populate_existing=True)
+    ).scalars().all()
+
+
+def release_leads(session: Session, worker: str) -> int:
+    """Give back every lead WORKER claimed and did not finish."""
+    from sqlalchemy import update
+
+    session.rollback()
+    released = session.execute(
+        update(DiscoveryLead)
+        .where(DiscoveryLead.claimed_by == worker, DiscoveryLead.status == "claimed")
+        .values(status="pending", claimed_by=None, claimed_at=None)
+        .execution_options(synchronize_session=False)
+    ).rowcount
+    session.commit()
+    return released
+
+
+def _is_write_collision(exc: Exception) -> bool:
+    """Did this fail because another worker wrote the same thing first?
+
+    Two leads can be the same person: an OpenAlex author and their ORCID
+    record, drained by two workers at once. Both find no existing person, both
+    create one, and the second commit hits the unique ORCID key. Retrying
+    resolves against the person the first worker just stored. SQLite's busy
+    timeout running out is the same situation from the lock's side.
+    """
+    from sqlalchemy.exc import IntegrityError, OperationalError
+
+    if isinstance(exc, IntegrityError):
+        return True
+    return isinstance(exc, OperationalError) and "locked" in str(exc).lower()
+
+
+def drain_leads(
+    session: Session, limit: int = 25, source: str | None = None,
+    enrich_chain: bool = False, worker: str | None = None,
+) -> tuple[int, int]:
+    """Claim and ingest pending leads. Returns (ingested, failed).
+
+    Safe to run in several processes against one database: each takes its own
+    leads, and leads it does not get to — an interrupt, a crash — are handed
+    back rather than left claimed.
+    """
+    import time
+
+    worker = worker or worker_id()
+    leads = claim_leads(session, worker, limit, source)
     connectors: dict = {}
     ok = failed = 0
-    for lead in leads:
-        connectors.setdefault(lead.source, get_connector(lead.source))
-        try:
-            run_connector(
-                session, connectors[lead.source], lead.identifier, enrich_chain=enrich_chain
-            )
-            lead.status = "ingested"
-            ok += 1
-        except Exception as exc:
-            lead.status = "error"
-            failed += 1
-            print(f"lead failed {lead.source}:{lead.identifier}: {exc}")
-        session.commit()
+    try:
+        for lead in leads:
+            connectors.setdefault(lead.source, get_connector(lead.source))
+            for attempt in range(WRITE_RETRIES + 1):
+                try:
+                    run_connector(
+                        session, connectors[lead.source], lead.identifier,
+                        enrich_chain=enrich_chain,
+                    )
+                    lead.status = "ingested"
+                    ok += 1
+                    break
+                except Exception as exc:
+                    if _is_write_collision(exc) and attempt < WRITE_RETRIES:
+                        session.rollback()
+                        time.sleep(0.2 * (attempt + 1))
+                        continue
+                    session.rollback()
+                    lead.status = "error"
+                    failed += 1
+                    print(f"lead failed {lead.source}:{lead.identifier}: {exc}")
+                    break
+            session.commit()
+    finally:
+        release_leads(session, worker)
     return ok, failed

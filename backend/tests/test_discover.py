@@ -5,6 +5,22 @@ from rip.models import DiscoveryLead, Evidence
 from tests.test_ingest import openalex_profile
 
 
+def test_stackoverflow_search_users():
+    conn = StackOverflowConnector.__new__(StackOverflowConnector)
+    conn._params = lambda extra=None: {"site": "stackoverflow", **(extra or {})}
+
+    def fake_get(url, params=None):
+        assert url.endswith("/users")
+        return {"items": [
+            {"user_id": 22656, "display_name": "Jon Skeet", "location": "Reading"},
+        ]}
+
+    conn.get_json = fake_get
+    found = StackOverflowConnector.search_users(conn, "Skeet", limit=5)
+    assert found[0]["id"] == "22656"
+    assert found[0]["name"] == "Jon Skeet"
+
+
 def test_stackoverflow_normalization(session):
     user = {
         "user_id": 22656,
