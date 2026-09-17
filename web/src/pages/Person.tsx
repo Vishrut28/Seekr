@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { api, apiBlob, errorMessage, isUnauthorized } from "../api/client";
+import { api, errorMessage, isUnauthorized } from "../api/client";
 import { Banner, Loading } from "../components/EmptyState";
 import { Network } from "../components/Network";
+import { Dossier } from "../components/Dossier";
 import { Shell } from "../components/Shell";
 import { BRANDS, BrandLinks } from "../lib/brands";
 import { day, year } from "../lib/format";
@@ -62,12 +63,78 @@ async function loadProfile(id: string): Promise<Profile> {
   };
 }
 
+/** Co-author network, one to three hops out. Depth 1 comes with the profile;
+ *  deeper walks are fetched only when asked for, since they grow quickly. */
+function NetworkSection({
+  personId,
+  initial,
+}: {
+  personId: string;
+  initial: { nodes: GraphNode[]; edges: GraphEdge[] };
+}) {
+  const [depth, setDepth] = useState(1);
+  const [graph, setGraph] = useState(initial);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setDepth(1);
+    setGraph(initial);
+  }, [personId, initial]);
+
+  const choose = (next: number) => {
+    setDepth(next);
+    setError(null);
+    if (next === 1) {
+      setGraph(initial);
+      return;
+    }
+    setLoading(true);
+    api<{ nodes: GraphNode[]; edges: GraphEdge[] }>(
+      `/v1/persons/${personId}/graph?depth=${next}&limit_coauthors=10&max_nodes=200`,
+    )
+      .then(setGraph)
+      .catch((e) => {
+        if (!isUnauthorized(e)) setError(errorMessage(e));
+      })
+      .finally(() => setLoading(false));
+  };
+
+  if (initial.edges.length === 0) return null;
+  return (
+    <section className="block">
+      <h2>
+        Network <span className="n">{graph.nodes.length - 1}</span>
+        <span className="depthsel" role="group" aria-label="Co-author hops">
+          {[1, 2, 3].map((d) => (
+            <button
+              key={d}
+              className={"btn sm" + (d === depth ? " primary" : "")}
+              aria-pressed={d === depth}
+              disabled={loading}
+              onClick={() => choose(d)}
+            >
+              {d === 1 ? "1 hop" : `${d} hops`}
+            </button>
+          ))}
+        </span>
+      </h2>
+      {error && <Banner>{error}</Banner>}
+      <div className="card">
+        {loading ? (
+          <Loading message="Walking the network…" inline />
+        ) : (
+          <Network nodes={graph.nodes} edges={graph.edges} selfId={personId} />
+        )}
+      </div>
+    </section>
+  );
+}
+
 export function Person() {
   const { id = "" } = useParams();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [pdfBusy, setPdfBusy] = useState(false);
-  const [pdfError, setPdfError] = useState<string | null>(null);
 
   useWorking(!profile && !error);
 
@@ -149,28 +216,10 @@ export function Person() {
           </div>
         </div>
 
-        {/* the report a human reads before a conversation */}
-        <button
-          className="btn"
-          disabled={pdfBusy}
-          onClick={async () => {
-            setPdfBusy(true);
-            try {
-              const blob = await apiBlob(`/v1/persons/${person.id}/dossier.pdf`);
-              const url = URL.createObjectURL(blob);
-              window.open(url, "_blank", "noopener");
-              setTimeout(() => URL.revokeObjectURL(url), 60_000);
-            } catch (e) {
-              if (!isUnauthorized(e)) setPdfError(errorMessage(e));
-            } finally {
-              setPdfBusy(false);
-            }
-          }}
-        >
-          {pdfBusy ? "Building…" : "Dossier PDF"}
-        </button>
+        {/* the report a human reads before a conversation — viewable inline,
+            or downloaded as a PDF, from the same place */}
+        <Dossier personId={person.id} />
       </div>
-      {pdfError && <Banner>{pdfError}</Banner>}
 
       <div className="grid2">
         <section className="block">
@@ -408,16 +457,7 @@ export function Person() {
         </section>
       )}
 
-      {graph.edges.length > 0 && (
-        <section className="block">
-          <h2>
-            Network <span className="n">{graph.nodes.length - 1}</span>
-          </h2>
-          <div className="card">
-            <Network nodes={graph.nodes} edges={graph.edges} selfId={person.id} />
-          </div>
-        </section>
-      )}
+      <NetworkSection personId={person.id} initial={graph} />
 
       <section className="block">
         <h2>

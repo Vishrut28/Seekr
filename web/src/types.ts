@@ -45,6 +45,9 @@ export interface PersonSummary {
   score?: number | null;
   score_components?: ScoreComponents | null;
   matched_evidence?: MatchedEvidence[] | null;
+  /** "partial" rows meet some of the query, and name what they miss */
+  match?: "full" | "partial";
+  missing?: NotFoundTerm[];
 }
 
 export interface AppliedFilters {
@@ -62,6 +65,35 @@ export interface AppliedFilters {
 export interface Correction {
   typed: string;
   matched: string;
+}
+
+/** What was searched in place of the words typed ("physicists" -> physics). */
+export interface Rewrite {
+  typed: string;
+  searched: string | string[];
+  how?: string;
+}
+
+/** A word asking to select people by a protected attribute: never applied. */
+export interface ProtectedTerm {
+  term: string;
+  attribute: string;
+}
+
+/** "not at Google": what was left out, and as what kind of constraint. */
+export interface Exclusion {
+  term: string;
+  as: string[];
+}
+
+/** The parts of a question that are not subject filters. */
+export interface QueryUnderstanding {
+  rewrites?: Rewrite[];
+  protected_terms?: ProtectedTerm[];
+  exclusions?: Exclusion[];
+  require_all_orgs?: boolean;
+  min_publications?: number | null;
+  min_citations?: number | null;
 }
 
 export interface FilterAlone {
@@ -84,9 +116,21 @@ export interface DiscoverySuggestion {
   location?: string | null;
 }
 
-export interface QueryResponse {
+export interface NotFoundTerm {
+  term: string;
+  as: string;
+}
+
+export interface AppliedClause {
+  term: string;
+  as: string;
+}
+
+export interface QueryResponse extends QueryUnderstanding {
   query: string;
   applied_filters?: AppliedFilters | null;
+  applied_clauses?: AppliedClause[];
+  not_found?: NotFoundTerm[];
   unmatched_terms?: string[];
   corrections?: Correction[];
   count: number;

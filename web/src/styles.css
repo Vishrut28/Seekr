@@ -127,7 +127,10 @@ main{min-width:0; display:flex; flex-direction:column; position:relative; overfl
   position:sticky; top:0; z-index:20; background:color-mix(in srgb, var(--bg) 88%, transparent);
   backdrop-filter:blur(8px); border-bottom:1px solid var(--line); padding:14px 28px;
 }
-.page{padding:24px 28px 80px; max-width:1180px; width:100%}
+.page{padding:20px 28px 48px; width:100%; max-width:none; box-sizing:border-box}
+.search-page{display:flex; flex-direction:column; min-height:calc(100vh - 64px); gap:0}
+.search-controls{flex:0 0 auto}
+.results-zone{flex:1 1 auto; min-height:0; display:flex; flex-direction:column; margin-top:8px}
 h1.title{font-size:19px; font-weight:600; letter-spacing:-.02em}
 .sub{color:var(--muted); font-size:13px; margin-top:2px}
 
@@ -211,10 +214,11 @@ input.search:focus{outline:none; border-color:var(--accent); box-shadow:0 0 0 3p
 .filter-actions{display:flex; gap:8px; padding:0 14px 14px}
 
 /* ---------- results ---------- */
-.meta{display:flex; align-items:center; justify-content:space-between; gap:12px; margin:20px 0 10px; flex-wrap:wrap}
-.count{font-size:13px; color:var(--muted); font-variant-numeric:tabular-nums}
-.count b{color:var(--ink); font-weight:600}
-.pills{display:flex; gap:5px; flex-wrap:wrap}
+.meta{display:flex; align-items:flex-start; justify-content:space-between; gap:16px;
+  margin:16px 0 12px; flex-wrap:wrap}
+.count{font-size:13px; color:var(--muted); font-variant-numeric:tabular-nums; flex:0 0 auto}
+.count b{color:var(--ink); font-weight:600; font-size:14px}
+.pills{display:flex; gap:5px; flex-wrap:wrap; justify-content:flex-end; flex:1 1 320px}
 .pill{
   display:inline-flex; align-items:center; gap:5px; font-size:11.5px; padding:2px 9px;
   border-radius:99px; background:var(--surface2); color:var(--ink2); border:1px solid var(--line2);
@@ -223,8 +227,16 @@ input.search:focus{outline:none; border-color:var(--accent); box-shadow:0 0 0 3p
 .pill.warn{background:var(--warn-soft); color:var(--warn); border-color:transparent}
 
 .card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden}
+.results-card{flex:1 1 auto; display:flex; flex-direction:column; min-height:280px}
+.results-card .tablewrap{flex:1 1 auto}
 .tablewrap{overflow-x:auto}
-table.list{width:100%; border-collapse:collapse; font-size:13.5px}
+table.list{width:100%; border-collapse:collapse; font-size:13.5px; table-layout:fixed}
+table.results-table .col-name{width:16%}
+table.results-table .col-org{width:18%}
+table.results-table .col-loc{width:12%}
+table.results-table .col-skills{width:34%}
+table.results-table .col-sources{width:12%}
+table.results-table .col-match{width:8%}
 table.list thead th{
   text-align:left; font-size:11px; font-weight:600; color:var(--muted); letter-spacing:.03em;
   text-transform:uppercase; padding:9px 16px; background:var(--surface2);
@@ -258,7 +270,7 @@ td.nm{font-weight:600; color:var(--ink); white-space:nowrap}
 td.nm .id{display:block; font-family:var(--mono); font-size:10.5px; color:var(--faint); font-weight:400; margin-top:1px}
 td.org{color:var(--ink2)}
 td.org .sub2{font-size:11.5px; color:var(--faint); margin-top:2px}
-td.sk{color:var(--muted); font-size:12.5px; max-width:340px}
+td.sk{color:var(--muted); font-size:12.5px; line-height:1.45; word-wrap:break-word}
 td.num{font-variant-numeric:tabular-nums; text-align:right; color:var(--muted)}
 .vote{white-space:nowrap}
 .vbtn{background:none;border:1px solid var(--line);border-radius:6px;padding:2px 6px;
@@ -279,6 +291,8 @@ td.num{font-variant-numeric:tabular-nums; text-align:right; color:var(--muted)}
 .livetag{display:inline-block;margin-left:8px;padding:1px 6px;border-radius:999px;
   font-size:10px;font-weight:600;letter-spacing:.02em;vertical-align:middle;
   background:var(--accent-soft,#e8f0fe);color:var(--accent,#1a56db)}
+.livetag.partialtag{background:var(--warn-soft);color:var(--warn)}
+.depthsel{display:inline-flex; gap:4px; margin-left:10px; vertical-align:middle}
 .srcpill{
   display:inline-block; font-family:var(--mono); font-size:10px; padding:1px 6px; margin:1px 3px 1px 0;
   border-radius:4px; background:var(--surface2); color:var(--muted); border:1px solid var(--line2);
@@ -299,6 +313,11 @@ td.num{font-variant-numeric:tabular-nums; text-align:right; color:var(--muted)}
   min-height:58vh; display:grid; place-items:center; align-content:center;
   padding:44px; text-align:center; color:var(--muted); font-size:13px;
   letter-spacing:.01em;
+}
+.loading.inline{
+  min-height:220px; flex:1 1 auto; border:1px dashed var(--line);
+  border-radius:var(--radius); background:color-mix(in srgb, var(--surface) 70%, transparent);
+  margin-top:4px;
 }
 .loading::after{
   content:""; display:block; width:120px; height:1px; margin-top:14px;
@@ -347,6 +366,9 @@ body.is-working .bdfill{animation:markfill 1.8s var(--ease) infinite}
 .phead{display:flex; align-items:flex-start; gap:16px; flex-wrap:wrap; margin-bottom:6px}
 .phead h1{font-size:26px; font-weight:600; letter-spacing:-.025em; line-height:1.2}
 .phead .role{color:var(--muted); font-size:14px; margin-top:3px}
+.dossier-block{display:flex; flex-direction:column; align-items:flex-end}
+.dossier-block:has(iframe){flex-basis:100%; align-items:stretch}
+.dossier-actions{display:flex; gap:8px}
 .badges{display:flex; gap:6px; flex-wrap:wrap; margin-top:8px}
 .badge{
   font-size:11px; font-weight:500; padding:2px 9px; border-radius:99px;
@@ -501,11 +523,18 @@ table.list tbody tr{transition:background-color var(--quick) var(--ease)}
    One per provider, filled as each answers. The point is that a slow source
    looks slow and a skipped one says why, instead of one spinner standing in
    for five different things. */
-.srccards{display:grid; grid-template-columns:repeat(auto-fit,minmax(168px,1fr));
-  gap:8px; margin:14px 0 4px}
-.srccard{border:1px solid var(--line); border-radius:var(--radius); padding:10px 12px;
+.srccards-wrap{margin:12px 0 0}
+.srccards{display:flex; gap:8px; overflow-x:auto; scrollbar-width:thin; padding-bottom:2px}
+.srccard{flex:0 0 168px; border:1px solid var(--line); border-radius:var(--radius); padding:10px 12px;
   background:var(--surface); transition:border-color var(--settle) var(--ease),
   background-color var(--settle) var(--ease), opacity var(--settle) var(--ease)}
+.live-hint{
+  display:flex; align-items:center; gap:8px; margin-top:8px; font-size:11.5px; color:var(--faint);
+}
+.live-tag{
+  font-size:10px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+  padding:2px 7px; border-radius:4px; background:var(--ink); color:var(--bg);
+}
 .srchead{display:flex; align-items:center; gap:7px}
 .srcname{font-size:12.5px; font-weight:600; letter-spacing:-.01em}
 .srcbody{font-size:11.5px; color:var(--muted); margin-top:3px}

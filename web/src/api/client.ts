@@ -132,3 +132,16 @@ export async function apiBlob(path: string): Promise<Blob> {
   if (!res.ok) throw new Error(`request failed (${res.status})`);
   return res.blob();
 }
+
+/** Fetch a raw-text response (the HTML dossier) with the bearer token in the
+ *  header. Cannot reuse api<T>(), which always parses JSON — this endpoint
+ *  returns a complete standalone HTML document instead. */
+export async function apiText(path: string): Promise<string> {
+  const res = await fetch(path, { headers: { Authorization: `Bearer ${getToken()}` } });
+  if (res.status === 401) {
+    clearToken();
+    throw new Error("unauthorized");
+  }
+  if (!res.ok) throw new Error(`request failed (${res.status})`);
+  return res.text();
+}

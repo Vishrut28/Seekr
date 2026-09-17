@@ -96,8 +96,15 @@ export function Search() {
           setData((prev) => ({
             ...(prev as any),
             applied_filters: msg.applied_filters,
+            applied_clauses: msg.applied_clauses,
             unmatched_terms: msg.unmatched_terms,
             corrections: msg.corrections,
+            rewrites: msg.rewrites,
+            protected_terms: msg.protected_terms,
+            exclusions: msg.exclusions,
+            require_all_orgs: msg.require_all_orgs,
+            min_publications: msg.min_publications,
+            min_citations: msg.min_citations,
             results: [],
           }) as QueryResponse);
           setRows([]);
@@ -257,63 +264,73 @@ export function Search() {
     </div>
   );
 
+  const isSearching = Boolean(loading) || live.running;
+  const showResults = Boolean(data) || rows.length > 0 || live.running;
+
   return (
     <Shell topbar={topbar}>
-      <div className="examples">
-        <em>Trending</em>
-        {trending.map((x) => (
-          <button key={x} className="chipbtn" onClick={() => useExample(x)}>
-            {x}
-          </button>
-        ))}
-      </div>
-      {recent.length > 0 && (
-        <div className="examples">
-          <em>Recent</em>
-          {recent.map((x) => (
-            <button key={x} className="chipbtn" onClick={() => useExample(x)}>
-              {x}
-            </button>
-          ))}
-          <button
-            className="chipbtn muted"
-            onClick={() => {
-              localStorage.removeItem(RECENT_KEY);
-              setRecent([]);
-            }}
-          >
-            clear
-          </button>
+      <div className="search-page">
+        <div className="search-controls">
+          <div className="examples">
+            <em>Trending</em>
+            {trending.map((x) => (
+              <button key={x} className="chipbtn" onClick={() => useExample(x)}>
+                {x}
+              </button>
+            ))}
+          </div>
+          {recent.length > 0 && (
+            <div className="examples">
+              <em>Recent</em>
+              {recent.map((x) => (
+                <button key={x} className="chipbtn" onClick={() => useExample(x)}>
+                  {x}
+                </button>
+              ))}
+              <button
+                className="chipbtn muted"
+                onClick={() => {
+                  localStorage.removeItem(RECENT_KEY);
+                  setRecent([]);
+                }}
+              >
+                clear
+              </button>
+            </div>
+          )}
+
+          <Filters
+            values={values}
+            flags={flags}
+            onChange={setValues}
+            onFlags={setFlags}
+            onApply={() => runFilters()}
+            onClear={clearFilters}
+          />
+
+          {/* what each source is doing, while it does it */}
+          <SourceCards order={live.order} sources={live.sources} running={live.running} />
         </div>
-      )}
 
-      <Filters
-        values={values}
-        flags={flags}
-        onChange={setValues}
-        onFlags={setFlags}
-        onApply={() => runFilters()}
-        onClear={clearFilters}
-      />
-
-      {/* what each source is doing, while it does it */}
-      <SourceCards order={live.order} sources={live.sources} />
-
-      {loading || live.running ? (
-        <Loading message={loading || "Querying live sources…"} />
-      ) : error ? (
-        <Banner>{error}</Banner>
-      ) : data ? (
-        <Results
-          data={data}
-          rows={rows}
-          query={ranQuery}
-          mode={mode}
-          loadingMore={loadingMore}
-          onLoadMore={loadMore}
-          onDiscover={() => runQuery(true)}
-        />
-      ) : null}
+        <div className="results-zone">
+          {error ? (
+            <Banner>{error}</Banner>
+          ) : isSearching && !showResults ? (
+            <Loading message={loading || "Querying live sources…"} inline />
+          ) : showResults ? (
+            <Results
+              data={data}
+              rows={rows}
+              query={ranQuery}
+              mode={mode}
+              loadingMore={loadingMore}
+              searching={isSearching && rows.length === 0}
+              onLoadMore={loadMore}
+              onDiscover={() => runQuery(true)}
+            />
+          ) : null}
+        </div>
+      </div>
     </Shell>
   );
 }
@@ -324,22 +341,26 @@ function Results({
   query,
   mode,
   loadingMore,
+  searching,
   onLoadMore,
   onDiscover,
 }: {
-  data: QueryResponse;
+  data: QueryResponse | null;
   rows: PersonSummary[];
   query: string;
   mode: Mode;
   loadingMore: boolean;
+  searching?: boolean;
   onLoadMore: () => void;
   onDiscover: () => void;
 }) {
-  const f = data.applied_filters;
-  const unmatched = data.unmatched_terms || [];
-  const corrections = data.corrections || [];
-  const suggestions = data.discovery_suggestions || [];
-  const total = data.total_matches ?? rows.length;
+  const f = data?.applied_filters;
+  const unmatched = data?.unmatched_terms || [];
+  const notFound = data?.not_found || [];
+  const corrections = data?.corrections || [];
+  const suggestions = data?.discovery_suggestions || [];
+  const total = data?.total_matches ?? rows.length;
+  const dropped = notFound.map((d) => d.term);
 
   const pills: { kind: string; value: string }[] = [
     ...(f?.skills || []).map((v) => ({ kind: "skill", value: v })),
@@ -348,32 +369,97 @@ function Results({
     ...(f?.locations || []).map((v) => ({ kind: "place", value: v })),
     ...(f?.countries || []).map((v) => ({ kind: "country", value: v })),
     ...(f?.name_terms || []).map((v) => ({ kind: "name", value: v })),
+    ...(f?.roles || []).map((v) => ({ kind: "role", value: v })),
+    ...(data?.exclusions || [])
+      .filter((e) => e.as.length > 0)
+      .map((e) => ({ kind: "excluding", value: e.term })),
+    ...(data?.min_publications
+      ? [{ kind: "papers ≥", value: fmt(data.min_publications) }]
+      : []),
+    ...(data?.min_citations ? [{ kind: "citations ≥", value: fmt(data.min_citations) }] : []),
   ];
+  // an exclusion nothing matched removes nobody — say so, or it looks applied
+  const unappliedExclusions = (data?.exclusions || []).filter((e) => e.as.length === 0);
+  const rewrites = data?.rewrites || [];
+  const protectedTerms = data?.protected_terms || [];
+
+  const missingTerms = [...new Set([...unmatched, ...dropped])];
 
   return (
     <>
       <div className="meta">
         <div className="count">
-          {rows.length > 0 && (
+          {rows.length > 0 ? (
             <>
-              {/* people appended from a live search are in the page but not in
-                  the corpus total, which could read "36 of 18 matching" */}
               <b>{fmt(rows.length)}</b> of {fmt(Math.max(total, rows.length))} matching
             </>
-          )}
+          ) : searching ? (
+            <>Searching…</>
+          ) : data ? (
+            <>No matches</>
+          ) : null}
         </div>
-        <div className="pills">
-          {pills.map((p) => (
-            <span key={p.kind + p.value} className="pill">
-              <b>{p.kind}</b>
-              {p.value}
+        {pills.length > 0 && (
+          <div className="pills">
+            {pills.map((p) => (
+              <span key={p.kind + p.value} className="pill">
+                <b>{p.kind}</b>
+                {p.value}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {missingTerms.length > 0 && (
+        <Banner kind="warn">
+          <b>{missingTerms.join(", ")}</b> {missingTerms.length === 1 ? "was" : "were"} not
+          applied — nothing in Seekr matches{" "}
+          {missingTerms.length === 1 ? "that term" : "those terms"} yet
+          {rows.length
+            ? `, so these ${fmt(Math.max(total, rows.length))} results ignore ${
+                missingTerms.length === 1 ? "it" : "them"
+              }`
+            : ""}
+          .{" "}
+          <button className="btn sm" onClick={onDiscover}>
+            Search paid sources too
+          </button>
+        </Banner>
+      )}
+
+      {data?.require_all_orgs && (f?.organizations?.length || 0) > 1 && (
+        <Banner kind="info">People affiliated with every one of those organizations, not any of them.</Banner>
+      )}
+
+      {protectedTerms.length > 0 && (
+        <Banner kind="warn">
+          <b>{protectedTerms.map((p) => p.term).join(", ")}</b> {protectedTerms.length === 1 ? "was" : "were"}{" "}
+          not applied — Seekr does not select people by{" "}
+          {[...new Set(protectedTerms.map((p) => p.attribute))].join(", ")}.
+        </Banner>
+      )}
+
+      {unappliedExclusions.length > 0 && (
+        <Banner kind="warn">
+          <b>{unappliedExclusions.map((e) => e.term).join(", ")}</b> excluded nobody — nothing in
+          Seekr matches {unappliedExclusions.length === 1 ? "that term" : "those terms"}.
+        </Banner>
+      )}
+
+      {rewrites.length > 0 && (
+        <Banner kind="info">
+          Searched{" "}
+          {rewrites.map((r, i) => (
+            <span key={r.typed + i}>
+              {i > 0 && "; "}
+              <b>{Array.isArray(r.searched) ? r.searched.join(", ") : r.searched}</b> for{" "}
+              <i>{r.typed}</i>
             </span>
           ))}
-          {unmatched.length > 0 && (
-            <span className="pill warn">not applied: {unmatched.join(", ")}</span>
-          )}
-        </div>
-      </div>
+          .
+        </Banner>
+      )}
 
       {/* A corrected spelling must be visible, or the answer quietly belongs to
           a different question than the one that was asked. */}
@@ -397,8 +483,7 @@ function Results({
         </Banner>
       )}
 
-      {/* the deployed snapshot cannot be written to, so live finds are not kept */}
-      {data.storage === "read-only" &&
+      {data?.storage === "read-only" &&
         data.stored_from_live === 0 &&
         suggestions.length > 0 && (
           <Banner kind="warn">
@@ -408,34 +493,17 @@ function Results({
           </Banner>
         )}
 
-      {/* A dropped constraint must be loud: results that silently ignore
-          a place name read as wrong answers rather than a coverage gap. */}
-      {unmatched.length > 0 && (
-        <Banner kind="warn">
-          <b>{unmatched.join(", ")}</b> {unmatched.length === 1 ? "was" : "were"} not
-          applied — nothing in Seekr matches{" "}
-          {unmatched.length === 1 ? "that term" : "those terms"} yet
-          {rows.length
-            ? `, so these ${fmt(total)} results ignore ${
-                unmatched.length === 1 ? "it" : "them"
-              }`
-            : ""}
-          .{" "}
-          <button className="btn sm" onClick={onDiscover}>
-            Search paid sources too
-          </button>
-        </Banner>
-      )}
-
-      {rows.length > 0 ? (
+      {searching && rows.length === 0 ? (
+        <Loading message="Querying live sources…" inline />
+      ) : rows.length > 0 ? (
         <ResultsTable
           people={rows}
           query={query}
-          hasMore={data.has_more}
+          hasMore={data?.has_more}
           loadingMore={loadingMore}
           onLoadMore={onLoadMore}
         />
-      ) : data.matched_nothing ? (
+      ) : data?.matched_nothing ? (
         <EmptyState
           title="No filters could be applied"
           body={data.explanation || "None of those terms exist in the corpus yet."}
@@ -448,14 +516,12 @@ function Results({
         <EmptyState
           title="No matches"
           body={
-            data.empty_reason?.message || "No one in the corpus matches these filters."
+            data?.empty_reason?.message || "No one in the corpus matches these filters."
           }
         >
-          {/* With filters, show how each one does on its own — that is what
-              tells you which one to relax. */}
-          {(data.empty_reason?.each_filter_alone || []).length > 0 && (
+          {(data?.empty_reason?.each_filter_alone || []).length > 0 && (
             <ul className="whylist">
-              {data.empty_reason?.each_filter_alone?.map((a) => (
+              {data?.empty_reason?.each_filter_alone?.map((a) => (
                 <li key={a.filter}>
                   <code>
                     {a.filter}

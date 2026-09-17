@@ -15,7 +15,7 @@ export const FILTER_FIELDS = [
   { name: "education", label: "Studied at", kind: "text", facet: "organization", placeholder: "University" },
   { name: "role", label: "Role", kind: "text", facet: "role", placeholder: "e.g. professor" },
   { name: "skill", label: "Skill", kind: "text", facet: "skill", placeholder: "e.g. nlp" },
-  { name: "technology", label: "Technology", kind: "text", facet: "skill", placeholder: "e.g. rust" },
+  { name: "technology", label: "Technology", kind: "text", facet: "technology", placeholder: "e.g. rust" },
   { name: "location", label: "Location", kind: "text", placeholder: "City or region" },
   { name: "min_publications", label: "Min publications", kind: "number", min: 0, placeholder: "0" },
   { name: "min_citations", label: "Min citations", kind: "number", min: 0, placeholder: "0" },

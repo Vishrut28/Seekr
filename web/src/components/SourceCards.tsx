@@ -20,7 +20,12 @@ const LABEL: Record<string, string> = {
   openalex: "OpenAlex",
   semanticscholar: "Semantic Scholar",
   dblp: "dblp",
+  orcid: "ORCID",
+  wikidata: "Wikidata",
   github: "GitHub",
+  huggingface: "Hugging Face",
+  stackoverflow: "Stack Overflow",
+  web: "Web",
   exa: "Exa",
 };
 
@@ -88,25 +93,34 @@ export function useLiveSearch() {
   return { sources, order, running, start };
 }
 
-export function SourceCards({ order, sources }: {
+export function SourceCards({ order, sources, running }: {
   order: string[];
   sources: Record<string, SourceState>;
+  running?: boolean;
 }) {
   if (!order.length) return null;
   return (
-    <div className="srccards">
-      {order.map((name) => {
-        const s = sources[name] || { state: "waiting" as const };
-        return (
-          <div key={name} className={`srccard ${s.state}`}>
-            <div className="srchead">
-              <span className="srcname">{LABEL[name] || name}</span>
-              {s.state === "searching" && <span className="srcspin" aria-label="searching" />}
+    <div className="srccards-wrap">
+      <div className="srccards">
+        {order.map((name) => {
+          const s = sources[name] || { state: "waiting" as const };
+          return (
+            <div key={name} className={`srccard ${s.state}`}>
+              <div className="srchead">
+                <span className="srcname">{LABEL[name] || name}</span>
+                {s.state === "searching" && <span className="srcspin" aria-label="searching" />}
+              </div>
+              <div className="srcbody">{describe(s)}</div>
             </div>
-            <div className="srcbody">{describe(s)}</div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
+      {running && (
+        <div className="live-hint">
+          <span className="live-tag">Live</span>
+          Each source answers for itself
+        </div>
+      )}
     </div>
   );
 }

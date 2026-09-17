@@ -116,7 +116,7 @@ function PersonRow({ person, query }: { person: PersonSummary; query: string }) 
     .filter(
       (a) => a.attribute_type === "skill" || a.attribute_type === "research_interest",
     )
-    .slice(0, 3)
+    .slice(0, 6)
     .map((a) => a.value)
     .join(", ");
   const sources = [...new Set((person.attributes || []).flatMap((a) => a.sources || []))];
@@ -142,6 +142,18 @@ function PersonRow({ person, query }: { person: PersonSummary; query: string }) 
         {person.canonical_name || "Unnamed"}
         {/* fetched live for this query rather than already in the corpus */}
         {person.from_live_search && <span className="livetag">new</span>}
+        {/* shown behind the full matches when too few people meet every part */}
+        {person.match === "partial" && (
+          <span
+            className="livetag partialtag"
+            title={
+              "Does not match: " +
+              (person.missing || []).map((m) => `${m.term} (${m.as})`).join(", ")
+            }
+          >
+            partial
+          </span>
+        )}
         <BrandLinks urls={person.profile_urls} />
       </td>
       <td className="org">
@@ -180,9 +192,17 @@ export function ResultsTable({
   onLoadMore: () => void;
 }) {
   return (
-    <div className="card">
+    <div className="card results-card">
       <div className="tablewrap">
-        <table className="list">
+        <table className="list results-table">
+          <colgroup>
+            <col className="col-name" />
+            <col className="col-org" />
+            <col className="col-loc" />
+            <col className="col-skills" />
+            <col className="col-sources" />
+            <col className="col-match" />
+          </colgroup>
           <thead>
             <tr>
               <th>Name</th>

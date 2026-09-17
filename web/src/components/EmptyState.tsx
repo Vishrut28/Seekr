@@ -36,6 +36,6 @@ export function Banner({
   return <div className={cls}>{children}</div>;
 }
 
-export function Loading({ message }: { message: string }) {
-  return <div className="loading">{message}</div>;
+export function Loading({ message, inline }: { message: string; inline?: boolean }) {
+  return <div className={inline ? "loading inline" : "loading"}>{message}</div>;
 }
