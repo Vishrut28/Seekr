@@ -1,0 +1,1228 @@
+{
+ "about": "Criteria for what a relevant person is, per query. See grader.py for how they are applied: `strong` subjects in a person's stated topics grade 2; `strong` subjects only in their titles or bio, or `related` subjects in their topics, grade 1. `country` and `org` must hold unless `soft` is set, in which case a person meeting only the subject grades 1. `name` grades by name words. Kinds: topic (a subject the vocabulary holds), concept (needs related subjects understood), agent (a person noun: physicists), constrained, soft (constraints nobody may meet in full), typo, protected, name. Kind holdout: written after the concept work, criteria fixed before running, never tuned against — the check that improvements generalise. Kind holdout2: a second set written after every change listed so far, criteria fixed before its first run, scored once and never tuned against.",
+ "cases": [
+  {
+   "id": "t-particle",
+   "kind": "topic",
+   "query": "particle physics researchers",
+   "strong": [
+    "particle physics",
+    "particle collision",
+    "quantum chromodynamics",
+    "particle detector",
+    "high energy physics",
+    "hadron",
+    "collider"
+   ],
+   "related": [
+    "cosmology",
+    "dark matter"
+   ]
+  },
+  {
+   "id": "t-nlp",
+   "kind": "topic",
+   "query": "natural language processing",
+   "strong": [
+    "natural language processing",
+    "topic modeling",
+    "language model",
+    "machine translation",
+    "text classification",
+    "sentiment analysis"
+   ],
+   "related": [
+    "information retrieval",
+    "speech recognition"
+   ]
+  },
+  {
+   "id": "t-recsys",
+   "kind": "topic",
+   "query": "recommender systems",
+   "strong": [
+    "recommender system",
+    "recommendation system",
+    "collaborative filtering"
+   ],
+   "related": [
+    "information retrieval",
+    "topic modeling"
+   ]
+  },
+  {
+   "id": "t-airquality",
+   "kind": "topic",
+   "query": "air quality researchers",
+   "strong": [
+    "air quality",
+    "air pollution",
+    "atmospheric aerosol",
+    "aerosols and clouds"
+   ],
+   "related": [
+    "atmospheric chemistry",
+    "meteorological"
+   ]
+  },
+  {
+   "id": "t-cosmology",
+   "kind": "topic",
+   "query": "cosmology",
+   "strong": [
+    "cosmology",
+    "dark matter",
+    "dark energy",
+    "cosmic microwave",
+    "gravitation theory",
+    "black hole"
+   ],
+   "related": [
+    "particle physics",
+    "quantum gravity"
+   ]
+  },
+  {
+   "id": "t-cv",
+   "kind": "topic",
+   "query": "computer vision researchers",
+   "strong": [
+    "computer vision",
+    "image retrieval",
+    "video surveillance",
+    "object detection",
+    "image segmentation",
+    "image recognition",
+    "visual tracking"
+   ],
+   "related": [
+    "medical imaging",
+    "radiomics",
+    "pattern recognition"
+   ]
+  },
+  {
+   "id": "t-drugs",
+   "kind": "topic",
+   "query": "drug discovery",
+   "strong": [
+    "drug discovery",
+    "computational drug",
+    "medicinal chemistry",
+    "drug design"
+   ],
+   "related": [
+    "synthesis and biological activity",
+    "phytochemical"
+   ]
+  },
+  {
+   "id": "t-wildlife",
+   "kind": "topic",
+   "query": "wildlife conservation",
+   "strong": [
+    "wildlife",
+    "biodiversity conservation",
+    "conservation biology",
+    "species distribution",
+    "biodiversity"
+   ],
+   "related": [
+    "ecology"
+   ]
+  },
+  {
+   "id": "t-tb",
+   "kind": "topic",
+   "query": "tuberculosis",
+   "strong": [
+    "tuberculosis"
+   ],
+   "related": [
+    "epidemiology",
+    "infectious disease"
+   ]
+  },
+  {
+   "id": "t-dementia",
+   "kind": "topic",
+   "query": "dementia researchers",
+   "strong": [
+    "dementia",
+    "alzheimer",
+    "cognitive impairment"
+   ],
+   "related": [
+    "neurodegenerative"
+   ]
+  },
+  {
+   "id": "t-blockchain",
+   "kind": "topic",
+   "query": "blockchain",
+   "strong": [
+    "blockchain",
+    "cryptocurrency",
+    "smart contract"
+   ],
+   "related": [
+    "cryptography"
+   ]
+  },
+  {
+   "id": "t-crypto",
+   "kind": "topic",
+   "query": "cryptography",
+   "strong": [
+    "cryptography",
+    "encryption",
+    "cryptographic"
+   ],
+   "related": [
+    "network security",
+    "privacy preserving",
+    "blockchain"
+   ]
+  },
+  {
+   "id": "t-graphene",
+   "kind": "topic",
+   "query": "graphene",
+   "strong": [
+    "graphene",
+    "2d material"
+   ],
+   "related": [
+    "nanomaterial",
+    "nanofiber"
+   ]
+  },
+  {
+   "id": "t-maternal",
+   "kind": "topic",
+   "query": "maternal and child health",
+   "strong": [
+    "maternal and child health",
+    "maternal health",
+    "child health",
+    "child nutrition"
+   ],
+   "related": [
+    "public health"
+   ]
+  },
+  {
+   "id": "t-netsec",
+   "kind": "topic",
+   "query": "network security",
+   "strong": [
+    "network security",
+    "intrusion detection",
+    "cybersecurity",
+    "cyber security"
+   ],
+   "related": [
+    "cryptography",
+    "privacy preserving"
+   ]
+  },
+  {
+   "id": "c-deeplearning",
+   "kind": "concept",
+   "query": "deep learning researchers",
+   "strong": [
+    "deep learning",
+    "neural network",
+    "convolutional neural",
+    "deep neural",
+    "vision transformer"
+   ],
+   "related": [
+    "machine learning",
+    "computer vision",
+    "natural language processing",
+    "reinforcement learning",
+    "radiomics"
+   ]
+  },
+  {
+   "id": "c-astro",
+   "kind": "concept",
+   "query": "astrophysics",
+   "strong": [
+    "astrophysics",
+    "cosmology",
+    "dark matter",
+    "black hole",
+    "galaxy",
+    "gravitation",
+    "cosmic"
+   ],
+   "related": [
+    "particle physics"
+   ]
+  },
+  {
+   "id": "c-hep",
+   "kind": "concept",
+   "query": "high energy physics",
+   "strong": [
+    "high energy",
+    "particle collision",
+    "quantum chromodynamics",
+    "particle detector",
+    "particle physics"
+   ],
+   "related": [
+    "cosmology"
+   ]
+  },
+  {
+   "id": "c-climate",
+   "kind": "concept",
+   "query": "climate science researchers",
+   "strong": [
+    "climate",
+    "atmospheric",
+    "aerosol",
+    "meteorological",
+    "weather"
+   ],
+   "related": [
+    "air quality"
+   ]
+  },
+  {
+   "id": "c-publichealth",
+   "kind": "concept",
+   "query": "public health researchers",
+   "strong": [
+    "public health",
+    "epidemiology",
+    "health policy",
+    "health disparities",
+    "maternal and child health",
+    "global health"
+   ],
+   "related": [
+    "tuberculosis",
+    "nutrition",
+    "health systems"
+   ]
+  },
+  {
+   "id": "c-oncology",
+   "kind": "concept",
+   "query": "oncology researchers",
+   "strong": [
+    "cancer",
+    "tumor",
+    "tumour",
+    "oncology",
+    "glioma",
+    "carcinoma"
+   ],
+   "related": [
+    "radiomics",
+    "medical imaging"
+   ]
+  },
+  {
+   "id": "c-aihealth",
+   "kind": "concept",
+   "query": "AI in healthcare",
+   "strong": [
+    "medical imaging",
+    "radiomics",
+    "ai in cancer detection",
+    "clinical decision support",
+    "health informatics"
+   ],
+   "related": [
+    "machine learning",
+    "deep learning"
+   ]
+  },
+  {
+   "id": "c-webdev",
+   "kind": "concept",
+   "query": "web developers",
+   "strong": [
+    "html",
+    "css",
+    "javascript",
+    "typescript",
+    "reactjs",
+    "web development",
+    "jquery"
+   ],
+   "related": [
+    "php",
+    "node.js"
+   ]
+  },
+  {
+   "id": "c-cybersec",
+   "kind": "concept",
+   "query": "cybersecurity experts",
+   "strong": [
+    "cybersecurity",
+    "network security",
+    "intrusion detection",
+    "cryptography",
+    "data security",
+    "malware"
+   ],
+   "related": [
+    "privacy preserving",
+    "blockchain"
+   ]
+  },
+  {
+   "id": "c-neuro",
+   "kind": "concept",
+   "query": "neuroscience",
+   "strong": [
+    "neuroscience",
+    "brain",
+    "neuron",
+    "dementia",
+    "alzheimer",
+    "neurodegenerative",
+    "cognitive impairment"
+   ],
+   "related": [
+    "psychology"
+   ]
+  },
+  {
+   "id": "c-materials",
+   "kind": "concept",
+   "query": "materials science researchers",
+   "strong": [
+    "materials science",
+    "graphene",
+    "nanofiber",
+    "2d material",
+    "crystallography",
+    "energy harvesting material"
+   ],
+   "related": [
+    "nanotechnology",
+    "thin film"
+   ]
+  },
+  {
+   "id": "c-infectious",
+   "kind": "concept",
+   "query": "infectious disease researchers",
+   "strong": [
+    "infectious disease",
+    "tuberculosis",
+    "fungal infection",
+    "antifungal",
+    "hiv",
+    "malaria",
+    "covid"
+   ],
+   "related": [
+    "epidemiology"
+   ]
+  },
+  {
+   "id": "a-physicists",
+   "kind": "agent",
+   "query": "physicists",
+   "strong": [
+    "physics",
+    "particle physics",
+    "particle collision",
+    "particle detector",
+    "particle accelerator",
+    "cosmology",
+    "quantum chromodynamics",
+    "quantum gravity",
+    "quantum field",
+    "superconductivity",
+    "condensed matter",
+    "gravitation",
+    "black hole",
+    "dark matter",
+    "astrophysical"
+   ],
+   "related": [
+    "astrophysics"
+   ]
+  },
+  {
+   "id": "a-epidemiologists",
+   "kind": "agent",
+   "query": "epidemiologists",
+   "strong": [
+    "epidemiology",
+    "epidemiological"
+   ],
+   "related": [
+    "public health",
+    "tuberculosis"
+   ]
+  },
+  {
+   "id": "a-ecologists",
+   "kind": "agent",
+   "query": "ecologists",
+   "strong": [
+    "ecology",
+    "wildlife",
+    "species distribution",
+    "biodiversity"
+   ],
+   "related": [
+    "conservation"
+   ]
+  },
+  {
+   "id": "a-cosmologists",
+   "kind": "agent",
+   "query": "cosmologists",
+   "strong": [
+    "cosmology",
+    "dark matter",
+    "gravitation",
+    "black hole"
+   ]
+  },
+  {
+   "id": "k-ml-india",
+   "kind": "constrained",
+   "query": "machine learning researchers in India",
+   "strong": [
+    "machine learning",
+    "deep learning",
+    "neural network"
+   ],
+   "related": [
+    "artificial intelligence"
+   ],
+   "country": "IN"
+  },
+  {
+   "id": "k-air-india",
+   "kind": "constrained",
+   "query": "air quality researchers in India",
+   "strong": [
+    "air quality",
+    "air pollution",
+    "aerosol"
+   ],
+   "related": [
+    "atmospheric"
+   ],
+   "country": "IN"
+  },
+  {
+   "id": "k-stanford",
+   "kind": "constrained",
+   "query": "researchers at Stanford",
+   "org": [
+    "stanford"
+   ]
+  },
+  {
+   "id": "k-google",
+   "kind": "constrained",
+   "query": "people at Google",
+   "org": [
+    "google"
+   ]
+  },
+  {
+   "id": "k-deepmind",
+   "kind": "constrained",
+   "query": "Google DeepMind researchers",
+   "org": [
+    "deepmind"
+   ]
+  },
+  {
+   "id": "k-python",
+   "kind": "constrained",
+   "query": "Python developers",
+   "strong": [
+    "python"
+   ],
+   "related": [
+    "django",
+    "jupyter notebook",
+    "pandas",
+    "numpy"
+   ]
+  },
+  {
+   "id": "k-js",
+   "kind": "constrained",
+   "query": "JavaScript developers",
+   "strong": [
+    "javascript",
+    "typescript",
+    "node.js",
+    "reactjs"
+   ],
+   "related": [
+    "html",
+    "css"
+   ]
+  },
+  {
+   "id": "k-physics-us",
+   "kind": "constrained",
+   "query": "physicists in the US",
+   "strong": [
+    "physics",
+    "particle physics",
+    "particle collision",
+    "particle detector",
+    "particle accelerator",
+    "cosmology",
+    "quantum chromodynamics",
+    "quantum gravity",
+    "quantum field",
+    "superconductivity",
+    "condensed matter",
+    "gravitation",
+    "black hole",
+    "dark matter",
+    "astrophysical"
+   ],
+   "country": "US"
+  },
+  {
+   "id": "k-ph-india",
+   "kind": "constrained",
+   "query": "public health researchers in India",
+   "strong": [
+    "public health",
+    "epidemiology",
+    "health policy",
+    "maternal and child health",
+    "global health"
+   ],
+   "related": [
+    "nutrition",
+    "tuberculosis"
+   ],
+   "country": "IN"
+  },
+  {
+   "id": "s-cv-stanford",
+   "kind": "soft",
+   "query": "computer vision researchers at Stanford",
+   "strong": [
+    "computer vision",
+    "image retrieval",
+    "video surveillance",
+    "object detection",
+    "image recognition"
+   ],
+   "org": [
+    "stanford"
+   ],
+   "soft": true
+  },
+  {
+   "id": "s-cosmo-india",
+   "kind": "soft",
+   "query": "cosmology researchers in India",
+   "strong": [
+    "cosmology",
+    "dark matter",
+    "gravitation",
+    "black hole"
+   ],
+   "country": "IN",
+   "soft": true
+  },
+  {
+   "id": "s-dl-oxford",
+   "kind": "soft",
+   "query": "deep learning researchers at Oxford",
+   "strong": [
+    "deep learning",
+    "neural network",
+    "convolutional"
+   ],
+   "related": [
+    "machine learning"
+   ],
+   "org": [
+    "oxford"
+   ],
+   "soft": true
+  },
+  {
+   "id": "s-drugs-india",
+   "kind": "soft",
+   "query": "drug discovery researchers in India",
+   "strong": [
+    "drug discovery",
+    "computational drug",
+    "drug design"
+   ],
+   "country": "IN",
+   "soft": true
+  },
+  {
+   "id": "y-particle",
+   "kind": "typo",
+   "query": "partical physics",
+   "strong": [
+    "particle physics",
+    "particle collision",
+    "quantum chromodynamics",
+    "particle detector"
+   ]
+  },
+  {
+   "id": "y-recsys",
+   "kind": "typo",
+   "query": "reccomender systems",
+   "strong": [
+    "recommender system",
+    "recommendation system",
+    "collaborative filtering"
+   ]
+  },
+  {
+   "id": "y-cosmology",
+   "kind": "typo",
+   "query": "cosmolgy",
+   "strong": [
+    "cosmology",
+    "dark matter",
+    "gravitation theory",
+    "black hole"
+   ]
+  },
+  {
+   "id": "y-nlp",
+   "kind": "typo",
+   "query": "natual language processing",
+   "strong": [
+    "natural language processing",
+    "topic modeling",
+    "language model"
+   ]
+  },
+  {
+   "id": "p-women-ml",
+   "kind": "protected",
+   "query": "women in machine learning",
+   "strong": [
+    "machine learning",
+    "deep learning",
+    "neural network"
+   ],
+   "note": "gender is never a filter: judged exactly as machine learning researchers"
+  },
+  {
+   "id": "n-aggarwal",
+   "kind": "name",
+   "query": "Rahul Aggarwal",
+   "name": "Rahul Aggarwal"
+  },
+  {
+   "id": "n-mulajkar",
+   "kind": "name",
+   "query": "Rahul Mulajkar",
+   "name": "Rahul Mulajkar"
+  },
+  {
+   "id": "n-dixit",
+   "kind": "name",
+   "query": "Dhruv Dixit",
+   "name": "Dhruv Dixit",
+   "note": "the graph holds several unmerged Dhruv Dixit records: all are relevant"
+  },
+  {
+   "id": "n-dixit-typo",
+   "kind": "name",
+   "query": "Dhruv Dixt",
+   "name": "Dhruv Dixit"
+  },
+  {
+   "id": "h-evs",
+   "query": "extracellular vesicles",
+   "strong": [
+    "extracellular vesicle",
+    "exosome"
+   ],
+   "related": [
+    "microrna"
+   ],
+   "kind": "holdout"
+  },
+  {
+   "id": "h-fungal",
+   "query": "fungal infection researchers",
+   "strong": [
+    "fungal infection",
+    "antifungal",
+    "fungal"
+   ],
+   "related": [
+    "infectious disease"
+   ],
+   "kind": "holdout"
+  },
+  {
+   "id": "h-airpollution",
+   "query": "air pollution scientists",
+   "strong": [
+    "air pollution",
+    "air quality",
+    "aerosol"
+   ],
+   "related": [
+    "atmospheric"
+   ],
+   "kind": "holdout"
+  },
+  {
+   "id": "h-radiologists",
+   "query": "radiologists",
+   "strong": [
+    "radiology",
+    "radiomics",
+    "medical imaging"
+   ],
+   "related": [
+    "image segmentation"
+   ],
+   "kind": "holdout"
+  },
+  {
+   "id": "h-chemists",
+   "query": "chemists",
+   "strong": [
+    "chemistry",
+    "synthesis",
+    "catalysis",
+    "photocatalysis"
+   ],
+   "related": [
+    "materials chemistry"
+   ],
+   "kind": "holdout"
+  },
+  {
+   "id": "h-roboticists",
+   "query": "roboticists",
+   "strong": [
+    "robotic",
+    "robot",
+    "motion planning"
+   ],
+   "related": [
+    "autonomous vehicle",
+    "localization"
+   ],
+   "kind": "holdout"
+  },
+  {
+   "id": "h-ir",
+   "query": "information retrieval",
+   "strong": [
+    "information retrieval",
+    "search engine",
+    "recommender system",
+    "image retrieval"
+   ],
+   "related": [
+    "topic modeling"
+   ],
+   "kind": "holdout"
+  },
+  {
+   "id": "h-privacy",
+   "query": "privacy researchers",
+   "strong": [
+    "privacy"
+   ],
+   "related": [
+    "cryptography",
+    "data security"
+   ],
+   "kind": "holdout"
+  },
+  {
+   "id": "h-toxicology",
+   "query": "toxicology",
+   "strong": [
+    "toxicology",
+    "toxicity",
+    "heavy metal exposure"
+   ],
+   "related": [
+    "pharmacology"
+   ],
+   "kind": "holdout"
+  },
+  {
+   "id": "h-tb-india",
+   "query": "tuberculosis researchers in India",
+   "strong": [
+    "tuberculosis",
+    "mycobacterium"
+   ],
+   "related": [
+    "infectious disease"
+   ],
+   "country": "IN",
+   "kind": "holdout"
+  },
+  {
+   "id": "h-alz",
+   "query": "Alzheimer's researchers",
+   "strong": [
+    "alzheimer",
+    "dementia"
+   ],
+   "related": [
+    "neurodegenerative"
+   ],
+   "kind": "holdout"
+  },
+  {
+   "id": "h-economists",
+   "query": "economists",
+   "strong": [
+    "economics",
+    "econometrics",
+    "economic"
+   ],
+   "related": [
+    "finance"
+   ],
+   "kind": "holdout"
+  },
+  {
+   "id": "h-datasci",
+   "query": "data scientists",
+   "strong": [
+    "data science",
+    "data mining",
+    "machine learning",
+    "data analysis"
+   ],
+   "related": [
+    "statistics"
+   ],
+   "kind": "holdout"
+  },
+  {
+   "id": "h-ml-eng",
+   "query": "machine learning engineers",
+   "strong": [
+    "machine learning",
+    "deep learning",
+    "neural network"
+   ],
+   "related": [
+    "artificial intelligence"
+   ],
+   "kind": "holdout"
+  },
+  {
+   "id": "h-nano",
+   "query": "nanotechnology",
+   "strong": [
+    "nanotechnology",
+    "nanomaterial",
+    "nanoparticle",
+    "nanofiber",
+    "graphene"
+   ],
+   "related": [
+    "thin film"
+   ],
+   "kind": "holdout"
+  },
+  {
+   "id": "h-atmos",
+   "query": "atmospheric scientists",
+   "strong": [
+    "atmospheric",
+    "aerosol",
+    "meteorological",
+    "climate"
+   ],
+   "related": [
+    "air quality"
+   ],
+   "kind": "holdout"
+  },
+  {
+   "id": "h2-diabetes",
+   "query": "diabetes researchers",
+   "strong": [
+    "diabetes",
+    "insulin",
+    "glycemic"
+   ],
+   "related": [
+    "obesity",
+    "metabolic syndrome"
+   ],
+   "kind": "holdout2"
+  },
+  {
+   "id": "h2-malaria",
+   "query": "malaria",
+   "strong": [
+    "malaria",
+    "plasmodium"
+   ],
+   "related": [
+    "infectious disease",
+    "mosquito"
+   ],
+   "kind": "holdout2"
+  },
+  {
+   "id": "h2-migraine",
+   "query": "headache and migraine researchers",
+   "strong": [
+    "migraine",
+    "headache"
+   ],
+   "related": [
+    "pain",
+    "neurology"
+   ],
+   "kind": "holdout2"
+  },
+  {
+   "id": "h2-speech",
+   "query": "speech recognition",
+   "strong": [
+    "speech recognition",
+    "speech processing",
+    "automatic speech"
+   ],
+   "related": [
+    "natural language processing",
+    "audio"
+   ],
+   "kind": "holdout2"
+  },
+  {
+   "id": "h2-rl",
+   "query": "reinforcement learning researchers",
+   "strong": [
+    "reinforcement learning"
+   ],
+   "related": [
+    "robotics",
+    "machine learning"
+   ],
+   "kind": "holdout2"
+  },
+  {
+   "id": "h2-gnn",
+   "query": "graph neural networks",
+   "strong": [
+    "graph neural network"
+   ],
+   "related": [
+    "neural network",
+    "graph"
+   ],
+   "kind": "holdout2"
+  },
+  {
+   "id": "h2-pathology",
+   "query": "computational pathology",
+   "strong": [
+    "pathology",
+    "histopathology",
+    "digital pathology"
+   ],
+   "related": [
+    "medical imaging",
+    "medical image"
+   ],
+   "kind": "holdout2"
+  },
+  {
+   "id": "h2-neuro-agent",
+   "query": "neuroscientists",
+   "strong": [
+    "neuroscience",
+    "neural",
+    "brain"
+   ],
+   "related": [
+    "cognitive",
+    "neurology"
+   ],
+   "kind": "holdout2"
+  },
+  {
+   "id": "h2-statisticians",
+   "query": "statisticians",
+   "strong": [
+    "statistics",
+    "statistical",
+    "bayesian"
+   ],
+   "related": [
+    "econometrics",
+    "biostatistics"
+   ],
+   "kind": "holdout2"
+  },
+  {
+   "id": "h2-dev-databases",
+   "query": "database systems",
+   "strong": [
+    "database",
+    "query processing",
+    "data management"
+   ],
+   "related": [
+    "distributed systems"
+   ],
+   "kind": "holdout2"
+  },
+  {
+   "id": "h2-quantum",
+   "query": "quantum computing",
+   "strong": [
+    "quantum computing",
+    "quantum information",
+    "quantum algorithm"
+   ],
+   "related": [
+    "quantum mechanics",
+    "quantum physics"
+   ],
+   "kind": "holdout2"
+  },
+  {
+   "id": "h2-energy",
+   "query": "renewable energy researchers",
+   "strong": [
+    "renewable energy",
+    "solar",
+    "wind energy",
+    "photovoltaic"
+   ],
+   "related": [
+    "energy",
+    "battery"
+   ],
+   "kind": "holdout2"
+  },
+  {
+   "id": "h2-cardio",
+   "query": "cardiologists",
+   "strong": [
+    "cardiology",
+    "cardiovascular",
+    "heart failure",
+    "cardiac"
+   ],
+   "related": [
+    "hypertension"
+   ],
+   "kind": "holdout2"
+  },
+  {
+   "id": "h2-hci",
+   "query": "human computer interaction",
+   "strong": [
+    "human computer interaction",
+    "user interface",
+    "usability"
+   ],
+   "related": [
+    "visualization"
+   ],
+   "kind": "holdout2"
+  },
+  {
+   "id": "h2-ml-us",
+   "query": "machine learning researchers in the US",
+   "country": "US",
+   "strong": [
+    "machine learning",
+    "deep learning",
+    "neural network"
+   ],
+   "related": [
+    "artificial intelligence"
+   ],
+   "kind": "holdout2"
+  },
+  {
+   "id": "h2-headache-norway",
+   "query": "headache researchers in Norway",
+   "country": "NO",
+   "soft": true,
+   "strong": [
+    "migraine",
+    "headache"
+   ],
+   "related": [
+    "pain"
+   ],
+   "kind": "holdout2"
+  },
+  {
+   "id": "h2-cv-china",
+   "query": "computer vision researchers in China",
+   "country": "CN",
+   "soft": true,
+   "strong": [
+    "computer vision",
+    "image recognition",
+    "object detection",
+    "image segmentation"
+   ],
+   "related": [
+    "image processing"
+   ],
+   "kind": "holdout2"
+  },
+  {
+   "id": "h2-typo-epi",
+   "query": "epidemology",
+   "strong": [
+    "epidemiology"
+   ],
+   "related": [
+    "public health"
+   ],
+   "kind": "holdout2"
+  },
+  {
+   "id": "h2-typo-rl",
+   "query": "reinforcment learning",
+   "strong": [
+    "reinforcement learning"
+   ],
+   "related": [
+    "machine learning"
+   ],
+   "kind": "holdout2"
+  },
+  {
+   "id": "h2-microsoft",
+   "query": "researchers at Microsoft",
+   "org": [
+    "microsoft"
+   ],
+   "kind": "holdout2"
+  }
+ ]
+}
