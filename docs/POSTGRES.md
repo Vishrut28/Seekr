@@ -22,6 +22,26 @@ a project env var and the function serves live data instead of the bundled
 snapshot — at which point `data/rip.db` and the snapshot step in
 `scripts/nightly_refresh.sh` become unnecessary.
 
+## Several workers
+
+`rip.cli worker --processes N` (and `ingest-leads`, `refresh`) runs on SQLite
+too, but SQLite takes one writer at a time, so its workers queue for the lock
+on every write. Postgres writes concurrently, which is where more processes
+keep paying off.
+
+Workers never take the same lead: each claims its batch with one statement,
+
+```sql
+UPDATE discovery_lead SET status = 'claimed', claimed_by = :worker, claimed_at = now()
+WHERE id IN (SELECT id FROM discovery_lead WHERE status = 'pending'
+             ORDER BY created_at, id LIMIT :n FOR UPDATE SKIP LOCKED)
+  AND status = 'pending'
+```
+
+Verified against Postgres 18 with two sessions: while the first held rows 1–5
+in an open transaction, the second claimed rows 6–10 immediately. Without
+`SKIP LOCKED` it would have waited for the first and then found its rows gone.
+
 ## When you must move
 
 The Vercel snapshot model has a hard ceiling: **Vercel rejects any deployed

@@ -45,10 +45,14 @@ python3 -m venv .venv
 
 # review suspicious merges and possible duplicates (also available via API)
 .venv/bin/python -m rip.cli review list
+.venv/bin/python -m rip.cli review triage        # judge the queue; --yes to act on it
 .venv/bin/python -m rip.cli review approve 114   # confirm a fuzzy merge
 .venv/bin/python -m rip.cli review split 22      # undo one: detach into new person
 .venv/bin/python -m rip.cli review merge 7       # fold a possible-duplicate pair together
 .venv/bin/python -m rip.cli review dismiss 7     # or mark the pair as distinct people
+
+# rebuild the search index from the tables (no network; normally automatic)
+.venv/bin/python -m rip.cli reindex
 
 # re-run parsers over stored raw payloads (no network; after parser improvements)
 .venv/bin/python -m rip.cli reparse
@@ -58,6 +62,8 @@ python3 -m venv .venv
 
 # continuous lead worker (separate process from `serve`; SQLite WAL handles both)
 .venv/bin/python -m rip.cli worker --poll-interval 30 --limit 25
+# ...or four of them: each claims its own leads (also: ingest-leads, refresh)
+.venv/bin/python -m rip.cli worker --processes 4
 
 # how big is the backlog, and how long will it take?
 .venv/bin/python -m rip.cli queue-stats
@@ -124,6 +130,17 @@ records both sides with their provenance (`GET /v1/persons/{id}/conflicts`).
 "Where did we get this?" is always answerable via
 `/v1/persons/{id}/provenance`.
 
+### A record's claims follow the record
+
+Re-ingesting a record, whether by `refresh` or `reparse`, removes the claims
+that record no longer makes. Examples: a keyword someone deleted from ORCID, or
+one a parser now rejects. ORCID keywords that only advertise the person's own
+name ("Rahul Kumar ceo") are one such case; they had turned "Rahul" into a
+research subject. A claim that another source still makes stays, and is no
+longer marked corroborated once only one source backs it. Locations and roles
+are history rather than retractions: someone who moved from Berlin to Zurich
+did live in Berlin (see above).
+
 ## Entity resolution
 
 Order of strategies (see `backend/rip/resolution.py`):
@@ -153,6 +170,7 @@ reassigned.
 | `GET /v1/persons/{id}/projects` | projects + contribution role |
 | `GET /v1/persons/{id}/organizations` | affiliation history |
 | `GET /v1/persons/{id}/provenance` | which sources, matched how, observed when |
+| `GET /v1/persons/{id}/graph?depth=1..3` | organizations and co-authors out to three hops; each person's strongest `limit_coauthors` (20) followed, walk stops at `max_nodes` (200) and says `truncated` |
 | `GET /v1/persons/{id}/documents` | published CV/résumé links and profile pages — **only links found on pages we fetched; Seekr never creates or hosts a document** |
 | `GET /v1/changes?since_id=` | incremental sync feed (integer cursor + `has_more`; legacy `since` timestamp still accepted) |
 | `POST /v1/review/duplicates/{id}/merge` \| `/reject` | act on near-miss duplicate candidates |
@@ -201,13 +219,282 @@ anything can be trained on them. Weights live in `WEIGHTS` in `rip/nlq.py`.
 
 **Two-stage retrieval.** Ranking needs to see the field before it can pick a
 winner, so the filter yields a candidate pool (`RIP_CANDIDATE_POOL`, default
-500) that is scored and *then* paged. `total_matches` still reports the true
+250) that is scored and *then* paged. `total_matches` still reports the true
 filter count; paging deeper than the pool is not a meaningful request of a
 ranked list.
+
+When more people match than fit in the pool, the pool is cut by a stored
+per-person prior that is exactly the query-independent half of the score
+(output, recency, breadth) plus how much of the query's topical evidence each
+person carries. Measured against scoring *every* match on a 10k corpus, this
+cut returned the true top 50 for all 30 broad benchmark queries; the previous
+evidence-count cut recovered only 65% of the true top 10.
+
+**Several concepts are scored as a mean, not a sum.** For "robotics and
+computer vision", depth is the rarity-weighted (IDF) mean of each concept's own
+evidence, so someone deep in one and absent from the other no longer outranks
+someone solidly evidenced in both.
+
+## Search index
+
+`/v1/query` runs on a search index (`backend/rip/search_index.py`) rather than
+`LIKE '%term%'` scans. Every person is broken into `(term, field)` postings —
+name, aliases, topics, bio/title text, roles, organisations, places, country,
+project technologies — and every filter is an index seek driven by its rarest
+constraint, so cost follows the size of the answer rather than the corpus.
+
+| 54 benchmark queries, 10k people | parse | execute | count | total |
+|---|---|---|---|---|
+| before (LIKE scans) | 6,999 ms | 5,675 ms | 3,191 ms | 15,865 ms |
+| search index | 142 ms | 1,321 ms | 2 ms | 1,466 ms |
+
+- **It maintains itself.** A session hook re-indexes every person whose
+  Person, Evidence, Affiliation, Contribution or IdentityLink rows changed,
+  just before commit and inside the same transaction — no ingest path can
+  forget it, and a rolled-back change never reaches it. Bulk SQL that bypasses
+  the ORM (`merge-orgs`, `purge-nonpersons`) re-indexes explicitly.
+- **Built on upgrade.** `init_db` builds it once for an existing graph (~6 s per
+  10k people) and rebuilds when `INDEX_VERSION` changes. `rip.cli reindex`
+  rebuilds on demand.
+- **Worldwide text** (`backend/rip/textnorm.py`): accent- and case-insensitive
+  ("Zürich" = "zurich", "José" = "jose"), words in any script, Chinese/Japanese/
+  Thai split into character pairs so a term matches inside a longer value.
+  `backend/rip/geo.py` adds every common country name including endonyms
+  ("Deutschland", "中国"), demonyms, and major world cities with their other
+  spellings (München/Munich, Bombay/Mumbai, 北京/Beijing).
+- **Whole words, not fragments.** "rust" no longer matches a bio about "trust",
+  nor "java" a JavaScript repository.
+- **A city implies its country** in the index: "researchers in India" finds a
+  profile whose location only says "Bengaluru". Ambiguous cities (Cambridge,
+  Hyderabad, Portland) imply nothing, and `Person.country` itself still holds
+  only what a source stated.
+- **Cost:** ~120 bytes a posting, ~6 KB per real profile. The read-only
+  snapshot keeps the index when it fits the size limit and otherwise ships
+  without it; search then falls back to the SQL filters, which return the same
+  people more slowly.
+- **Portable.** Every statement is plain SQLAlchemy; the full query path was
+  replayed on PostgreSQL 18 with identical results.
+- **`/v1/persons` uses it too.** The text filters (`q`, `skill`,
+  `organization`, `education`, `current_organization`, `role`, `country`,
+  `location`, `technology`) become one index lookup; the numeric and
+  structural filters apply to what it returns. 14 filter combinations on 10k
+  people: 2,332 ms → 167 ms, same people (a test holds the two paths equal).
+  The loose `skill=go*` form still uses SQL. Facet counts are cached per
+  database and invalidated by writes.
+
+## Records that are not people
+
+Sources hand over things that are not people — web page titles ("20+ Deep
+Learning Projects for Beginners", job posts, "Careers at Millennium"), GitHub
+*User* accounts that are communities ("Deep Learning Türkiye"), and degenerate
+author strings ("D. ."). `backend/rip/personhood.py` judges each name at ingest:
+
+- **Page titles of real people are cleaned, not dropped:** "Dhruv Dixit's
+  Profile | YMGrad" is stored as *Dhruv Dixit*. The raw payload keeps the
+  original.
+- **Clear non-people are refused before anything is written**
+  (`NotAPerson`): a topic phrase or entity word inside the name, nothing that
+  reads as a name, or — for web pages only — a title made mostly of ordinary
+  words.
+- **Anything short of a clear signal is kept.** Rejecting a real person loses
+  them silently, so names like "Deep Singh" or "Learning Chen" pass.
+
+The same check stops a stored community record from turning a topic into a
+name filter. To clean a graph ingested before the check existed:
+
+```bash
+python -m rip.cli purge-nonpersons          # dry run: what would be removed / renamed
+python -m rip.cli purge-nonpersons --yes    # apply
+```
+
+On the real graph this removed 15 of 463 records and cleaned 18 names.
+
+## People stored more than once
+
+Ingest merges on strong keys, or a near-identical name plus a shared
+organization. Two kinds of duplicate survive that: one person across sources
+with no shared identifier (Dhruv Dixit on OpenAlex, Semantic Scholar and dblp),
+and one author split into several IDs by a scholarly index (OpenAlex does
+this). `backend/rip/dedupe.py` merges them — **on evidence, never on a name**:
+the same graph holds four different Rahul Guptas.
+
+| | |
+|---|---|
+| veto | different ORCIDs; different IDs from a source that disambiguates people (dblp, ORCID, GitHub, Stack Overflow, Hugging Face); unrelated fields with nothing else shared; a pair rejected in review |
+| merge | identical full name, no veto, and shared papers or a large share of co-authors — compared by full name, from papers with at most 25 authors |
+| review | plausible but short of proof, initials-only names, or a record that matches a *different* person almost as well → the merge-review queue |
+
+Clusters are complete-link, so one ambiguous record cannot chain two people
+together. Every merge is an ordinary merge: reversible with `review split`.
+
+```bash
+python -m rip.cli dedupe          # dry run: proven merges and review candidates
+python -m rip.cli dedupe --yes    # merge, queue reviews, repeat until stable
+```
+
+On the real graphs: 2 and 4 merges, every one backed by shared papers or
+dozens of shared co-authors; the rest went to review.
+
+### The review queue holds questions, not noise
+
+Ingest queues a pair whenever two names look alike, and a name is not
+evidence. One graph's queue reached 196 pairs, of which 23 were decidable:
+the rest were one "Karan Singh" against thirty separate "K. Singh" records
+sharing no paper, no co-author and no organization. `review triage` judges
+every pending pair by the same evidence rules and sorts it:
+
+| | |
+|---|---|
+| merged | proof, and the whole-group sweep agrees (so a record that fits two people equally well is not merged) |
+| rejected | a veto: different ORCIDs, or a source that disambiguates people listing them as two |
+| deferred | no evidence either way — **not a verdict**: the pair leaves the queue and returns to it by itself if either person later gains evidence |
+| pending | left for you, because the evidence is real but short of proof |
+
+```bash
+python -m rip.cli review triage        # dry run: what it would decide, and why
+python -m rip.cli review triage --yes  # carry it out
+```
+
+Both real queues: 196 → 23 and 55 → 28 pairs waiting, no person merged by it.
+The flood is also stopped at the source — a name-only near miss now needs a
+name that identifies someone on both sides, so "K. Singh" and a bare "Rahul"
+are never queued against anyone. A pair with a *shared organization* still is:
+that is evidence.
+
+## What the words in a query are allowed to mean
+
+A query is matched against the vocabulary the corpus actually holds. Four
+rules decide what a term may become, all of them from queries that came back
+wrong on the real graph:
+
+- **A phrase nobody works on is reported, not answered with one of its
+  words.** "graph neural networks" used to return wireless sensor network and
+  VANET researchers, because the bare word "networks" matched them. Now the
+  longest sub-phrase that means something wins ("neural networks"), the
+  phrase itself is reported in `unmatched_terms`, and a lone word out of it
+  never becomes a filter. A word that is real vocabulary on its own ("Python"
+  in "Python developers") is untouched.
+- **Number does not decide who is findable.** Words are compared by a crude
+  stem, so "distributed system" and "distributed systems" reach the same
+  people, and either reaches "Distributed systems and fault tolerance". Before
+  this the singular found nobody at all, and "neural network" found the values
+  spelled that way while missing "Neural Networks and Applications" beside
+  them. An exact hit on a phrase widens the same way, or the exact spelling
+  would return *fewer* people than a misspelling of it. The index stores the
+  same stems for the fields where number is not identity — skills, bios,
+  roles, technologies (`search_index.STEMMED_FIELDS`) — so free text follows
+  the same rule: a bio reading "recommender systems" answers "recommender
+  system". Names are deliberately excluded: "Rogers" is not "Roger".
+- **A typo inside a phrase is repaired.** The per-word typo pass compares a
+  word against whole vocabulary *values*, so it fixed "bangalor" but never
+  "distributed sytems" — which used to apply the bare word "distributed" and
+  reach Distributed Processing. Words are now also compared against the
+  vocabulary's *words*, one transposition included ("learnign", "netowrks",
+  "robotcis"), and a repair is used only when it makes the phrase match
+  something real. The substitution is reported in `corrections`.
+- **A word the vocabulary uses is a subject, not a surname.** A GitHub account
+  display-named "Graph" turned "graph neural networks" into a name search.
+
+`scripts/benchmark_queries.py` has a `variants` group that keeps these honest:
+each singular/plural pair must return the same people, and each typo must
+reach them too.
 
 Set `RIP_VOCAB_TTL` (default 60s) to tune how long the query vocabulary is
 cached — it is four `SELECT DISTINCT`s over the corpus, and rebuilding it per
 request costs more than everything else in a query put together.
+
+## Understanding a question
+
+The rules above decide what a *word* may match. These decide what a
+*question* means. Each one reports what it did in the response, so an answer
+never quietly belongs to a different question than the one asked.
+
+- **Subjects, not only strings** (`rip/concepts.py`). A broad subject reaches
+  the topics under it: "deep learning" reaches Neural Networks and
+  Applications, and "oncology" reaches cancer topics. OpenAlex's own
+  topic → subfield → field filings count at half weight, so someone filed
+  under Computer Vision still counts for "computer vision" with no topic spelled
+  that way. Related subjects count at half weight too, capped at one topic's
+  worth, so three neighbouring topics never outrank the subject itself.
+  Reported in `rewrites`.
+- **People nouns become their subjects.** "physicists" searches physics,
+  "roboticists" robotics, "data scientists" data science (`rewrites`, `how:
+  "people noun"`). Job titles such as "community managers" are still titles.
+- **Organizations by any of their names.** "Google" is also Google (United
+  States) and Google DeepMind (United Kingdom); "IIT Bombay" and "MIT" match
+  by acronym. An exact country name is checked first, so "UK" is the United
+  Kingdom and not the University of Karachi. "US" and "U.S." are the country,
+  but "help us find" is not.
+- **Names as people write them** (`rip/names.py`). Transliterations (Agarwal /
+  Aggarwal / Agrawal) are one name for both search and entity resolution.
+  Look-alikes (Katherine / Kathryn) and nicknames (Bill → William) are accepted
+  by search only, because two such records at one institute are two people as
+  often as one.
+- **Too few full matches means partial ones, labelled.** When fewer than 10
+  people meet every part of a query, the page is topped up with people who
+  meet most of it, placed behind the full matches. Each one carries
+  `match: "partial"` and `missing: [...]`. A place or employer gives way before
+  the subject, and a name never does.
+- **Protected attributes are never applied.** "women in machine learning"
+  searches machine learning and reports `protected_terms`. This holds inside
+  an exclusion too: "but not women" excludes nobody.
+- **Compound questions.**
+  - *Both:* "worked at both Google and Microsoft" requires every organization
+    named (`require_all_orgs`). Without "both", "at MIT and Stanford" stays a
+    choice.
+  - *Negation:* "not at Google", "who don't work at Google", "excluding
+    Stanford", "but not computer vision", "not in India". The negated phrase is
+    parsed like a query of its own, and anyone matching it is left out
+    (`exclusions`). A subject's related topics are not excluded with it, unless
+    they are all the corpus holds for it. "Not just ML" widens a question rather
+    than excluding anything. An exclusion never gives way when a query is
+    relaxed.
+  - *Counts:* "at least 20 papers", "50+ publications", "over 1,000 citations",
+    "cited more than 2k times" (`min_publications`, `min_citations`; "over N"
+    means N+1 or more). A bare number is not a threshold. The totals are the
+    larger of what a source reports for the whole author (OpenAlex, Semantic
+    Scholar, dblp) and what is stored. Stored works are only each person's
+    most cited. A threshold alone is a valid question: "people with at least
+    50000 citations".
+
+**Citations are compared within a field.** A citation count means different
+things in cell biology and in mathematics. The `output` signal is scaled by
+how a person's primary OpenAlex field is cited, relative to the whole corpus.
+The factor is the square root of that ratio, shrunk toward the corpus median
+for thinly populated fields and bounded to 0.5–2×.
+
+## Measuring search quality
+
+`backend/evaluation/judgments.json` holds judged queries, and
+`scripts/eval_ranking.py` scores the parser and ranker against them: nDCG@10,
+P@10 and recall@50. A judgment is a *criterion*, such as "a stated topic
+mentioning tuberculosis grades 2", not a list of people. The grader applies it
+to everyone in the corpus, so recall is measurable and new people are graded
+without re-judging.
+
+```bash
+cd backend
+python scripts/eval_ranking.py --db sqlite:///corpus-copy.db --save run.json
+python scripts/eval_ranking.py --db sqlite:///corpus-copy.db --compare run.json  # lists queries that got worse
+python scripts/eval_ranking.py --show t-tb     # the ranked list, graded
+python scripts/eval_ranking.py --audit t-tb    # everyone the criteria call relevant
+```
+
+Always run it against a copy of the database, because it initializes and
+reindexes. On the 446-person development corpus:
+
+| Set | Queries | nDCG@10 | recall@50 |
+|---|---|---|---|
+| tuned (topic, concept, agent, constrained, soft, typo, name, protected) | 53 | 0.94 | 0.71 |
+| `holdout`: written mid-way, partly tuned after | 16 | 0.83 | 0.69 |
+| `holdout2`: written last, criteria fixed before the first run | 20 | 0.65 on the first run; 0.69 after one general bug fix ("in the US") | 0.42 |
+
+The last row is the number to believe for queries nobody has tuned for. Its
+misses are mostly subjects the vocabulary has no bridge to yet ("computational
+pathology", "speech recognition", "malaria" as a lone word). One of its
+criteria is also too loose: "pathology" credits spine and GI pathology. The
+judgments are drafts and should be reviewed. The eval corpus is small, so a
+single query moves a set's score by several points.
 
 ## Search filters
 
@@ -247,10 +534,11 @@ menus from live data instead of a hardcoded list.
 | `orcid` | pub.orcid.org public API (no key) | ORCID iD | employment/education history with roles + dates, keywords → research interests, researcher URLs → resolution links, works → publications (deduped by DOI against OpenAlex) |
 | `stackoverflow` | api.stackexchange.com v2.3 | numeric user ID | top answer tags → skill evidence weighted by answer volume, website → resolution link. `STACKEXCHANGE_KEY` raises daily quota 300 → 10k |
 | `dblp` | dblp.org (open, no key, 2s courtesy interval) | dblp PID | CS bibliography: homepage/Scholar/Wikipedia/Wikidata URLs → strong resolution keys, affiliations, awards, publications with co-author PIDs → discovery |
+| `europepmc` | ebi.ac.uk Europe PMC REST (open, no key, no email) | **an ORCID** | medicine and biology: MeSH terms + keywords → research interests, institution read out of the affiliation string, articles → publications. Only authors publishing with an ORCID can be ingested, so every record merges onto the person who already holds it |
 | `huggingface` | huggingface.co/api (public, no key) | username | org memberships → affiliations, models/datasets → projects, pipeline tags + libraries → ML skill evidence |
-| `semanticscholar` | api.semanticscholar.org (official Graph API, no key; `SEMANTIC_SCHOLAR_API_KEY` for higher limits) | author ID | homepage → resolution link, affiliations, h-index/citations as evidence, papers deduped by DOI |
+| `semanticscholar` | api.semanticscholar.org (official Graph API, no key; `SEMANTIC_SCHOLAR_API_KEY` for higher limits) | author ID | homepage → resolution link, affiliations, h-index/citations as evidence, papers deduped by DOI. Live search asks it about a *subject* (authors of papers on it, large collaborations skipped) only when a key is set — the shared pool answers paper search with 429s more often than not |
 | `exa` | api.exa.ai (**paid**, `EXA_API_KEY`) | Exa person id | the only source reaching non-academic roles: job title, employer, work history, location. **Records are LinkedIn-derived** — see the note below |
-| `web` | any public page, one URL at a time | URL | robots.txt honored before fetching; JSON-LD Person, Open Graph, ORCID, displayed emails, links to known profile hosts. No spidering |
+| `web` | a public page, plus up to 3 same-site pages it links to as About, CV, Publications or Research (`RIP_WEB_MAX_SUBPAGES`) | URL | robots.txt honored for every page; JSON-LD Person, Open Graph, ORCID, displayed emails, links to known profile hosts, CV links. The page itself speaks first — a subpage only fills what it left out. Subpages are fetched directly, never through a paid renderer. Not a crawler |
 
 ### Auto-enrichment
 
@@ -308,6 +596,105 @@ People found this way are returned as results and flagged `from_live_search`
 (shown as a **new** tag in the UI). They deliberately bypass the corpus
 filter: that filter can only express what the corpus already knows, so a
 person fetched seconds ago would fail it and the round-trip would be wasted.
+
+### How a live search runs
+
+Sources that always run (ORCID, Wikidata, GitHub, Hugging Face, Stack Overflow,
+web) start searching the moment a query arrives, in parallel with the
+scholarly sources, and their profiles are fetched in one concurrent pool
+across hosts as soon as they answer. Results are still stored one at a time,
+in source order, on the request thread.
+
+Each source has **one shared connector per process**, whose request spacing
+is thread-safe: concurrent fetches to dblp still arrive two seconds apart, as
+dblp asks. (Previously every fetch built its own connector and clock, so
+parallel fetches ignored the spacing, and each paid a fresh TLS handshake.)
+Fetches not started within `RIP_LIVE_BUDGET_SECONDS` (default 30) are skipped
+and reported on their result.
+
+Measured against the live public APIs, same queries, same people stored:
+
+| query | before | after |
+|---|---|---|
+| protein folding researchers | 20.7 s | 8.0 s |
+| coral reef ecology researchers | 22.4 s | 10.4 s |
+| Yann LeCun | 14.2 s | 8.5 s |
+| Fei-Fei Li | 12.5 s | 7.9 s |
+| glaciology researchers (new code run first) | 12.5 s | 9.4 s |
+| Daphne Koller (new code run first) | 10.6 s | 6.0 s |
+
+**OpenAlex** is the slowest source, so the gains come from asking fewer
+questions, and asking for less in each. Author records for a whole search load
+in one request (`OpenAlexConnector.prefetch`); topical discovery reads authors
+from papers with at most 25 authors, falling back to all papers when a field
+has only large collaborations. Measured on six fresh live queries: 10.6 s →
+8.7 s on average, 18.4 s → 11.3 s for a collaboration-heavy topic.
+
+Every request then names the fields it needs (`select=`), which is where the
+rest went. OpenAlex returns a full record by default — abstracts, reference
+lists, yearly counts, concept vectors — and none of it is read. Alternating
+trials against the live API:
+
+| request | full | with `select` |
+|---|---|---|
+| one author's works | 1.54 s / 292 KB | 1.08 s / 136 KB |
+| topical works search | 2.22 s / 1.2 MB | 1.60 s / 232 KB |
+| ten author records | 0.91 s / 23 KB | 0.53 s / 7.5 KB |
+| **whole live search, mean of 6** | **9.6 s** | **7.8 s** |
+
+The field lists are `AUTHOR_FIELDS` and `WORK_FIELDS` in the connector, and a
+field added to `normalize` has to be added to them or it arrives as `None` — a
+test builds a profile from a `select`-shaped payload to catch that. Splitting
+the works request in two to drop consortium author lists was tried first: 50×
+smaller payloads, but response time is roughly flat per request, so two
+requests per author were slower than one. Reverted; `select` is the version of
+that idea that keeps the request count.
+
+`OPENALEX_MAILTO` joins OpenAlex's polite pool (higher, steadier limits). The
+address is sent in every request URL, so use one you are happy to publish, or
+leave it empty and stay on the anonymous pool. An address on the reserved
+example domains is treated as the unedited placeholder and not sent.
+
+### Europe PMC: coverage, not speed
+
+Europe PMC was added because OpenAlex sets the pace of a live search and
+answers medical questions thinly. What it is actually worth, measured on the
+same queries:
+
+| | without | with |
+|---|---|---|
+| "cardiologists studying arterial stiffness" | **0 people**, 3.7 s | **6 people**, 12.9 s |
+| "soil microbiome researchers" | 15 people, 6.3 s | 18 people, 9.8 s |
+
+So it is a coverage source, not a faster one: its median search is about 1.4 s,
+comparable to OpenAlex, but its tail is not — the same request for "soil
+microbiome" has come back in 0.55 s and in 14.4 s. Three things keep that tail
+from setting the pace:
+
+- it runs in the **background phase**, beside OpenAlex rather than after it;
+- the connector's `request_timeout` is **8 s**, not the default 30 — a live
+  search would rather lose one source for one query than wait;
+- each background source now **fetches as soon as its own search returns**.
+  One shared wait for every search came first, and it cost whatever the
+  slowest source that query happened to hit: Europe PMC taking 8 s held back
+  five other sources' profile fetches that had nothing to do with it.
+
+`RIP_SKIP_SOURCES=europepmc` turns it off without a code change, because what
+a source is worth differs by graph.
+
+It identifies people **by ORCID only**. Europe PMC publishes no author IDs,
+and a name is not an identity here: the four Stéphane Laurents in its hearing
+and medicinal-chemistry papers carry no ORCID between them, while 62 of their
+co-authors do — returning nothing for that name is the honest answer. The
+upside is that an ORCID is a strong key, so these records land on the person
+who already holds it instead of queueing another review.
+
+One guard worth knowing: an ORCID in the literature is not always one
+person's. The ORCID documentation example `0000-0002-1825-0097` sits on papers
+by a dermatologist in Nanjing and a computer scientist in Halifax, each having
+pasted it into a submission form. Only articles whose entry for that ORCID
+agrees with the commonest name are kept, so a mistyped identifier cannot fuse
+two strangers into one person.
 
 ### Topical discovery, not surname matching
 
@@ -429,7 +816,10 @@ backend/
     normalize.py  NormalizedProfile IR + strong-key extraction
     resolution.py entity resolution strategies
     ingest.py     pipeline: upsert record → resolve → apply → change log
-    nlq.py        natural-language query parsing + live discovery
+    nlq.py        natural-language query parsing, ranking + live discovery
+    search_index.py  postings index that /v1/query filters and ranks on
+    textnorm.py   worldwide text folding and tokenisation (index + query)
+    geo.py        countries, endonyms, demonyms, world cities
     api.py        FastAPI read API; serves the built UI at /ui and /static
     cli.py        init-db / ingest / search-openalex / refresh / serve
     connectors/   github.py, openalex.py, exa.py, base.py (polite HTTP)
@@ -653,6 +1043,32 @@ The worker backs off exponentially (to 15 min) when a whole batch fails,
 which is what throttling looks like, and finishes its current batch before
 exiting on Ctrl-C.
 
+**Parallel workers.** `worker`, `ingest-leads` and `refresh` take
+`--processes N`. Three things make that safe:
+
+- **A lead is claimed before it is fetched.** One conditional `UPDATE` marks a
+  batch as this worker's, so two workers never hold the same lead — on SQLite
+  under its single write lock, on Postgres with `FOR UPDATE SKIP LOCKED`, so a
+  second worker takes the next rows instead of queueing behind the first. A
+  worker that dies leaves claims that return to the queue after 30 minutes;
+  one that is interrupted hands its unfinished leads back at once.
+  `refresh` splits the stale records by id instead, so each is refreshed by
+  exactly one process.
+- **Two leads can be one person.** An OpenAlex author and their ORCID record,
+  drained by two workers at once, both find nobody and both create a person;
+  the second commit hits the unique ORCID key. That write is retried, and
+  resolves onto the person the first worker stored.
+- **The fleet is exactly as polite as one worker.** Request spacing is kept per
+  process, so each of N workers spaces its requests N times wider
+  (`RIP_WORKER_PROCESSES`, set for you). Throughput still scales, because a
+  request's own latency dwarfs the gap between requests.
+
+Measured with a source answering in 0.3 s, 120 leads including 20 pairs that
+are the same person: one process 39.7 s, four processes 12.9 s — every lead
+ingested once, every pair merged, no errors. If you start workers by hand
+rather than with `--processes`, set `RIP_WORKER_PROCESSES` to how many you run;
+never set it for `serve`, which would slow live search for nothing.
+
 **Webhooks only fire when `deliver-webhooks` runs.** Nothing is pushed from
 the API. Deliveries accumulate in an outbox until the CLI (invoked by the
 nightly script) sends them, so a failing cron shows up as a growing backlog:
@@ -670,15 +1086,25 @@ check `GET /v1/webhooks/health` or `rip.cli check-db`.
 
 Done: ~~fuzzy resolution scans all persons~~ (blocked by org + name token),
 ~~no webhooks~~ (outbox + `deliver-webhooks`), ~~merge review needs a UI~~
-(`/ui`), ~~single-source profiles~~ (enrichment chain).
+(`/ui`), ~~single-source profiles~~ (enrichment chain), ~~single-process
+workers~~ (`--processes N`, claimed leads), ~~graph depth 1~~ (three hops,
+capped per person and in total).
 
 Still open:
 
-- `refresh` and the lead worker are single-process; parallel workers need
-  Postgres (see [docs/POSTGRES.md](docs/POSTGRES.md)).
-- Graph API is depth 1 only; deeper traversal would need a recursive CTE.
-- Web connector reads one page per URL and does not follow site navigation —
-  deliberate, but it means a profile split across several pages is partial.
-- `discover=true` on `/v1/query` searches OpenAlex only; other sources have
-  no author-search endpoint wired.
+- Web connector reads a page and at most three of its About / CV /
+  Publications / Research pages — a profile spread deeper than that is
+  partial.
+- Subjects are searched live in OpenAlex and Europe PMC, and in Semantic
+  Scholar only with a (free) `SEMANTIC_SCHOLAR_API_KEY`. Every other source is
+  asked by name.
+- **Industry roles** — product managers, founders, engineers at companies who
+  publish nothing — are reachable only through Exa, which is paid and
+  LinkedIn-derived. The free sources cover people who publish, ship code or
+  answer questions in public.
+- Negation, "both" and count thresholds are pattern-based. "not" inside a
+  longer clause ("researchers who are not only…") is handled for the common
+  forms, not for every English construction.
+- Search quality on queries nobody tuned for (`holdout2`, nDCG@10 0.69) is
+  well below the tuned sets (0.94) — see *Measuring search quality*.
 - Bulk ingest is single-threaded; throughput is bounded by resolution, not IO.
