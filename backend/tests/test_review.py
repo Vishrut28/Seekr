@@ -87,11 +87,29 @@ def test_split_detaches_record_into_new_person(session):
 
 def test_bearer_auth_enforced(monkeypatch):
     from fastapi.testclient import TestClient
-    from rip.api import app
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from sqlalchemy.pool import StaticPool
+
+    from rip import api
+    from rip.db import Base
 
     monkeypatch.setenv("RIP_API_TOKEN", "sekret")
-    c = TestClient(app)
-    assert c.get("/v1/persons").status_code == 401
-    assert c.get("/v1/persons", headers={"Authorization": "Bearer wrong"}).status_code == 401
-    assert c.get("/v1/persons", headers={"Authorization": "Bearer sekret"}).status_code == 200
-    assert c.get("/docs").status_code == 200  # docs stay open
+    # A test database, not whatever rip.db sits in the working directory: a
+    # fresh clone has none, and the authorised request failed on it. Shared
+    # across threads, because the test client serves on its own.
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False},
+                           poolclass=StaticPool)
+    Base.metadata.create_all(engine)
+    session = sessionmaker(bind=engine)()
+    api.app.dependency_overrides[api.get_db] = lambda: session
+    try:
+        c = TestClient(api.app)
+        assert c.get("/v1/persons").status_code == 401
+        assert c.get("/v1/persons", headers={"Authorization": "Bearer wrong"}).status_code == 401
+        assert c.get("/v1/persons", headers={"Authorization": "Bearer sekret"}).status_code == 200
+        assert c.get("/docs").status_code == 200  # docs stay open
+    finally:
+        api.app.dependency_overrides.clear()
+        session.close()
+        engine.dispose()
