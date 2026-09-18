@@ -453,6 +453,19 @@ def _negations(session: Session, text: str, result: "NLQuery") -> str:
     return text
 
 
+def subjects_asked(parsed: "NLQuery") -> list[str]:
+    """One name per subject the question asked for, as the user said it.
+
+    `skills` holds the topic VALUES a subject resolved to — nine of them for
+    "machine learning", and none at all for "physicists", whose evidence is
+    entirely related subjects and a free-text pattern. Neither is what the
+    person asked for, and the answer has to be able to say what it searched.
+    """
+    return list(dict.fromkeys(
+        (g.get("term") or g.get("pattern") or "") for g in parsed.skill_groups
+        if (g.get("term") or g.get("pattern"))))
+
+
 def query_understanding(parsed: "NLQuery") -> dict:
     """The parts of a question that are not filters on a subject, for the
     response: what was searched in place of what was typed, what was

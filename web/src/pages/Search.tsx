@@ -362,9 +362,12 @@ function Results({
   const total = data?.total_matches ?? rows.length;
   const dropped = notFound.map((d) => d.term);
 
+  // One pill per subject asked for, not per topic it resolved to: "machine
+  // learning" matches nine stored topics and listed all nine, while
+  // "physicists" resolved to related subjects only and listed nothing at all.
+  const subjects = f?.subjects?.length ? f.subjects : f?.skills || [];
   const pills: { kind: string; value: string }[] = [
-    ...(f?.skills || []).map((v) => ({ kind: "skill", value: v })),
-    ...(f?.skill_patterns || []).map((v) => ({ kind: "matches", value: v })),
+    ...subjects.map((v) => ({ kind: "subject", value: v })),
     ...(f?.organizations || []).map((v) => ({ kind: "org", value: v })),
     ...(f?.locations || []).map((v) => ({ kind: "place", value: v })),
     ...(f?.countries || []).map((v) => ({ kind: "country", value: v })),

@@ -51,6 +51,8 @@ export interface PersonSummary {
 }
 
 export interface AppliedFilters {
+  /** the subjects asked for, as typed; `skills` is what they resolved to */
+  subjects?: string[];
   skills?: string[];
   skill_patterns?: string[];
   organizations?: string[];

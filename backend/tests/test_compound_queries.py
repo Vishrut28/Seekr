@@ -4,7 +4,7 @@ and output thresholds."""
 import pytest
 
 from rip.ingest import ingest_profile
-from rip.nlq import count_matches, execute_progressive, parse
+from rip.nlq import count_matches, execute_progressive, parse, subjects_asked
 from rip.normalize import EvidenceItem, OrgAffiliation, PublicationData
 from tests.test_resolution import make_profile
 
@@ -229,3 +229,27 @@ def test_a_threshold_alone_is_a_question(session):
 def test_thresholds_on_the_sql_path_use_stored_works(session, legacy):
     _output(session)
     assert names(session, "robotics researchers with at least 3 papers") == ["Ada Stored"]
+
+
+def test_the_subject_asked_for_is_reported_even_when_it_resolves_to_neighbours(session):
+    """"physicists" searches physics, whose evidence here is related subjects
+    and free text only, so the applied_filters `skills` list was empty and the
+    UI could show nothing at all for the subject."""
+    from rip import api
+    from rip.nlq import subjects_asked
+
+    # nothing here is called physics: its evidence is a neighbouring subject
+    person(session, "a", "Ada Quantum", topics=["Quantum Mechanics and Relativity"])
+    parsed = parse(session, "physicists")
+    assert parsed.skills == []                       # no exact topic value
+    assert subjects_asked(parsed) == ["physics"]
+    body = api.nl_query(q="physicists", limit=0, offset=0, discover="false", db=session)
+    assert body["applied_filters"]["subjects"] == ["physics"]
+
+
+def test_one_subject_is_reported_once_however_many_topics_it_matches(session):
+    person(session, "a", "Ada ML", topics=["Machine Learning and Algorithms",
+                                           "Automated Machine Learning"])
+    parsed = parse(session, "machine learning")
+    assert len(parsed.skills) > 1
+    assert subjects_asked(parsed) == ["machine learning"]

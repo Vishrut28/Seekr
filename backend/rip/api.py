@@ -964,8 +964,8 @@ def nl_query(
     worker ingests them later. Neither mode ingests during the request.
     Suggestions are not results and are not ranked.
     """
-    from .nlq import (query_understanding, count_matches, diagnose_empty, execute,
-                      execute_progressive, has_filters, parse)
+    from .nlq import (count_matches, diagnose_empty, execute, execute_progressive,
+                      has_filters, parse, query_understanding, subjects_asked)
 
     # tolerate direct calls (tests) where FastAPI has not resolved the params
     limit = limit if isinstance(limit, int) else 0
@@ -1053,6 +1053,8 @@ def nl_query(
     response = {
         "query": q,
         "applied_filters": {
+            # what was asked for; `skills` is what it resolved to
+            "subjects": subjects_asked(parsed),
             "skills": parsed.skills,
             "skill_patterns": parsed.skill_patterns,
             "organizations": parsed.organizations,
@@ -1208,6 +1210,7 @@ def nl_query(
             response["protected_terms"] = parsed.protected_terms
             response.update(query_understanding(parsed))
             response["applied_filters"] = {
+                "subjects": subjects_asked(parsed),
                 "skills": parsed.skills, "skill_patterns": parsed.skill_patterns,
                 "organizations": parsed.organizations, "locations": parsed.locations,
                 "countries": parsed.countries, "name_terms": parsed.name_terms, "roles": parsed.roles,
@@ -1564,8 +1567,9 @@ def query_stream(
 
     from starlette.responses import StreamingResponse
 
-    from .nlq import (query_understanding, discovery_suggestions, enabled_searchers, execute,
-                      execute_progressive, parse, relevance_scores)
+    from .nlq import (discovery_suggestions, enabled_searchers, execute,
+                      execute_progressive, parse, query_understanding,
+                      relevance_scores, subjects_asked)
 
     events: "_queue.Queue[dict | None]" = _queue.Queue()
 
@@ -1576,6 +1580,7 @@ def query_stream(
             if limit:
                 parsed.limit = limit
             events.put({"type": "parsed", "applied_filters": {
+                "subjects": subjects_asked(parsed),
                 "skills": parsed.skills, "organizations": parsed.organizations,
                 "locations": parsed.locations, "countries": parsed.countries,
                 "roles": parsed.roles, "name_terms": parsed.name_terms,

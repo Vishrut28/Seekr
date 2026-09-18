@@ -912,6 +912,12 @@ The UI is then at `http://localhost:8000/ui`.
 routes return personal data about real people. The container starts either
 way and says which mode it is in on the first line of its log — read it.
 
+The UI follows the same switch rather than deciding for itself: it asks
+`GET /v1/auth`, which the bearer middleware refuses when a token is set, and
+shows its sign-in screen only then. With the token unset — the usual state in
+development — it opens straight into the app, because a sign-in that accepts
+anything protects nothing.
+
 **`/data` is a volume, and it is the graph.** A container filesystem is
 disposable; the SQLite file must not be. `RIP_DATABASE_URL` already points at
 `/data/rip.db`, and the schema is created on first start, so an empty volume
