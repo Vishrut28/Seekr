@@ -50,7 +50,9 @@ export function useLiveSearch() {
     // server logs and browser history.
     try {
       const res = await fetch(`/v1/query/stream?q=${encodeURIComponent(q)}&limit=${limit}`, {
-        headers: { Authorization: `Bearer ${getToken()}` },
+        // no header at all when there is no token, as everywhere else: an
+        // empty "Bearer " is a malformed credential, not the absence of one
+        headers: getToken() ? { Authorization: `Bearer ${getToken()}` } : undefined,
         signal: controller.signal,
       });
       if (!res.ok || !res.body) throw new Error(`stream failed (${res.status})`);
@@ -90,7 +92,16 @@ export function useLiveSearch() {
     }
   };
 
-  return { sources, order, running, start };
+  /** Abandon a run in progress — the question it answers is gone. */
+  const stop = () => {
+    ctrl.current?.abort();
+    ctrl.current = null;
+    setRunning(false);
+    setSources({});
+    setOrder([]);
+  };
+
+  return { sources, order, running, start, stop };
 }
 
 export function SourceCards({ order, sources, running }: {

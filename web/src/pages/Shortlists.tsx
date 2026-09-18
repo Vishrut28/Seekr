@@ -101,6 +101,21 @@ function ShortlistBlock({
     }
   };
 
+  if (!list.members.length) {
+    return (
+      <section className="block">
+        <h2>
+          {list.name} <span className="n">0</span>
+        </h2>
+        <div className="card">
+          <p className="muted pad">
+            Nobody in this list yet — save someone from a search to add them.
+          </p>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="block">
       <h2>

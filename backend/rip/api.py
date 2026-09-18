@@ -1180,6 +1180,12 @@ def nl_query(
             # corpus already knows, so a freshly fetched person often fails it
             # ("Rust" is nobody's stored topic yet) — appending them keeps the
             # results the user actually paid a round-trip for.
+            # Where the NEXT page of the corpus starts. Paging walks the
+            # corpus, so the cursor counts corpus rows only — the live rows
+            # appended below are already on this page and sit at no offset.
+            # It has to be recomputed here at all because the values set
+            # before discovery ran describe a corpus that has since grown.
+            corpus_page = len(persons)
             seen = {p.id for p in persons}
             live_ids = [
                 s_["person_id"]
@@ -1205,7 +1211,11 @@ def nl_query(
             # People the live search returned are results, so the total has to
             # count them. Reporting only the corpus count printed "1 of 0
             # matching" — a row on screen that the total said did not exist.
-            response["total_matches"] = max(count_matches(db, parsed), len(persons))
+            corpus_total = count_matches(db, parsed)
+            response["total_matches"] = max(corpus_total, len(persons))
+            more = parsed.offset + corpus_page < corpus_total
+            response["has_more"] = more
+            response["next_offset"] = parsed.offset + corpus_page if more else None
             response["unmatched_terms"] = parsed.unmatched_terms
             response["protected_terms"] = parsed.protected_terms
             response.update(query_understanding(parsed))
@@ -1567,8 +1577,8 @@ def query_stream(
 
     from starlette.responses import StreamingResponse
 
-    from .nlq import (discovery_suggestions, enabled_searchers, execute,
-                      execute_progressive, parse, query_understanding,
+    from .nlq import (count_matches, discovery_suggestions, enabled_searchers,
+                      execute, execute_progressive, parse, query_understanding,
                       relevance_scores, subjects_asked)
 
     events: "_queue.Queue[dict | None]" = _queue.Queue()
@@ -1613,6 +1623,7 @@ def query_stream(
             # showed none, because none of them carry a Hyderabad location
             # yet. /v1/query already appends them; without this the cards said
             # "10 kept" over an empty table.
+            corpus_page = len(persons)
             seen = {p.id for p in persons}
             live_ids = [s_["person_id"] for s_ in suggestions if s_.get("person_id")]
             if live_ids:
@@ -1640,11 +1651,19 @@ def query_stream(
                 row["from_live_search"] = row["id"] in set(live_ids)
                 rows.append(row)
             rows.sort(key=lambda r: (r.get("score") is None, -(r.get("score") or 0)))
+            # A stream that says nothing about paging leaves the page holding
+            # the PREVIOUS query's answer: the merge keeps old keys, so a
+            # "Load 50 more" button could belong to a question already gone.
+            corpus_total = count_matches(session, parsed)
+            more = parsed.offset + corpus_page < corpus_total
             events.put({
                 "type": "results",
                 "count": len(rows),
                 "stored_from_live": stored,
                 "not_found": not_found,
+                "total_matches": max(corpus_total, len(rows)),
+                "has_more": more,
+                "next_offset": parsed.offset + corpus_page if more else None,
                 "results": rows,
             })
         except Exception as exc:                     # the stream must always end

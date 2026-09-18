@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { SourceCards, useLiveSearch } from "../components/SourceCards";
 import { api, apiSend, errorMessage, isUnauthorized } from "../api/client";
 import {
+  activeFilterCount,
   EMPTY_FILTERS,
   EMPTY_FLAGS,
   Filters,
@@ -75,6 +76,29 @@ export function Search() {
 
   const live = useLiveSearch();
 
+  /** Nothing asked, nothing shown. An empty box used to leave the last
+   *  answer on screen, so the results claimed to be about a question that was
+   *  no longer there — and a reload re-ran it. */
+  const clearResults = () => {
+    live.stop();
+    setRows([]);
+    setData(null);
+    setRanQuery("");
+    setOffset(0);
+    setError(null);
+    setLoading(null);
+    sessionStorage.removeItem(LAST_QUERY_KEY);
+  };
+
+  /** A later page, minus anyone already on screen. A live search stores
+   *  people mid-session, so the next page of the corpus can contain someone
+   *  already shown — and React keys on person id, so a duplicate is both a
+   *  repeated row and a console error. */
+  const append = (prev: PersonSummary[], next: PersonSummary[]) => {
+    const have = new Set(prev.map((p) => p.id));
+    return [...prev, ...next.filter((p) => !have.has(p.id))];
+  };
+
   const runQuery = useCallback(async (discover?: boolean, from?: number) => {
     const q = textRef.current.trim();
     if (!q) return;
@@ -117,7 +141,7 @@ export function Search() {
         setLoading(null);
         setData((prev) => ({ ...(prev as any), ...msg }) as QueryResponse);
         setRows(msg.results || []);
-        setOffset((msg.results || []).length);
+        setOffset(msg.next_offset ?? (msg.results || []).length);
       });
       return;
     }
@@ -127,7 +151,7 @@ export function Search() {
       if (discover) params.set("discover", "true");
       const res = await api<QueryResponse>(`/v1/query?${params}`);
       setData(res);
-      setRows((prev) => (paging ? [...prev, ...res.results] : res.results));
+      setRows((prev) => (paging ? append(prev, res.results) : res.results));
       setOffset(
         res.next_offset ?? (paging ? from + res.results.length : res.results.length),
       );
@@ -163,7 +187,7 @@ export function Search() {
       try {
         const res = await api<QueryResponse>(`/v1/persons?${params}`);
         setData(res);
-        setRows((prev) => (paging ? [...prev, ...res.results] : res.results));
+        setRows((prev) => (paging ? append(prev, res.results) : res.results));
         setOffset(
           res.next_offset ?? (paging ? from + res.results.length : res.results.length),
         );
@@ -222,6 +246,18 @@ export function Search() {
     return () => document.removeEventListener("keydown", onKey);
   }, []);
 
+  const changeText = (value: string) => {
+    setText(value);
+    textRef.current = value;
+    setLiveArmed(false);
+    if (value.trim()) return;
+    // In filter mode the box is only a name filter, so the other filters still
+    // stand and the question becomes "everyone matching them" — unless there
+    // are none, in which case nothing was asked and nothing should be shown.
+    if (mode === "filters" && activeFilterCount(values, flags) > 0) runFilters();
+    else clearResults();
+  };
+
   const useExample = (value: string) => {
     setText(value);
     textRef.current = value;
@@ -244,14 +280,11 @@ export function Search() {
           className="search"
           placeholder="Search people, skills, organizations…"
           value={text}
-          onChange={(e) => {
-            setText(e.target.value);
-            setLiveArmed(false);
-          }}
+          onChange={(e) => changeText(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") runQuery();
             if (e.key === "Escape") {
-              setText("");
+              changeText("");
               e.currentTarget.blur();
             }
           }}
@@ -416,6 +449,10 @@ function Results({
   // citations" dropped both employers because nobody meets all three.
   const unknownTerms = [...new Set(unmatched)];
   const relaxedTerms = dropped.filter((t) => !unknownTerms.includes(t));
+  // "...so these 8 results ignore it" was false whenever the results came
+  // back from a live search FOR that very term: the rows were the term's own
+  // answers, and the page told the reader to disregard them.
+  const corpusRows = rows.filter((r) => !r.from_live_search).length;
 
   return (
     <>
@@ -446,13 +483,17 @@ function Results({
       {unknownTerms.length > 0 && (
         <Banner kind="warn">
           <b>{unknownTerms.join(", ")}</b> {unknownTerms.length === 1 ? "was" : "were"} not
-          applied — nothing in Seekr matches{" "}
+          applied — nothing stored in Seekr matches{" "}
           {unknownTerms.length === 1 ? "that term" : "those terms"} yet
-          {rows.length
+          {corpusRows > 0
             ? `, so these ${fmt(Math.max(total, rows.length))} results ignore ${
                 unknownTerms.length === 1 ? "it" : "them"
               }`
-            : ""}
+            : rows.length
+              ? `. The ${fmt(rows.length)} below came back from a live search for ${
+                  unknownTerms.length === 1 ? "it" : "them"
+                } and are not stored answers`
+              : ""}
           .{" "}
           <button className="btn sm" onClick={onDiscover}>
             Search paid sources too

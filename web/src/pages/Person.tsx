@@ -6,7 +6,7 @@ import { Network } from "../components/Network";
 import { Dossier } from "../components/Dossier";
 import { Shell } from "../components/Shell";
 import { BRANDS, BrandLinks } from "../lib/brands";
-import { day, year } from "../lib/format";
+import { attributeLabel, day, year } from "../lib/format";
 import { useWorking } from "../lib/hooks";
 import { Icon } from "../lib/icons";
 import type {
@@ -242,7 +242,7 @@ export function Person() {
                   ) : (
                     attrs.slice(0, 40).map((a) => (
                       <tr key={a.attribute_type + a.value}>
-                        <td className="muted">{a.attribute_type}</td>
+                        <td className="muted">{attributeLabel(a.attribute_type)}</td>
                         <td>
                           {a.value}
                           <div className="idline">{a.sources.join(", ")}</div>

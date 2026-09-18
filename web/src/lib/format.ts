@@ -11,3 +11,10 @@ export const year = (iso: string | null | undefined): string =>
 
 export const minute = (iso: string | null | undefined): string =>
   String(iso ?? "").slice(0, 16).replace("T", " ");
+
+/** A stored attribute key as a person would say it: research_field ->
+ *  "Research field". The keys are the database's, not the reader's. */
+export function attributeLabel(key: string): string {
+  const text = (key || "").replace(/_/g, " ").trim();
+  return text ? text[0].toUpperCase() + text.slice(1) : "";
+}
