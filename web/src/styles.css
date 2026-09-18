@@ -163,6 +163,11 @@ input.search:focus{outline:none; border-color:var(--accent); box-shadow:0 0 0 3p
 .btn.danger:hover{background:var(--danger-soft)}
 .btn:disabled{opacity:.5; cursor:default}
 .btn-row{display:flex; gap:6px; flex-wrap:wrap}
+/* keeps the live search off the elbow of the plain one: it reaches outside
+   and writes to the graph, so it should not be a near miss for Search */
+.btnsplit{width:1px; align-self:stretch; margin:2px 7px; background:var(--line)}
+.btn.armed{color:var(--warn); border-color:color-mix(in srgb, var(--warn) 45%, var(--line));
+  background:var(--warn-soft)}
 
 /* One row, never two: these are a hint, not a menu. Anything past the edge
    scrolls sideways rather than pushing the results further down the page. */

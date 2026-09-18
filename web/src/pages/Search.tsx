@@ -43,6 +43,10 @@ type Mode = "query" | "filters";
 
 export function Search() {
   const [text, setText] = useState(() => sessionStorage.getItem(LAST_QUERY_KEY) || "");
+  // A live search leaves the building: it queries external sources and stores
+  // the people they return. One stray click next to "Search" did that twice,
+  // so it takes two — the first arms it and says what it will do.
+  const [liveArmed, setLiveArmed] = useState(false);
   const [rows, setRows] = useState<PersonSummary[]>([]);
   const [data, setData] = useState<QueryResponse | null>(null);
   const [mode, setMode] = useState<Mode>("query");
@@ -240,7 +244,10 @@ export function Search() {
           className="search"
           placeholder="Search people, skills, organizations…"
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => {
+            setText(e.target.value);
+            setLiveArmed(false);
+          }}
           onKeyDown={(e) => {
             if (e.key === "Enter") runQuery();
             if (e.key === "Escape") {
@@ -254,12 +261,29 @@ export function Search() {
       <button className="btn primary" onClick={() => runQuery()}>
         Search
       </button>
+      <span className="btnsplit" aria-hidden="true" />
       <button
-        className="btn"
-        title="Also query live sources"
-        onClick={() => runQuery(true)}
+        className={liveArmed ? "btn armed" : "btn"}
+        title={
+          "Also query live sources (OpenAlex, Europe PMC, the web). " +
+          "Slower, and the people they return are stored in the graph."
+        }
+        aria-label={
+          liveArmed
+            ? "Confirm searching live sources and storing what they return"
+            : "Also query live sources"
+        }
+        onClick={() => {
+          if (!liveArmed) {
+            setLiveArmed(true);
+            return;
+          }
+          setLiveArmed(false);
+          runQuery(true);
+        }}
+        onBlur={() => setLiveArmed(false)}
       >
-        Live
+        {liveArmed ? "Store live results?" : "Live"}
       </button>
     </div>
   );

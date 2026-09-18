@@ -118,4 +118,65 @@ def test_purging_renames_comma_names_and_keeps_their_spellings(session, monkeypa
     session.refresh(junk)
     assert junk.canonical_name == "Rahul Mukundrao Mulajkar"
     assert "Rahul Mulajkar" in junk.aliases
-    assert "Rahul Mukundrao Mulajkar" not in junk.aliases
+    assert "Rahul Mukundrao Mulajkar" not in junk.aliases
+
+
+def test_half_a_name_does_not_answer_a_whole_one(session):
+    """"Katherine Jones" found Kate Tilling — Katherine by nickname, Jones by
+    nobody — and the row claimed a full match."""
+    person(session, "a", "Kate Tilling")
+    rows, _parsed, _dropped = execute_progressive(session, parse(session, "Katherine Jones"))
+    assert [p.canonical_name for p in rows] == ["Kate Tilling"]
+    assert rows[0].partial_match == {"missing": [{"term": "Jones", "as": "name"}]}
+
+
+def test_a_whole_name_that_matches_is_a_full_match(session):
+    person(session, "a", "Kate Tilling")
+    rows, _parsed, _dropped = execute_progressive(session, parse(session, "Kate Tilling"))
+    assert getattr(rows[0], "partial_match", None) is None
+
+
+def test_an_unknown_employer_is_labelled_an_employer_not_a_name(session):
+    person(session, "a", "Dhruv Dixit")
+    rows, _parsed, _dropped = execute_progressive(
+        session, parse(session, "Dhruv Dixit at Zzyzx"))
+    assert rows[0].partial_match == {"missing": [{"term": "Zzyzx", "as": "org"}]}
+
+
+def test_a_name_beside_a_subject_is_reported_too(session):
+    """The subject matching in full does not make the name whole."""
+    from rip.normalize import EvidenceItem
+
+    ingest_profile(session, make_profile(
+        external_id="a", url="https://github.com/a", raw={"login": "a"},
+        name="Kate Tilling", usernames=["github:a"],
+        evidence=[EvidenceItem(attribute_type="research_interest", value="Robotics")]))
+    rows, _parsed, _dropped = execute_progressive(
+        session, parse(session, "robotics Katherine Jones"))
+    assert rows and rows[0].partial_match == {"missing": [{"term": "Jones", "as": "name"}]}
+
+
+def test_a_product_style_word_is_not_a_missing_name(session):
+    """"gpt4" is product branding, not a surname: reporting it as part of the
+    person's name would be a different claim. It is still reported as a term
+    that was not applied."""
+    person(session, "a", "Kate Tilling")
+    rows, parsed, _dropped = execute_progressive(session, parse(session, "Kate Tilling gpt4"))
+    assert parsed.unmatched_terms == ["gpt4"]
+    assert rows and getattr(rows[0], "partial_match", None) is None
+
+
+def test_an_unmatched_word_beside_a_subject_is_not_a_missing_name(session):
+    """It is reported as an unapplied term instead; calling every result
+    partial would label an ordinary topic search a near miss."""
+    from rip.normalize import EvidenceItem
+
+    ingest_profile(session, make_profile(
+        external_id="a", url="https://github.com/a", raw={"login": "a"},
+        name="Ada Lovelace", usernames=["github:a"],
+        evidence=[EvidenceItem(attribute_type="research_interest",
+                               value="Large Language Models")]))
+    parsed = parse(session, "LLM evaluation")
+    rows, _parsed, _dropped = execute_progressive(session, parsed)
+    assert parsed.unmatched_terms == ["evaluation"]
+    assert rows and getattr(rows[0], "partial_match", None) is None

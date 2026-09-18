@@ -3060,6 +3060,32 @@ RELAX_ORDER = ("countries", "locations", "organizations", "roles", "skill_groups
 PARTIAL_FILL_BELOW = 10
 
 
+def _half_a_name(parsed: NLQuery) -> list[dict]:
+    """The name words nobody here is called, when the query is a name.
+
+    "Katherine Jones" found Kate Tilling: Katherine matched by nickname and
+    Jones matched nobody, so half a name answered a whole one and the row read
+    as a full match. The people are still worth showing — a surname the corpus
+    has never seen is exactly what live search is for — but each one has to say
+    which part of the name it does not carry.
+
+    A name-shaped word after "at" is an employer, not a name, and is labelled
+    as one: "Dhruv Dixit at Zzyzx" is missing the employer.
+    """
+    if not parsed.name_terms:
+        return []
+    tokens = [t.lower().rstrip(".'’-") for t in _QUERY_TOKEN.findall(parsed.raw or "")]
+    out = []
+    for term in parsed.unmatched_terms:
+        if not _could_be_a_name(term):
+            continue
+        first = term.split()[0].lower()
+        index = tokens.index(first) if first in tokens else -1
+        employer = index > 0 and tokens[index - 1] in ("at", "from", "@")
+        out.append({"term": term, "as": "org" if employer else "name"})
+    return out
+
+
 def _drop_sequence(clauses: list) -> list:
     """Clauses in the order they are dropped."""
     rank = {kind: i for i, kind in enumerate(RELAX_ORDER)}
@@ -3091,6 +3117,11 @@ def execute_progressive(session: Session, parsed: NLQuery) -> tuple[list, NLQuer
             # instances are shared within a session: a flag from an earlier
             # query must not survive into this one
             person.__dict__.pop("partial_match", None)
+        # half a name is not a whole one, however the rest of the page fills
+        half = _half_a_name(parsed)
+        if half:
+            for person in rows:
+                person.partial_match = {"missing": half}
         if not clauses or len(clauses) < 2 and rows:
             return rows, parsed, []
         wanted = parsed.limit
