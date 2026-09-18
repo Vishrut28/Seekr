@@ -787,6 +787,16 @@ def test_empty_filters_say_which_one_to_relax(session):
     assert out["total_matches"] == 0
     assert out["empty_reason"]["message"]
 
+    # The message is read by someone who filled in a form, and "q" is the
+    # name of a parameter they never saw — on this endpoint it filters by
+    # name, which is the one thing "q" does not suggest.
+    out = call(q="Nobodyhere", country="IN")
+    message = out["empty_reason"]["message"]
+    assert "q=" not in message and " q " not in message, message
+    assert "name" in message
+    # the structured fields stay machine-readable, keyed by parameter
+    assert any(a["filter"] == "q" for a in out["empty_reason"]["each_filter_alone"])
+
 
 def test_job_titles_are_matched_as_roles_not_topics(session):
     """"community managers" must not become the topic Microbial Community Ecology."""

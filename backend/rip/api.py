@@ -386,6 +386,20 @@ def list_persons(
         "next_offset": offset + len(persons) if offset + len(persons) < total else None,
         "results": [_person_summary(p) for p in persons],
     }
+    # The reader chose these on a form, where each one is a labelled field —
+    # "dropping q would return 70" names a parameter nobody saw, and q is the
+    # least guessable of them all: on this endpoint it filters by name.
+    labels = {
+        "q": "name", "current_organization": "current employer",
+        "education": "studied at", "min_publications": "min publications",
+        "min_citations": "min citations", "min_sources": "min sources",
+        "active_since": "active since", "updated_since": "updated since",
+        "has_cv": "has a CV", "has_email": "has an email",
+    }
+
+    def label(name: str) -> str:
+        return labels.get(name, name)
+
     if total == 0 and not _DIAGNOSING.get():
         # Which filter emptied it? Combining five filters and getting nothing
         # says nothing about which one to relax, so each is measured on its
@@ -426,11 +440,12 @@ def list_persons(
         dead = [a for a in alone if a["matches"] == 0]
         if dead:
             message = "Nothing matches " + ", ".join(
-                f"{a['filter']}={a['value']}" for a in dead
+                f"{label(a['filter'])}={a['value']}" for a in dead
             ) + " at all — check the spelling, or add * for a loose match."
         elif blockers:
             message = "No one matches every filter at once. " + "; ".join(
-                f"dropping {b['filter']} would return {b['without_it']:,}" for b in blockers
+                f"dropping {label(b['filter'])} would return {b['without_it']:,}"
+                for b in blockers
             )
         else:
             message = (

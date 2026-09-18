@@ -131,3 +131,33 @@ def test_location_conflict_preserved(session):
         e.value for e in session.query(Evidence).filter_by(attribute_type="location")
     }
     assert locations == {"Berlin, Germany", "Zurich, Switzerland"}
+
+
+def test_the_same_subject_in_two_casings_is_one_interest(session):
+    """Europe PMC writes MeSH terms both ways. Matched exactly, "Artificial
+    Intelligence" and "Artificial intelligence" became two interests on one
+    profile, and neither counted as corroborating the other — the person
+    looked like they had listed the same subject twice and nothing was
+    confirmed by a second source."""
+    from rip.normalize import EvidenceItem
+    from tests.test_resolution import make_profile
+
+    ingest_profile(session, make_profile(
+        external_id="a", url="https://openalex.org/a", raw={"id": "a"},
+        name="Case Person", usernames=["openalex:a"],
+        evidence=[EvidenceItem(attribute_type="research_interest",
+                               value="Artificial Intelligence")]))
+    ingest_profile(session, make_profile(
+        source="europepmc", external_id="b", url="https://europepmc.org/b",
+        raw={"id": "b"}, name="Case Person", usernames=["openalex:a"],
+        evidence=[EvidenceItem(attribute_type="research_interest",
+                               value="Artificial intelligence")]))
+    session.commit()
+
+    rows = session.query(Evidence).filter(
+        Evidence.attribute_type == "research_interest").all()
+    assert len(rows) == 2, [r.value for r in rows]
+    # both are filed under the spelling that arrived first
+    assert {r.value for r in rows} == {"Artificial Intelligence"}
+    # and the second source now confirms the first rather than sitting beside it
+    assert {r.verification_state for r in rows} == {"corroborated"}

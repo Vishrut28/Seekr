@@ -6,9 +6,11 @@ import {
   EMPTY_FILTERS,
   EMPTY_FLAGS,
   Filters,
+  filterLabel,
   filterParams,
   type FilterFlags,
   type FilterState,
+  nameFilter,
 } from "../components/Filters";
 import { Banner, EmptyState, Loading } from "../components/EmptyState";
 import { ResultsTable } from "../components/ResultsTable";
@@ -170,7 +172,8 @@ export function Search() {
       // result, so only a short, name-shaped value is passed through.
       const q = textRef.current.trim();
       const params = filterParams(values, flags);
-      if (q && q.split(/\s+/).length <= 3) params.set("q", q);
+      const name = nameFilter(q);
+      if (name) params.set("q", name);
       const paging = typeof from === "number" && from > 0;
       setMode("filters");
       setRanQuery(q);
@@ -363,6 +366,7 @@ export function Search() {
             onFlags={setFlags}
             onApply={() => runFilters()}
             onClear={clearFilters}
+            nameText={text}
           />
 
           {/* what each source is doing, while it does it */}
@@ -608,7 +612,7 @@ function Results({
               {data?.empty_reason?.each_filter_alone?.map((a) => (
                 <li key={a.filter}>
                   <code>
-                    {a.filter}
+                    {filterLabel(a.filter)}
                     {a.value === true ? "" : "=" + String(a.value)}
                   </code>{" "}
                   {a.matches === null ? "—" : `${fmt(a.matches)} on its own`}

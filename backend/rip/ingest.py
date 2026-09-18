@@ -11,7 +11,7 @@ import hashlib
 import json
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 import logging
@@ -192,29 +192,33 @@ def _add_evidence(
                 "redacted %s from %s evidence for %s",
                 ", ".join(removed), attribute_type, person.id,
             )
-    existing = session.execute(
-        select(Evidence).where(
-            Evidence.person_id == person.id,
-            Evidence.attribute_type == attribute_type,
-            Evidence.value == value,
-            Evidence.source_record_id == record.id,
-        )
-    ).scalar_one_or_none()
-    if existing is not None:
-        existing.observed_at = _utcnow()
-        return attribute_type, value
-    # same claim already made by a different source? mark both corroborated
+    # Everything this person is already on record as claiming under this
+    # attribute, matched WITHOUT regard to case. Sources disagree about it —
+    # Europe PMC's MeSH terms arrive as both "Artificial Intelligence" and
+    # "Artificial intelligence" — and matching exactly filed them as two
+    # different interests, so a profile listed the same subject twice and
+    # neither copy counted as corroborating the other. In a human-readable
+    # label case is presentation, not meaning.
     peers = (
         session.execute(
             select(Evidence).where(
                 Evidence.person_id == person.id,
                 Evidence.attribute_type == attribute_type,
-                Evidence.value == value,
+                func.lower(Evidence.value) == value.lower(),
             )
         )
         .scalars()
         .all()
     )
+    # the spelling already on file wins, so a profile settles on one of them
+    # rather than changing every time a source is refreshed
+    if peers:
+        value = peers[0].value
+    existing = next((p for p in peers if p.source_record_id == record.id), None)
+    if existing is not None:
+        existing.observed_at = _utcnow()
+        return attribute_type, value
+    # same claim already made by a different source? mark both corroborated
     state = "unverified"
     if peers:
         state = "corroborated"

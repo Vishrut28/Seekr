@@ -16,7 +16,12 @@ function MatchCell({ person, query }: { person: PersonSummary; query: string }) 
   const [verdict, setVerdict] = useState<Verdict | null>(null);
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [note, setNote] = useState<string | null>(null);
+  // What happened, and to WHICH control. One shared note put "Recorded" on
+  // every button in the cell: the bookmark claimed a save that never happened,
+  // and a thumb the reader had just switched away from still said it counted.
+  const [note, setNote] = useState<{ on: string; text: string } | null>(null);
+  const tip = (on: string, fallback: string) =>
+    note && note.on === on ? note.text : fallback;
 
   const vote = async (value: Verdict) => {
     const previous = verdict;
@@ -27,10 +32,12 @@ function MatchCell({ person, query }: { person: PersonSummary; query: string }) 
         verdict: value,
         query,
       });
-      setNote("Recorded");
+      setNote({ on: value, text: "Recorded" });
     } catch (e) {
       setVerdict(previous);
-      if (!isUnauthorized(e)) setNote("Could not record: " + errorMessage(e));
+      if (!isUnauthorized(e)) {
+        setNote({ on: value, text: "Could not record: " + errorMessage(e) });
+      }
     }
   };
 
@@ -56,9 +63,14 @@ function MatchCell({ person, query }: { person: PersonSummary; query: string }) 
         { person_id: person.id, query },
       );
       setSaved(true);
-      setNote(result.added ? `Saved to ${list.name}` : `Already on ${list.name}`);
+      setNote({
+        on: "save",
+        text: result.added ? `Saved to ${list.name}` : `Already on ${list.name}`,
+      });
     } catch (e) {
-      if (!isUnauthorized(e)) setNote("Could not save: " + errorMessage(e));
+      if (!isUnauthorized(e)) {
+        setNote({ on: "save", text: "Could not save: " + errorMessage(e) });
+      }
       setBusy(false);
     }
   };
@@ -67,21 +79,21 @@ function MatchCell({ person, query }: { person: PersonSummary; query: string }) 
     <td className="vote" onClick={(e) => e.stopPropagation()}>
       <button
         className={verdict === "good" ? "vbtn on" : "vbtn"}
-        title={note || "Good match for this query"}
+        title={tip("good", "Good match for this query")}
         onClick={() => vote("good")}
       >
         <Icon.thumbUp />
       </button>
       <button
         className={verdict === "bad" ? "vbtn on" : "vbtn"}
-        title={note || "Bad match for this query"}
+        title={tip("bad", "Bad match for this query")}
         onClick={() => vote("bad")}
       >
         <Icon.thumbDown />
       </button>
       <button
         className={saved ? "vbtn save on" : "vbtn save"}
-        title={note || "Save to a shortlist"}
+        title={tip("save", "Save to a shortlist")}
         disabled={busy}
         onClick={save}
       >

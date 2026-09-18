@@ -272,7 +272,10 @@ table.list tbody tr:nth-child(n+12){animation-delay:.22s}
 @keyframes cardin{from{opacity:0; transform:translateY(5px)} to{opacity:1; transform:none}}
 table.list tbody tr:hover{background:var(--surface2)}
 table.list tbody tr:first-child td{border-top:none}
-td.nm{font-weight:600; color:var(--ink); white-space:nowrap}
+/* A name wraps. nowrap in a fixed-width column meant a long one ran out
+   of its cell and printed over the organization beside it, so the two
+   read as one string: "Matthew G. HannaUniversity of Pittsburgh". */
+td.nm{font-weight:600; color:var(--ink); overflow-wrap:anywhere}
 td.nm .id{display:block; font-family:var(--mono); font-size:10.5px; color:var(--faint); font-weight:400; margin-top:1px}
 td.org{color:var(--ink2)}
 td.org .sub2{font-size:11.5px; color:var(--faint); margin-top:2px}
@@ -452,6 +455,11 @@ table.data td.num{text-align:right; padding-right:0; font-variant-numeric:tabula
   nav{flex-direction:row; padding:8px}
   .rail-foot{display:none}
   .page, .topbar{padding-left:16px; padding-right:16px}
+  /* Six columns at percentage widths gave the name 16% of a phone — 60px,
+     which a name does not fit in, so it spilled over the organization
+     beside it and the two read as one word. The table keeps legible
+     columns and .tablewrap scrolls it sideways instead. */
+  table.results-table{min-width:720px}
 }
 
 

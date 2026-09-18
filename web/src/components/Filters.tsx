@@ -23,6 +23,16 @@ export const FILTER_FIELDS = [
   { name: "min_sources", label: "Min sources", kind: "number", min: 1, placeholder: "1" },
 ] as const;
 
+/** A filter as its own form field labels it. The breakdown under an empty
+ *  result named parameters ("q", "min_sources") rather than the fields the
+ *  reader had just filled in. */
+export function filterLabel(name: string): string {
+  if (name === "q") return "name";
+  const field = FILTER_FIELDS.find((f) => f.name === name);
+  if (field) return field.label.toLowerCase();
+  return name.replace(/_/g, " ");
+}
+
 export type FilterState = Record<string, string>;
 
 export const EMPTY_FILTERS: FilterState = { sort: "relevance" };
@@ -46,8 +56,23 @@ export function filterParams(values: FilterState, flags: FilterFlags): URLSearch
   return p;
 }
 
-export function activeFilterCount(values: FilterState, flags: FilterFlags): number {
-  return [...filterParams(values, flags).keys()].length;
+/** How many filters are actually in force. The search box counts: in filter
+ *  mode its text is sent as a name filter, so a page filtering by name AND
+ *  country reported "1" and the reader could not see the other one. */
+export function activeFilterCount(
+  values: FilterState,
+  flags: FilterFlags,
+  name?: string,
+): number {
+  const fields = [...filterParams(values, flags).keys()].length;
+  return fields + (nameFilter(name) ? 1 : 0);
+}
+
+/** What the search box contributes to a filter request: a short, name-shaped
+ *  value, or nothing. A whole question typed there matches nobody. */
+export function nameFilter(text?: string): string {
+  const value = (text || "").trim();
+  return value && value.split(/\s+/).length <= 3 ? value : "";
 }
 
 /** Free-text filters match whole words, so a guessed fragment finds nothing.
@@ -85,6 +110,7 @@ export function Filters({
   onFlags,
   onApply,
   onClear,
+  nameText,
 }: {
   values: FilterState;
   flags: FilterFlags;
@@ -92,9 +118,10 @@ export function Filters({
   onFlags: (next: FilterFlags) => void;
   onApply: () => void;
   onClear: () => void;
+  nameText?: string;
 }) {
   const facets = useFacets();
-  const count = activeFilterCount(values, flags);
+  const count = activeFilterCount(values, flags, nameText);
   const set = (name: string, value: string) => onChange({ ...values, [name]: value });
 
   return (
