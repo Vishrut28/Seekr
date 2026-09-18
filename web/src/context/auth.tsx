@@ -7,18 +7,31 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { clearToken, getToken, onUnauthorized, setToken } from "../api/client";
+import { authRequired, clearToken, getToken, onUnauthorized, setToken } from "../api/client";
 
 interface Auth {
   token: string;
   signIn: (value: string) => void;
   signOut: () => void;
+  /** null until the backend has been asked whether it wants a token */
+  required: boolean | null;
 }
 
 const AuthContext = createContext<Auth | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setTokenState] = useState(getToken);
+  // A deployment with RIP_API_TOKEN unset needs no sign-in, and asking for a
+  // token it would ignore is a door with no lock in front of an open room.
+  const [required, setRequired] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    authRequired().then((value) => live && setRequired(value));
+    return () => {
+      live = false;
+    };
+  }, []);
 
   // A rejected request anywhere in the app drops straight back to the gate —
   // an expired token should not leave five panels showing "unauthorized".
@@ -41,7 +54,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setTokenState("");
   }, []);
 
-  const value = useMemo(() => ({ token, signIn, signOut }), [token, signIn, signOut]);
+  const value = useMemo(
+    () => ({ token, signIn, signOut, required }),
+    [token, signIn, signOut, required],
+  );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

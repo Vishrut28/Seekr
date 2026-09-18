@@ -74,7 +74,7 @@ export function Shell({
   topbar?: ReactNode;
   children: ReactNode;
 }) {
-  const { signOut } = useAuth();
+  const { signOut, required } = useAuth();
   const [, toggleTheme] = useTheme();
   const scrolled = useScrollShade();
 
@@ -105,9 +105,12 @@ export function Shell({
           <button className="themebtn" onClick={toggleTheme}>
             Toggle theme
           </button>
-          <button className="themebtn" onClick={signOut}>
-            Sign out
-          </button>
+          {/* nothing to sign out of when the backend wants no token */}
+          {required && (
+            <button className="themebtn" onClick={signOut}>
+              Sign out
+            </button>
+          )}
         </div>
       </aside>
       <main>

@@ -383,7 +383,12 @@ function Results({
   const rewrites = data?.rewrites || [];
   const protectedTerms = data?.protected_terms || [];
 
-  const missingTerms = [...new Set([...unmatched, ...dropped])];
+  // Two different things, and saying the wrong one is a lie about the corpus:
+  // a term nothing matches ("Zzyzx"), and a constraint that exists but whose
+  // intersection is empty — "at both Google and Stanford with over 1000
+  // citations" dropped both employers because nobody meets all three.
+  const unknownTerms = [...new Set(unmatched)];
+  const relaxedTerms = dropped.filter((t) => !unknownTerms.includes(t));
 
   return (
     <>
@@ -411,17 +416,28 @@ function Results({
         )}
       </div>
 
-      {missingTerms.length > 0 && (
+      {unknownTerms.length > 0 && (
         <Banner kind="warn">
-          <b>{missingTerms.join(", ")}</b> {missingTerms.length === 1 ? "was" : "were"} not
+          <b>{unknownTerms.join(", ")}</b> {unknownTerms.length === 1 ? "was" : "were"} not
           applied — nothing in Seekr matches{" "}
-          {missingTerms.length === 1 ? "that term" : "those terms"} yet
+          {unknownTerms.length === 1 ? "that term" : "those terms"} yet
           {rows.length
             ? `, so these ${fmt(Math.max(total, rows.length))} results ignore ${
-                missingTerms.length === 1 ? "it" : "them"
+                unknownTerms.length === 1 ? "it" : "them"
               }`
             : ""}
           .{" "}
+          <button className="btn sm" onClick={onDiscover}>
+            Search paid sources too
+          </button>
+        </Banner>
+      )}
+
+      {relaxedTerms.length > 0 && (
+        <Banner kind="warn">
+          Nobody matches every part of that question, so{" "}
+          <b>{relaxedTerms.join(", ")}</b> {relaxedTerms.length === 1 ? "was" : "were"} set
+          aside. {rows.length ? "Each result below says what it misses." : ""}{" "}
           <button className="btn sm" onClick={onDiscover}>
             Search paid sources too
           </button>

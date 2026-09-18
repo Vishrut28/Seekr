@@ -1,4 +1,5 @@
 import { Navigate, Route, HashRouter as Router, Routes } from "react-router-dom";
+import { Loading } from "./components/EmptyState";
 import { AuthProvider, useAuth } from "./context/auth";
 import { Gate } from "./pages/Gate";
 import { Person } from "./pages/Person";
@@ -12,8 +13,10 @@ import { Sources } from "./pages/Sources";
  *  /person/abc would 404 on reload. Hash URLs also keep every link anyone has
  *  already saved from the previous UI working unchanged. */
 function Routed() {
-  const { token } = useAuth();
-  if (!token) return <Gate />;
+  const { token, required } = useAuth();
+  // wait for the answer rather than flashing the gate at an open backend
+  if (required === null) return <Loading message="Starting Seekr…" />;
+  if (required && !token) return <Gate />;
   return (
     <Routes>
       <Route path="/search" element={<Search />} />

@@ -57,6 +57,19 @@ function looksUnreachable(status: number, body: string): boolean {
   return body.trim() === "" || /ECONNREFUSED|ECONNRESET|EHOSTUNREACH|proxy error/i.test(body);
 }
 
+/** Does this deployment require a token? Nothing is sent, so the answer is
+ *  the server's own: 200 means RIP_API_TOKEN is unset and the UI should not
+ *  ask for one; 401 means it should. A backend that cannot be reached is not
+ *  an answer — assume a token is wanted rather than showing the app as open. */
+export async function authRequired(): Promise<boolean> {
+  try {
+    const res = await fetch("/v1/auth");
+    return res.status === 401;
+  } catch {
+    return true;
+  }
+}
+
 export async function api<T = unknown>(
   path: string,
   opts: RequestInit = {},
@@ -65,7 +78,12 @@ export async function api<T = unknown>(
   try {
     res = await fetch(path, {
       ...opts,
-      headers: { ...(opts.headers || {}), Authorization: "Bearer " + getToken() },
+      // no header at all when there is no token: an empty "Bearer " is a
+      // malformed credential, not the absence of one
+      headers: {
+        ...(opts.headers || {}),
+        ...(getToken() ? { Authorization: "Bearer " + getToken() } : {}),
+      },
     });
   } catch {
     // fetch only rejects on a transport failure — DNS, refused socket, CORS.

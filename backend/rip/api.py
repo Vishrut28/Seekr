@@ -81,6 +81,17 @@ async def bearer_auth(request, call_next):
     return await call_next(request)
 
 
+@app.get("/v1/auth")
+def auth_required() -> dict:
+    """Whether this deployment wants a token at all.
+
+    It sits behind the middleware above on purpose: with RIP_API_TOKEN set,
+    the probe is answered with 401 before it reaches here, and the UI knows to
+    ask for a token. Unset, it answers plainly and the UI does not.
+    """
+    return {"required": False}
+
+
 @app.on_event("startup")
 def _startup() -> None:
     try:
