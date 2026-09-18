@@ -197,10 +197,12 @@ def test_index_and_fallback_paths_agree(session, monkeypatch):
     fallback = {q: (sorted(names(execute(session, parse(session, q)))),
                     count_matches(session, parse(session, q))) for q in queries}
     assert indexed == fallback
-    # The one intended difference: no source stated Grace's country, but her
-    # location says Germany outright. The index reads it; the fallback cannot.
+    # No source stated Grace's country, but her location says Germany outright.
+    # The index reads it that way, and so does the fallback: this used to be a
+    # documented difference, and a Postgres run showed what it costs — "machine
+    # learning researchers in India" answering with nobody at all.
     assert in_germany == ["Grace Sample"]
-    assert names(execute(session, parse(session, "people in Germany"))) == []
+    assert names(execute(session, parse(session, "people in Germany"))) == ["Grace Sample"]
 
 
 def test_an_exact_name_is_exact_whatever_the_punctuation_or_accents(session):

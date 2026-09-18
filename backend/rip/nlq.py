@@ -1977,7 +1977,16 @@ def _filtered_stmt(parsed: NLQuery):
                 | org.norm_name.in_(norms),
             ).correlate(Person))
     if parsed.countries:
-        stmt = stmt.where(func.upper(Person.country).in_(parsed.countries))
+        # The country a source stated, or one the stated location names:
+        # "Pune, India" is India whether or not anyone filled the field in.
+        # The index reads it that way (search_index adds a "c" posting from
+        # the location), and before the index is built this has to agree —
+        # a Postgres run found "machine learning researchers in India"
+        # answering with nobody here.
+        where = [func.upper(Person.country).in_(parsed.countries)]
+        where += [location_anywhere(name) for code in parsed.countries
+                  for name in names_for_country(code)]
+        stmt = stmt.where(or_(*where))
     if parsed.locations:
         stmt = stmt.where(or_(*[
             location_anywhere(loc) for loc in parsed.locations

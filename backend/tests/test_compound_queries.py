@@ -253,3 +253,13 @@ def test_one_subject_is_reported_once_however_many_topics_it_matches(session):
     parsed = parse(session, "machine learning")
     assert len(parsed.skills) > 1
     assert subjects_asked(parsed) == ["machine learning"]
+
+
+def test_a_country_filter_reads_the_location_without_the_index(session, legacy):
+    """Before the index is built, "in India" matched only a stated country
+    field, so people whose location says Pune, India were missed — and an
+    exclusion of the same country excluded nobody."""
+    person(session, "a", "Ada Pune", topics=["Robotics"], location="Pune, India")
+    person(session, "b", "Bob Paris", topics=["Robotics"], location="Paris, France")
+    assert names(session, "robotics researchers in India") == ["Ada Pune"]
+    assert names(session, "robotics researchers not in India") == ["Bob Paris"]

@@ -61,16 +61,65 @@ def seed(session):
     session.commit()
 
 
-def answers(session):
+def answers(session, indexed: bool = True):
+    from rip import nlq
     from rip.nlq import count_matches, execute_progressive, parse
 
+    # the SQL path a database serves from before its index is built: correlated
+    # EXISTS per organization, a GROUP BY for the candidate cut, NOT IN for
+    # exclusions — all of it engine-specific
+    real_ready = nlq.si.is_ready
+    if not indexed:
+        nlq.si.is_ready = lambda session: False
     out = {}
     for query, _expected in CASES:
         parsed = parse(session, query)
         rows, _applied, _dropped = execute_progressive(session, parsed)
         names = {p.canonical_name for p in rows if not getattr(p, "partial_match", None)}
         out[query] = (names, count_matches(session, parsed))
+    nlq.si.is_ready = real_ready
     return out
+
+
+def check_migration(url: str) -> int:
+    """An existing database gains the v9 totals and their indexes.
+
+    create_all() writes the current shape, so a fresh database never exercises
+    the additive path that every deployed one takes.
+    """
+    from sqlalchemy import create_engine, inspect, text
+
+    from rip import db as db_module
+
+    engine = create_engine(url)
+    db_module.Base.metadata.create_all(engine)
+    with engine.begin() as conn:
+        conn.execute(text("DROP TABLE IF EXISTS search_doc CASCADE"))
+        conn.execute(text(
+            "CREATE TABLE search_doc (person_id VARCHAR(36) PRIMARY KEY, prior FLOAT, "
+            "evidence_count INTEGER, source_count INTEGER, impact FLOAT)"))
+        conn.execute(text("INSERT INTO search_doc VALUES ('p1', 0.5, 3, 1, 12.0)"))
+    real_engine, real_build = db_module.engine, db_module._build_search_index
+    db_module.engine, db_module._build_search_index = engine, lambda: None
+    try:
+        db_module._migrate()
+    finally:
+        db_module.engine, db_module._build_search_index = real_engine, real_build
+    inspector = inspect(engine)
+    columns = {c["name"] for c in inspector.get_columns("search_doc")}
+    names = {ix["name"] for ix in inspector.get_indexes("search_doc")}
+    with engine.begin() as conn:
+        row = conn.execute(text(
+            "SELECT prior, publications, citations FROM search_doc")).one()
+    engine.dispose()
+    failures = 0
+    for label, ok in (("totals added", {"publications", "citations"} <= columns),
+                      ("indexes added",
+                       {"ix_search_doc_publications", "ix_search_doc_citations"} <= names),
+                      ("existing row kept", tuple(row) == (0.5, 0, 0))):
+        failures += not ok
+        print(f"  {'ok  ' if ok else 'FAIL'} migration: {label}")
+    return failures
 
 
 def run(url: str, keep: bool) -> int:
@@ -88,6 +137,7 @@ def run(url: str, keep: bool) -> int:
         search_index.rebuild(session)
         session.commit()
         got = answers(session)
+        legacy = answers(session, indexed=False)
 
     failures = 0
     for query, expected in CASES:
@@ -98,6 +148,16 @@ def run(url: str, keep: bool) -> int:
         print(f"  {mark} {query:52s} {sorted(names)} (total {total})")
         if not ok:
             print(f"       expected {sorted(expected)}")
+        names_sql, total_sql = legacy[query]
+        # the pre-index path answers the same question, minus the totals only
+        # the index stores (source-reported publication and citation counts)
+        if "citations" in query or "papers" in query:
+            continue
+        same = (names_sql, total_sql) == (names, total)
+        failures += not same
+        print(f"  {'ok  ' if same else 'FAIL'} ...and without the index")
+        if not same:
+            print(f"       index {sorted(names)} ({total}) vs sql {sorted(names_sql)} ({total_sql})")
     if not keep:
         Base.metadata.drop_all(engine)
         print("dropped the tables it created")
@@ -126,7 +186,7 @@ def main() -> None:
                  "this may create and drop tables in")
     if "postgres" not in args.url:
         sys.exit("that is not a Postgres URL")
-    failures = run(args.url, args.keep)
+    failures = check_migration(args.url) + run(args.url, args.keep)
     print("\nall query paths agree with SQLite" if not failures else f"\n{failures} mismatches")
     sys.exit(1 if failures else 0)
 
