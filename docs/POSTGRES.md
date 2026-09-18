@@ -17,6 +17,12 @@ pip install "psycopg[binary]"
 python -m rip.cli init-db      # creates tables + runs additive migrations
 ```
 
+`init-db` is also how an existing database catches up: it adds columns and
+indexes later versions rely on (most recently the per-person publication and
+citation totals a count filter reads), and rebuilds the search index when
+`INDEX_VERSION` has moved. The rebuild is one pass over every person — a few
+seconds per thousand — so run it before pointing traffic at the database.
+
 The read API picks up the same variable. On Vercel, set `RIP_DATABASE_URL` as
 a project env var and the function serves live data instead of the bundled
 snapshot — at which point `data/rip.db` and the snapshot step in

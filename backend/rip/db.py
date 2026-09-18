@@ -123,6 +123,10 @@ def _create_missing_indexes(inspector) -> None:
 
     indexes = {
         "person": [("ix_person_merged_into_id", "merged_into, id")],
+        # the output totals a count filter reads ("at least 20 papers"); a
+        # threshold with no subject scans search_doc without them
+        "search_doc": [("ix_search_doc_publications", "publications"),
+                       ("ix_search_doc_citations", "citations")],
     }
     for table, specs in indexes.items():
         if table not in inspector.get_table_names():
