@@ -74,3 +74,37 @@ def test_a_misspelled_surname_is_corrected_against_that_first_name(session):
     parsed = parse(session, "Rahul Agarwl")
     assert sorted(parsed.name_terms, key=str.lower) == ["agarwal", "Rahul"]
     assert parsed.unmatched_terms == []
+
+
+def test_both_does_not_hide_the_word_at_from_the_organization_matcher(session):
+    """"at both Google and Stanford" saw no "at" before Google, so a word that
+    is also subject vocabulary was read as a subject: the query came back as a
+    list of google-chrome users."""
+    person(session, "a", "Ann Both", orgs=["Google (United States)", "Stanford University"],
+           topics=["Robotics"])
+    person(session, "b", "Bob Chrome", topics=["google-chrome", "google-app-engine"])
+    parsed = parse(session, "researchers at both Google and Stanford")
+    assert parsed.skill_groups == []
+    assert parsed.require_all_orgs
+    assert found(session, "researchers at both Google and Stanford") == ["Ann Both"]
+
+
+def test_an_employer_nobody_works_for_is_reported_not_reinterpreted(session):
+    person(session, "b", "Bob Chrome", topics=["google-chrome", "google-app-engine"])
+    parsed = parse(session, "engineers at Google")
+    assert parsed.skill_groups == [] and parsed.organizations == []
+    assert parsed.unmatched_terms == ["Google"]
+    assert found(session, "engineers at Google") == []
+
+
+def test_a_lowercase_word_after_at_is_not_an_employer(session):
+    """The employer rule needs the capital letter people give a company, or
+    "engineers at kubernetes" would report a subject as a missing employer."""
+    # a word no topic is spelled exactly, so only containment can match it —
+    # the same route "at Google" takes to google-chrome
+    person(session, "a", "Ann Reef", topics=["Coral Reef Restoration"])
+    person(session, "b", "Bob Vision", topics=["Computer Vision", "Robotics", "Cosmology"])
+    parsed = parse(session, "researchers at coral")
+    assert parsed.unmatched_terms == []
+    assert [g["term"] for g in parsed.skill_groups] == ["coral"]
+    assert found(session, "researchers at coral") == ["Ann Reef"]

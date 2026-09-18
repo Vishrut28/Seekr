@@ -467,6 +467,35 @@ def query_understanding(parsed: "NLQuery") -> dict:
     }
 
 
+# Words that may stand between "at" and the employer: "at both Google and
+# Microsoft", "at the University of Tokyo".
+_AFTER_AT = frozenset({"both", "the", "either"})
+
+
+def _names_an_employer(tokens: list[str], first: int) -> bool:
+    """Does an employer belong at position FIRST — "at X", "from X"?
+
+    Reading past "both" and "the" matters: with them in the way, "at both
+    Google and Microsoft" saw no "at" before Google and read it as a subject.
+    """
+    i = first
+    while i > 0 and tokens[i - 1].lower() in _AFTER_AT:
+        i -= 1
+    return i > 0 and tokens[i - 1].lower() in ("at", "from", "@")
+
+
+def _employer_position(tokens: list[str], span: set, gram: str) -> bool:
+    """Is this one capitalised word sitting where an employer goes?
+
+    "at Google" is an employer, "at scale" is not, which is why the word has
+    to be capitalised as typed. Only single words: a longer phrase carries
+    enough of itself to mean something ("at computer vision research").
+    """
+    if len(gram.split()) != 1 or not gram[:1].isupper() or gram.isupper():
+        return False
+    return _names_an_employer(tokens, min(span))
+
+
 def _meaningful(term: str, min_len: int) -> bool:
     """Long enough to search on. Two characters of Chinese or Japanese carry
     as much meaning as a whole English word, so a letter-count threshold
@@ -764,8 +793,7 @@ def _org_matches(gram: str, gram_l: str, parts: list[str], span: set, tokens: li
     is read as an organization only after "at" or "from" — otherwise the
     Robotics Institute would answer every question about robotics.
     """
-    first = min(span)
-    after_at = first > 0 and tokens[first - 1].lower() in ("at", "from", "@")
+    after_at = _names_an_employer(tokens, min(span))
     content = [w for w in parts if w not in STOPWORDS]
     if not content:
         return []
@@ -1275,6 +1303,17 @@ def parse(session: Session, query: str | None, _nested: bool = False) -> NLQuery
             # sub-phrases are still tried (and "neural networks" does match),
             # because they carry enough of the phrase to mean it.
             if len(parts) == 1 and span & unknown_phrases:
+                continue
+            # An employer nobody here works for is reported, not answered
+            # with a subject: "at both Google and Stanford" reached
+            # google-chrome and google-app-engine through containment below,
+            # so a question about who works at Google came back as a list of
+            # Chrome DevTools users. Organizations the corpus does hold are
+            # matched before this (including by acronym).
+            if _employer_position(tokens, span, gram):
+                result.unmatched_terms.append(gram)
+                reported_misses.append(span)
+                consumed |= span
                 continue
             # Word-boundary containment: "computer vision" should reach
             # "Computer Vision and Image Processing". Generic words are

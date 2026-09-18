@@ -100,6 +100,19 @@ QUERIES = [
     ("variants", "computer vsion researchers"),
     ("variants", "reinforcement lerning"),
     ("variants", "graph neural networks"),
+    # --- questions with more than one part. Exclusions and thresholds add a
+    # NOT EXISTS / a totals lookup per clause, so they are timed apart from
+    # the plain query they are built on.
+    ("compound", "machine learning researchers"),
+    ("compound", "machine learning researchers not at Google"),
+    ("compound", "machine learning researchers who don't work at Google or Microsoft"),
+    ("compound", "computer vision but not deep learning"),
+    ("compound", "robotics researchers not in India"),
+    ("compound", "researchers at both Google and Stanford"),
+    ("compound", "deep learning researchers with at least 200 papers"),
+    ("compound", "machine learning researchers with over 10000 citations"),
+    ("compound", "people with at least 50000 citations"),
+    ("compound", "machine learning researchers in the US with over 1000 citations, not at Google"),
 ]
 
 
