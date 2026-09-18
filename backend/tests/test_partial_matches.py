@@ -79,3 +79,37 @@ def test_the_api_labels_partial_results(session, monkeypatch):
                         discover="false", db=session)
     assert body["results"][0]["match"] == "partial"
     assert body["results"][0]["missing"] == [{"term": "Oxford", "as": "org"}]
+
+
+def clause(token, at):
+    return {"kind": "skill_groups", "payload": {"term": token}, "token": token,
+            "label": "skill", "at": at}
+
+
+def test_a_modifier_is_dropped_before_the_subject_it_modifies():
+    """"computational pathology" is not one stored topic, so it parses as two
+    subjects side by side. Dropping the last one typed kept computational
+    mechanics and threw pathology away — the wrong half of the question."""
+    from rip.nlq import _drop_sequence
+
+    order = _drop_sequence([clause("computational", 0), clause("pathology", 1)])
+    assert [c["token"] for c in order] == ["computational", "pathology"]
+
+
+def test_subjects_that_are_not_side_by_side_are_dropped_last_typed_first():
+    """"robotics and computer vision" are two questions, not a modifier and a
+    head, and the last one typed is the one that gives way."""
+    from rip.nlq import _drop_sequence
+
+    order = _drop_sequence([clause("robotics", 0), clause("computer vision", 2)])
+    assert [c["token"] for c in order] == ["computer vision", "robotics"]
+
+
+def test_subjects_that_are_not_one_phrase_still_give_way_last_first(session):
+    """"robotics and computer vision" are two questions, not a modifier and a
+    head: the one typed last is the one dropped."""
+    person(session, "a", "Ann Robot", topics=["Robotics and Sensor-Based Localization"])
+    person(session, "b", "Bob Vision", topics=["Computer Vision and Pattern Recognition"])
+    rows, dropped = run(session, "robotics and computer vision")
+    assert [name for name, _ in rows] == ["Ann Robot"]
+    assert dropped == [{"term": "computer vision", "as": "skill"}]

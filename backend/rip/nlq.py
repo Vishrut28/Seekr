@@ -3086,10 +3086,34 @@ def _half_a_name(parsed: NLQuery) -> list[dict]:
     return out
 
 
+def _modifies_the_next_subject(clause: dict, clauses: list) -> bool:
+    """Is this subject the first half of a two-word subject, as typed?
+
+    "computational pathology" is not held as one topic, so it parses as two
+    subjects side by side. Nobody is filed under both, and dropping the last
+    one typed kept "computational" and threw away pathology — computational
+    mechanics answering a question about pathology. The head of an English
+    noun phrase is its last word, so the modifier gives way instead.
+    """
+    if clause["kind"] != "skill_groups":
+        return False
+    after = clause.get("at", 0) + len((clause.get("token") or "").split())
+    return any(other is not clause and other["kind"] == "skill_groups"
+               and other.get("at") == after for other in clauses)
+
+
 def _drop_sequence(clauses: list) -> list:
     """Clauses in the order they are dropped."""
     rank = {kind: i for i, kind in enumerate(RELAX_ORDER)}
-    return sorted(clauses, key=lambda c: (rank.get(c["kind"], 0), -c.get("at", 0)))
+
+    def order(clause):
+        at = clause.get("at", 0)
+        # modifiers first, left to right; everything else last typed first
+        if _modifies_the_next_subject(clause, clauses):
+            return (rank.get(clause["kind"], 0), 0, at)
+        return (rank.get(clause["kind"], 0), 1, -at)
+
+    return sorted(clauses, key=order)
 
 
 def execute_progressive(session: Session, parsed: NLQuery) -> tuple[list, NLQuery, list]:

@@ -490,8 +490,28 @@ reindexes. On the 446-person development corpus:
 | `holdout2`: written last, criteria fixed before the first run | 20 | 0.65 on the first run; 0.69 after one general bug fix ("in the US") | 0.42 |
 
 The last row is the number to believe for queries nobody has tuned for. Its
-misses are mostly subjects the vocabulary has no bridge to yet ("computational
-pathology", "speech recognition", "malaria" as a lone word). One of its
+misses were mostly subjects the corpus had no people for — a coverage problem,
+not a parsing one. `scripts/ingest_topics.py` fills those from the free
+topical sources:
+
+```bash
+python scripts/ingest_topics.py --per-topic 8          # what it would ingest
+python scripts/ingest_topics.py --per-topic 8 --yes    # do it
+```
+
+Twelve such subjects (112 authors, four minutes) took eleven of them from no
+answer at all to a page of the people you would expect, and moved `holdout2`
+from 0.69 to 0.80 on the enlarged corpus. The other sets appear to fall on
+that corpus, which is worth reading carefully: the criteria name particular
+topic strings, and new people arrive under topic names the criteria never
+enumerated — Fiji and QuPath authors rank for "computer vision researchers"
+and grade 0. Numbers from two different corpora are not comparable, and the
+judgments need review before they are.
+
+`scripts/verify_postgres.py` runs the engine-specific query paths (exclusions,
+"both", count thresholds, the v9 migration) against a real Postgres and
+compares the answers with SQLite's; point `RIP_TEST_POSTGRES_URL` at a
+database it may create and drop tables in. One of its
 criteria is also too loose: "pathology" credits spine and GI pathology. The
 judgments are drafts and should be reviewed. The eval corpus is small, so a
 single query moves a set's score by several points.
