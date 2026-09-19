@@ -46,9 +46,15 @@ type Mode = "query" | "filters";
 
 export function Search() {
   const [text, setText] = useState(() => sessionStorage.getItem(LAST_QUERY_KEY) || "");
-  // A live search leaves the building: it queries external sources and stores
-  // the people they return. One stray click next to "Search" did that twice,
-  // so it takes two — the first arms it and says what it will do.
+  // This button spends money: it adds the metered provider to the search, and
+  // forces a live pass even when the corpus could answer on its own. One
+  // stray click next to "Search" did that twice, so it takes two — the first
+  // arms it and says what it will do.
+  //
+  // It does NOT decide whether anything goes out to the internet: an ordinary
+  // search already asks the FREE sources whenever the corpus cannot answer
+  // fully, and already keeps the people they return. Saying otherwise here
+  // implied a plain search stayed local, which it does not.
   const [liveArmed, setLiveArmed] = useState(false);
   const [rows, setRows] = useState<PersonSummary[]>([]);
   const [data, setData] = useState<QueryResponse | null>(null);
@@ -301,13 +307,15 @@ export function Search() {
       <button
         className={liveArmed ? "btn armed" : "btn"}
         title={
-          "Also query live sources (OpenAlex, Europe PMC, the web). " +
-          "Slower, and the people they return are stored in the graph."
+          "Also search the metered provider, which costs money, and go out " +
+          "to the sources even when the corpus could answer on its own. " +
+          "An ordinary search already asks the free ones (OpenAlex, " +
+          "Europe PMC, the web) and keeps the people they return."
         }
         aria-label={
           liveArmed
-            ? "Confirm searching live sources and storing what they return"
-            : "Also query live sources"
+            ? "Confirm searching the paid source, which costs money"
+            : "Also search paid sources"
         }
         onClick={() => {
           if (!liveArmed) {
@@ -319,7 +327,7 @@ export function Search() {
         }}
         onBlur={() => setLiveArmed(false)}
       >
-        {liveArmed ? "Store live results?" : "Live"}
+        {liveArmed ? "Search paid sources?" : "Live"}
       </button>
     </div>
   );
