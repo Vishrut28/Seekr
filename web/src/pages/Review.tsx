@@ -11,6 +11,9 @@ interface Queue {
   fuzzy_merges: FuzzyMerge[];
 }
 
+/** Enough of an id to tell two people of the same name apart. */
+const short = (id: string) => (id || "").slice(0, 8);
+
 export function Review() {
   const [queue, setQueue] = useState<Queue | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -49,8 +52,7 @@ export function Review() {
     <>
       <h1 className="title">Review queue</h1>
       <div className="sub">
-        Merges Seekr was not confident enough to make on its own. Every decision is
-        reversible.
+        Merges Seekr was not confident enough to make on its own.
       </div>
     </>
   );
@@ -79,6 +81,16 @@ export function Review() {
         <h2>
           Possible duplicates <span className="n">{duplicates.length}</span>
         </h2>
+        {/* Merging folds one person's evidence, affiliations and publications
+            into the other and leaves a tombstone pointing at the survivor.
+            Nothing in the codebase puts them back, so this one decision has to
+            say so — the page used to promise the opposite. */}
+        {duplicates.length > 0 && (
+          <Banner kind="warn">
+            Merging moves everything one person holds onto the other and cannot be
+            undone. "Different people" only closes the pair, and changes nothing.
+          </Banner>
+        )}
         {duplicates.length ? (
           duplicates.map((d) => (
             <div className="conflict" key={d.candidate_id}>
@@ -102,7 +114,20 @@ export function Review() {
                 <button
                   className="btn primary sm"
                   disabled={acting}
-                  onClick={() => act(`/v1/review/duplicates/${d.candidate_id}/merge`)}
+                  onClick={() => {
+                    // Last stop before an irreversible write. Both sides
+                    // usually carry the SAME name — that is why they were
+                    // queued — so the names alone identify nothing, and the
+                    // id and the reason go in with them.
+                    const ok = window.confirm(
+                      `Merge "${d.duplicate_person_name}" (${short(d.duplicate_person_id)})` +
+                        ` into "${d.person_name}" (${short(d.person_id)})?` +
+                        `\n\n${d.signals?.reason || `score ${d.score}`}` +
+                        "\n\nEverything the first holds moves to the second. " +
+                        "This cannot be undone.",
+                    );
+                    if (ok) act(`/v1/review/duplicates/${d.candidate_id}/merge`);
+                  }}
                 >
                   Merge
                 </button>
