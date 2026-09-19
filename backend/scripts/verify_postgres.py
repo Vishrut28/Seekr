@@ -81,6 +81,33 @@ def answers(session, indexed: bool = True):
     return out
 
 
+def check_facets(session) -> int:
+    """The country menu counts from the index, and must agree with the filter.
+
+    Its own SQL: a join from the postings table to person, grouped by term and
+    ordered by a count — an aggregate in ORDER BY that is not in the SELECT
+    list is exactly the kind of thing SQLite waves through and Postgres does
+    not.
+    """
+    from rip import api
+
+    failures = 0
+    values = api._facets_uncached("country", 40, session)["values"]
+    counted = {v["value"]: v["people"] for v in values}
+    for code, people in sorted(counted.items()):
+        total = api.list_persons(
+            **{**api._ALL_FILTERS_NONE, "country": code, "limit": 1, "db": session}
+        )["total_matches"]
+        ok = total == people
+        failures += not ok
+        print(f"  {'ok  ' if ok else 'FAIL'} facet {code}: menu says {people}, "
+              f"filter returns {total}")
+    if not counted:
+        print("  FAIL facet country: no countries counted at all")
+        failures += 1
+    return failures
+
+
 def check_migration(url: str) -> int:
     """An existing database gains the v9 totals and their indexes.
 
@@ -138,8 +165,9 @@ def run(url: str, keep: bool) -> int:
         session.commit()
         got = answers(session)
         legacy = answers(session, indexed=False)
+        facet_failures = check_facets(session)
 
-    failures = 0
+    failures = facet_failures
     for query, expected in CASES:
         names, total = got[query]
         ok = names == expected and total == len(expected)
