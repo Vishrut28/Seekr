@@ -518,11 +518,28 @@ _FACET_TTL = float(os.environ.get("RIP_VOCAB_TTL", "60"))
 
 def _facets_uncached(field: str, limit: int, db: Session) -> dict:
     if field == "country":
-        rows = db.execute(
-            select(Person.country, func.count(Person.id))
-            .where(Person.country.isnot(None), Person.merged_into.is_(None))
-            .group_by(Person.country).order_by(func.count(Person.id).desc()).limit(limit)
-        ).all()
+        # A menu entry is a promise about what picking it returns, so it has
+        # to count the people the FILTER matches. Counting the stated country
+        # column alone said "IN - 48" over a filter that returns 70: the
+        # filter also accepts a location that names the country, because a
+        # source often gives "Bangalore, India" and no ISO code at all.
+        from . import search_index as si
+
+        if si.is_ready(db):
+            rows = db.execute(
+                select(si.SearchTerm.term, func.count(si.SearchTerm.person_id))
+                .join(Person, Person.id == si.SearchTerm.person_id)
+                .where(si.SearchTerm.field == "c", Person.merged_into.is_(None))
+                .group_by(si.SearchTerm.term)
+                .order_by(func.count(si.SearchTerm.person_id).desc()).limit(limit)
+            ).all()
+            rows = [(code.upper(), n) for code, n in rows if code]
+        else:
+            rows = db.execute(
+                select(Person.country, func.count(Person.id))
+                .where(Person.country.isnot(None), Person.merged_into.is_(None))
+                .group_by(Person.country).order_by(func.count(Person.id).desc()).limit(limit)
+            ).all()
     elif field == "source":
         from .connectors import CONNECTORS
         from .nlq import PAID_SOURCES, enabled_searchers
