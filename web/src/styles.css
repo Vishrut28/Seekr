@@ -167,6 +167,8 @@ input.search:focus{outline:none; border-color:var(--accent); box-shadow:0 0 0 3p
    and writes to the graph, so it should not be a near miss for Search */
 .btnsplit{width:1px; align-self:stretch; margin:2px 7px; background:var(--line)}
 .pad{padding:14px 16px; margin:0}
+/* sits with the list's name, not over its people */
+.listdel{float:right; font-weight:400}
 .btn.armed{color:var(--warn); border-color:color-mix(in srgb, var(--warn) 45%, var(--line));
   background:var(--warn-soft)}
 

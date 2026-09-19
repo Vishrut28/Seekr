@@ -60,6 +60,9 @@ export function Shortlists() {
         <ShortlistBlock
           key={list.id}
           list={list}
+          onDeleted={() =>
+            setLists((prev) => (prev || []).filter((l) => l.id !== list.id))
+          }
           onRemoved={(personId) =>
             setLists((prev) =>
               (prev || []).map((l) =>
@@ -82,13 +85,43 @@ export function Shortlists() {
 function ShortlistBlock({
   list,
   onRemoved,
+  onDeleted,
 }: {
   list: ShortlistDetail;
   onRemoved: (personId: string) => void;
+  onDeleted: () => void;
 }) {
   const navigate = useNavigate();
   const [removing, setRemoving] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
+  const [listFailed, setListFailed] = useState(false);
+
+  /** A list could be started but never dropped, so a name typed wrong stayed
+   *  on the page for good. Only the list goes — everyone on it is untouched. */
+  const deleteList = async () => {
+    const count = list.count ?? list.members.length;
+    const ok = window.confirm(
+      `Delete the shortlist "${list.name}"?` +
+        (count ? `\n\nIt has ${count} ${count === 1 ? "person" : "people"} on it. ` : "\n\n") +
+        "The list goes; nobody on it is deleted.",
+    );
+    if (!ok) return;
+    try {
+      await apiSend(`/v1/shortlists/${list.id}`, "DELETE");
+      onDeleted();
+    } catch {
+      setListFailed(true);
+    }
+  };
+
+  const heading = (
+    <h2>
+      {list.name} <span className="n">{list.count ?? list.members.length}</span>
+      <button className="btn sm ghost listdel" onClick={deleteList}>
+        {listFailed ? "Failed" : "Delete list"}
+      </button>
+    </h2>
+  );
 
   const remove = async (personId: string) => {
     setRemoving(personId);
@@ -104,9 +137,7 @@ function ShortlistBlock({
   if (!list.members.length) {
     return (
       <section className="block">
-        <h2>
-          {list.name} <span className="n">0</span>
-        </h2>
+        {heading}
         <div className="card">
           <p className="muted pad">
             Nobody in this list yet — save someone from a search to add them.
@@ -118,9 +149,7 @@ function ShortlistBlock({
 
   return (
     <section className="block">
-      <h2>
-        {list.name} <span className="n">{list.count ?? list.members.length}</span>
-      </h2>
+      {heading}
       <div className="card">
         <div className="tablewrap">
           <table className="list">

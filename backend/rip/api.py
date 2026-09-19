@@ -1382,6 +1382,31 @@ def remove_from_shortlist(shortlist_id: int, person_id: str, db: Session = Depen
     return {"shortlist_id": shortlist_id, "person_id": person_id, "removed": True}
 
 
+@app.delete("/v1/shortlists/{shortlist_id}")
+def delete_shortlist(shortlist_id: int, db: Session = Depends(get_db)):
+    """Delete a shortlist and its membership rows.
+
+    A list could be created but never removed, so a name typed wrong was
+    permanent. Only the list goes: a membership row records that somebody was
+    shortlisted, not anything about the person, and every Person the list
+    pointed at is left exactly as it was.
+    """
+    from .models import Shortlist, ShortlistMember
+
+    row = db.get(Shortlist, shortlist_id)
+    if row is None:
+        raise HTTPException(404, "shortlist not found")
+    members = db.execute(
+        select(ShortlistMember).where(ShortlistMember.shortlist_id == shortlist_id)
+    ).scalars().all()
+    for member in members:
+        db.delete(member)
+    db.delete(row)
+    db.commit()
+    return {"shortlist_id": shortlist_id, "name": row.name,
+            "removed_members": len(members), "deleted": True}
+
+
 @app.post("/v1/feedback")
 def post_feedback(payload: dict, db: Session = Depends(get_db)):
     """Record that a person was a good or bad match for a query.
