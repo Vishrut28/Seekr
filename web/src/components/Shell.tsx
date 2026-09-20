@@ -29,13 +29,18 @@ function RailStats() {
     Promise.all([
       api<FacetResponse>("/v1/facets?field=source"),
       api<FacetResponse>("/v1/facets?field=country&limit=200"),
+      // The corpus size, counted once. It used to be taken as the largest
+      // source's people-count, on the reasoning that summing the sources
+      // would count somebody once per source they appear in. That is true of
+      // summing, but the largest source is not the whole corpus either: it
+      // silently leaves out everybody known ONLY through a smaller one, and
+      // reported 323 people out of 658.
+      api<{ total_matches: number }>("/v1/persons?limit=1"),
     ])
-      .then(([sources, countries]) => {
+      .then(([sources, countries, all]) => {
         if (!live) return;
         setStats({
-          // every source counts the same people, so the largest source is the
-          // corpus size — summing them would count each person once per source
-          people: sources.values.reduce((m, v) => Math.max(m, v.people), 0),
+          people: all.total_matches,
           sources: sources.values.length,
           countries: countries.values.length,
         });
