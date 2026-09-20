@@ -263,6 +263,24 @@ export interface DuplicateCandidate {
   signals?: { reason?: string } | null;
 }
 
+export interface ConflationGroup {
+  papers: number;
+  years: string;
+  topics: string[];
+  titles: string[];
+}
+
+export interface Conflation {
+  person_id: string;
+  person_name: string | null;
+  score: number;
+  papers: number;
+  /** true = the halves name a common employer, so probably one person after
+   *  all; false = they name none; null = no institutions on file to compare. */
+  shares_an_employer: boolean | null;
+  groups: ConflationGroup[];
+}
+
 export interface FuzzyMerge {
   link_id: number;
   person_id: string;

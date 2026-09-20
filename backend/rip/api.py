@@ -951,6 +951,75 @@ def review_split(link_id: int, db: Session = Depends(get_db)):
     return {"new_person_id": person.id, "canonical_name": person.canonical_name}
 
 
+@app.get("/v1/review/conflations")
+def review_conflations(
+    above: float = Query(0.5, ge=0.0, le=1.0),
+    limit: int = Query(50, ge=1, le=200),
+    db: Session = Depends(get_db),
+):
+    """Person records whose papers look like more than one person's work.
+
+    Its own route, not part of /v1/review/merges: this reads stored source
+    payloads and takes a moment, and the merge queue should not wait for it.
+
+    Half of what it returns is one person with a wide career — the detector is
+    measured at 60% precision — so every entry carries the groups themselves,
+    with years, subjects and titles, because that is what the decision is
+    actually made on.
+    """
+    from .conflation import candidates, describe, shares_an_employer
+    from .models import ConflationReview
+
+    seen = {
+        row.person_id: row.verdict
+        for row in db.execute(select(ConflationReview)).scalars()
+    }
+    out = []
+    for split in candidates(db, above=above):
+        if split.person_id in seen:
+            continue                     # somebody has already ruled on this one
+        out.append({
+            "person_id": split.person_id,
+            "person_name": split.name,
+            "score": round(split.score, 2),
+            "papers": split.papers,
+            "shares_an_employer": shares_an_employer(db, split),
+            "groups": describe(db, split, per_group=4),
+        })
+        if len(out) >= limit:
+            break
+    return {"conflations": out, "reviewed": len(seen)}
+
+
+@app.post("/v1/review/conflations/{person_id}")
+def review_conflation(person_id: str, payload: dict, db: Session = Depends(get_db)):
+    """Record a judgement so the record stops being offered.
+
+    The detector recomputes from the papers every time and cannot remember
+    anything, so without this a record somebody has already cleared comes back
+    for ever. Neither verdict changes a Person: "several_people" marks work for
+    a splitting tool that does not exist yet, and nothing here pretends to do
+    it.
+    """
+    from .models import ConflationReview, Person
+
+    verdict = str(payload.get("verdict") or "")
+    if verdict not in ("one_person", "several_people"):
+        raise HTTPException(400, "verdict must be one_person or several_people")
+    if db.get(Person, person_id) is None:
+        raise HTTPException(404, "person not found")
+    row = db.execute(
+        select(ConflationReview).where(ConflationReview.person_id == person_id)
+    ).scalar_one_or_none()
+    if row is None:
+        row = ConflationReview(person_id=person_id)
+        db.add(row)
+    row.verdict = verdict
+    row.note = (payload.get("note") or None)
+    db.commit()
+    return {"person_id": person_id, "verdict": verdict, "recorded": True}
+
+
 @app.post("/v1/review/duplicates/{candidate_id}/merge")
 def review_duplicate_merge(candidate_id: int, db: Session = Depends(get_db)):
     from .review import resolve_duplicate

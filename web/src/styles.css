@@ -169,6 +169,15 @@ input.search:focus{outline:none; border-color:var(--accent); box-shadow:0 0 0 3p
 .pad{padding:14px 16px; margin:0}
 /* sits with the list's name, not over its people */
 .listdel{float:right; font-weight:400}
+/* the bodies of work a flagged record splits into, side by side so the
+   difference between them is the thing you see first */
+.cgroups{display:flex; gap:10px; flex-wrap:wrap; margin-top:10px}
+.cgroup{
+  flex:1 1 240px; min-width:0; padding:9px 11px;
+  background:var(--surface2); border-radius:var(--radius-sm);
+}
+.cgroup ul{margin:5px 0 0; padding-left:16px}
+.cgroup li{font-size:12.5px; color:var(--ink2); margin-bottom:2px; overflow-wrap:anywhere}
 .btn.armed{color:var(--warn); border-color:color-mix(in srgb, var(--warn) 45%, var(--line));
   background:var(--warn-soft)}
 

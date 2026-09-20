@@ -550,6 +550,26 @@ class IngestionRun(Base):
     finished_at: Mapped[datetime | None] = mapped_column(DateTime)
 
 
+class ConflationReview(Base):
+    """A person record someone has looked at and judged, after it was flagged
+    as possibly being several people.
+
+    The flag is recomputed from the papers every time, so it cannot remember
+    anything; this is what stops a record a human has already cleared from
+    coming back forever. "several_people" is recorded rather than acted on —
+    nothing here can split one source record into two people yet, so it marks
+    the work for when something can.
+    """
+
+    __tablename__ = "conflation_review"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    person_id: Mapped[str] = mapped_column(ForeignKey("person.id"), index=True, unique=True)
+    verdict: Mapped[str] = mapped_column(String(32))     # "one_person" | "several_people"
+    note: Mapped[str | None] = mapped_column(Text)
+    reviewed_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
 # Registers the search index tables and the session hooks that keep them
 # current. Imported last: it refers to the models above.
 from . import search_index as _search_index  # noqa: E402,F401

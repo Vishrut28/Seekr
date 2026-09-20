@@ -4,7 +4,7 @@ import { api, apiSend, errorMessage, isUnauthorized } from "../api/client";
 import { Banner, EmptyState, Loading } from "../components/EmptyState";
 import { Shell } from "../components/Shell";
 import { useWorking } from "../lib/hooks";
-import type { DuplicateCandidate, FuzzyMerge } from "../types";
+import type { Conflation, DuplicateCandidate, FuzzyMerge } from "../types";
 
 interface Queue {
   possible_duplicates: DuplicateCandidate[];
@@ -16,6 +16,9 @@ const short = (id: string) => (id || "").slice(0, 8);
 
 export function Review() {
   const [queue, setQueue] = useState<Queue | null>(null);
+  // Its own request: it reads stored source payloads and takes a moment, and
+  // the merge queue should not wait behind it.
+  const [conflations, setConflations] = useState<Conflation[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [acting, setActing] = useState(false);
 
@@ -45,6 +48,25 @@ export function Review() {
       if (!isUnauthorized(e)) setError(errorMessage(e));
     } finally {
       setActing(false);
+    }
+  };
+
+  useEffect(() => {
+    let live = true;
+    api<{ conflations: Conflation[] }>("/v1/review/conflations")
+      .then((r) => live && setConflations(r.conflations))
+      .catch(() => live && setConflations([]));
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  const ruleOn = async (personId: string, verdict: string) => {
+    setConflations((prev) => (prev || []).filter((c) => c.person_id !== personId));
+    try {
+      await apiSend(`/v1/review/conflations/${personId}`, "POST", { verdict });
+    } catch {
+      load();                 // put it back by reloading rather than guessing
     }
   };
 
@@ -185,6 +207,76 @@ export function Review() {
             title="All confirmed"
             body="No fuzzy merges are waiting for a decision."
           />
+        )}
+      </section>
+
+      <section className="block">
+        <h2>
+          One record, more than one person?{" "}
+          <span className="n">{conflations ? conflations.length : "…"}</span>
+        </h2>
+        {/* Sources disambiguate authors themselves and get it wrong, and a
+            record that holds two people's work answers searches with the wrong
+            half. About three in five of these are real; the rest are one
+            person with a wide career, which is why the papers are printed
+            rather than a verdict. */}
+        {conflations === null ? (
+          <Loading message="Reading publication records…" />
+        ) : conflations.length === 0 ? (
+          <EmptyState
+            title="Nothing to look at"
+            body="No record splits into two unrelated bodies of work."
+          />
+        ) : (
+          conflations.map((c) => (
+            <div className="conflict" key={c.person_id}>
+              <div>
+                <b>
+                  <Link to={`/person/${c.person_id}`}>{c.person_name || "unnamed"}</Link>
+                </b>{" "}
+                <span className="muted">{c.papers} papers</span>
+              </div>
+              <div className="idline">
+                {c.shares_an_employer === false
+                  ? "the two halves name no employer in common"
+                  : c.shares_an_employer === null
+                    ? "no institutions on file to compare"
+                    : "shares an employer across both halves"}
+              </div>
+              <div className="cgroups">
+                {c.groups.slice(0, 3).map((g, i) => (
+                  <div className="cgroup" key={i}>
+                    <div className="idline">
+                      {g.papers} papers · {g.years}
+                      {g.topics.length ? ` · ${g.topics.slice(0, 2).join(", ")}` : ""}
+                    </div>
+                    <ul>
+                      {g.titles.slice(0, 3).map((t, j) => (
+                        <li key={j}>{t}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+              <div className="btn-row" style={{ marginTop: 10 }}>
+                {/* Nothing here can split one source record into two people
+                    yet, so this records the finding rather than claiming to
+                    act on it. */}
+                <button
+                  className="btn primary sm"
+                  onClick={() => ruleOn(c.person_id, "several_people")}
+                >
+                  Several people — note it
+                </button>
+                <button
+                  className="btn sm"
+                  onClick={() => ruleOn(c.person_id, "one_person")}
+                >
+                  One person
+                </button>
+              </div>
+            </div>
+          ))
         )}
       </section>
     </Shell>
