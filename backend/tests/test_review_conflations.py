@@ -86,3 +86,40 @@ def test_a_coherent_record_is_never_offered(session):
     researcher(session, "clean", "Ann Solo",
                one_field(10, "Forensic Pathology", "Bob Helper"))
     assert listed(session)["conflations"] == []
+
+
+def test_a_record_already_being_split_stays_in_the_queue(session):
+    """It dropped out on real data the moment its two remaining halves both
+    listed King Khalid University, while the record still mixed agricultural
+    economics with hydrology and petroleum recovery. The employer check is
+    60% precise; somebody's unfinished work is not a guess."""
+    from rip import conflation
+    from rip.models import PersonSplit
+    from tests.test_split import papers_titled
+    from rip import split as splitter
+
+    # Big enough that taking a paper off still leaves a judgeable record:
+    # the shared fixture has six, and dropping below MIN_PAPERS would remove
+    # it from the queue for a different reason than the one under test.
+    papers = one_field(7, "Congenital Anomalies", "Surgeon Colleague")
+    papers += one_field(7, "Markov Chains", "Maths Colleague")
+    who = researcher(session, "mid", "Ann Midway", papers)
+
+    # make the halves share an employer, which is what demotes a candidate
+    def shares(_session, _split):
+        return True
+    original = conflation.shares_an_employer
+    conflation.shares_an_employer = shares
+    try:
+        assert listed(session)["conflations"] == []      # demoted, as designed
+
+        splitter.split_off(session, who.id,
+                           papers_titled(session, who.id, "Markov")[:1])
+        assert session.query(PersonSplit).count() == 1
+
+        still = [c["person_id"] for c in listed(session)["conflations"]]
+        assert who.id in still, "a record being worked on must not vanish"
+        entry = next(c for c in listed(session)["conflations"] if c["person_id"] == who.id)
+        assert entry["split_already"] is True
+    finally:
+        conflation.shares_an_employer = original

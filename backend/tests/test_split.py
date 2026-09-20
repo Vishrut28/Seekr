@@ -194,3 +194,29 @@ def test_the_endpoint_refuses_a_bad_request_rather_than_failing(session):
         api.split_person(who.id, {"publication_ids": [999999]}, db=session)
     assert "not this person's papers" in str(caught.value)
     assert session.query(PersonSplit).count() == 0
+
+
+def test_a_split_person_gets_no_more_subjects_than_anyone_else(session):
+    """Recomputing from papers finds every topic they mention, which is more
+    than the source's own summary. Left uncapped, a split person reads as
+    noisier than everybody who was never split."""
+    many = [
+        PublicationData(title=f"Paper {i}", external_id=f"Wmany-{i}",
+                        topics=[f"Subject {i}", f"Subject {i}b"],
+                        raw_authors=["Ann Many", "Colleague"])
+        for i in range(20)
+    ]
+    keep = [PublicationData(title="Other paper", external_id="Wmany-keep",
+                            topics=["Kept Subject"], raw_authors=["Ann Many", "Other"])]
+    who = ingest_profile(session, make_profile(
+        source="openalex", external_id="many", url="https://openalex.org/many",
+        raw={"id": "many"}, name="Ann Many", usernames=["openalex:many"],
+        publications=many + keep))
+    session.commit()
+
+    moved = [pid for pid, t in session.execute(
+        select(Publication.id, Publication.title)
+        .join(Authorship, Authorship.publication_id == Publication.id)
+        .where(Authorship.person_id == who.id)).all() if t != "Other paper"]
+    out = split.split_off(session, who.id, moved)
+    assert len(subjects(session, out.to_person_id)) <= split.MAX_SUBJECTS

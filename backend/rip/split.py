@@ -58,6 +58,11 @@ from .models import (Affiliation, Authorship, Evidence, IdentityLink,
 # it is the same kind of claim from a narrower base.
 TOPIC_CONFIDENCE = 0.6
 FIELD_CONFIDENCE = 0.35
+# The same ceiling the OpenAlex connector puts on an author's topic list.
+# Without it a split person ends up with every topic their papers mention —
+# 39 where the source had summarised 13 — and reads as noisier than
+# everybody who was never split, for no reason a reader could guess.
+MAX_SUBJECTS = 15
 DERIVED_ATTRS = ("research_interest", "research_field")
 
 
@@ -90,7 +95,8 @@ def _paper_topics(session: Session, publication_ids) -> list[str]:
     ):
         for topic in _as_list(raw):
             counted[topic] = counted.get(topic, 0) + 1
-    return [t for t, _n in sorted(counted.items(), key=lambda kv: (-kv[1], kv[0]))]
+    ranked = sorted(counted.items(), key=lambda kv: (-kv[1], kv[0]))
+    return [t for t, _n in ranked[:MAX_SUBJECTS]]
 
 
 def _rewrite_subjects(session: Session, person: Person, record: SourceRecord | None) -> int:

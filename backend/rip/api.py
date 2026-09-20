@@ -968,22 +968,38 @@ def review_conflations(
     actually made on.
     """
     from .conflation import candidates, describe, shares_an_employer
-    from .models import ConflationReview
+    from .models import ConflationReview, PersonSplit
 
     seen = {
         row.person_id: row.verdict
         for row in db.execute(select(ConflationReview)).scalars()
     }
+    # Somebody has already pulled papers off these. A record mid-way through
+    # being taken apart usually still holds more than one person, and the
+    # employer check is only 60% precise — it dropped one of these the moment
+    # its remaining halves both listed King Khalid University, while the
+    # record still mixed agricultural economics with hydrology and petroleum
+    # recovery. Work in progress outweighs a heuristic, so these stay until
+    # somebody says they are done.
+    started = {
+        person_id for (person_id,) in db.execute(select(PersonSplit.from_person_id))
+    }
     out = []
-    for split in candidates(db, above=above):
+    # The employer check is applied per candidate below rather than inside
+    # candidates(), so a record being worked on can opt out of it.
+    for split in candidates(db, above=above, check_employer=False):
         if split.person_id in seen:
             continue                     # somebody has already ruled on this one
+        employer = shares_an_employer(db, split)
+        if employer is True and split.person_id not in started:
+            continue                     # probably one person with a wide career
         out.append({
             "person_id": split.person_id,
             "person_name": split.name,
             "score": round(split.score, 2),
             "papers": split.papers,
-            "shares_an_employer": shares_an_employer(db, split),
+            "shares_an_employer": employer,
+            "split_already": split.person_id in started,
             # the ids are what a split acts on; the titles are what a reader
             # decides on, so both go
             "group_ids": [sorted(g) for g in split.groups if len(g) >= 2],
