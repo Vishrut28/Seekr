@@ -275,6 +275,9 @@ export interface Conflation {
   person_name: string | null;
   score: number;
   papers: number;
+  /** publication ids per group, in the same order as `groups` — what a split
+   *  acts on, since a group's position is recomputed and names nothing. */
+  group_ids: number[][];
   /** true = the halves name a common employer, so probably one person after
    *  all; false = they name none; null = no institutions on file to compare. */
   shares_an_employer: boolean | null;

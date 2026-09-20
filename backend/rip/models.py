@@ -550,6 +550,33 @@ class IngestionRun(Base):
     finished_at: Mapped[datetime | None] = mapped_column(DateTime)
 
 
+class PersonSplit(Base):
+    """A record a person has pulled apart by hand, and what came out of it.
+
+    One source record can describe two different researchers — a single
+    OpenAlex author id holding a surgeon's operations and a combinatorialist's
+    theorems. Splitting them cannot be re-derived from the source, because the
+    source is what got it wrong: its author-level topic list describes the
+    conflated fiction, and re-fetching would assert it again.
+
+    So the split is recorded here, and ingest refuses to re-ingest the record
+    it came from. That freezes the record rather than letting a refresh
+    silently undo somebody's work — the honest trade, given the source cannot
+    express the distinction.
+    """
+
+    __tablename__ = "person_split"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    source_record_id: Mapped[int] = mapped_column(ForeignKey("source_record.id"), index=True)
+    # who the papers were taken from, and who they were given to
+    from_person_id: Mapped[str] = mapped_column(ForeignKey("person.id"), index=True)
+    to_person_id: Mapped[str] = mapped_column(ForeignKey("person.id"), index=True)
+    publication_ids: Mapped[list] = mapped_column(JSON, default=list)
+    note: Mapped[str | None] = mapped_column(Text)
+    split_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
 class ConflationReview(Base):
     """A person record someone has looked at and judged, after it was flagged
     as possibly being several people.

@@ -61,6 +61,29 @@ export function Review() {
     };
   }, []);
 
+  /** Move one body of work onto a person of its own. The source record is
+   *  frozen afterwards: it describes both people, so re-fetching it would put
+   *  them back together. */
+  const splitOff = async (c: Conflation, group: number, ids: number[]) => {
+    const ok = window.confirm(
+      `Move these ${ids.length} papers off "${c.person_name}" onto a new person?` +
+        "\n\nTheir subjects are recomputed from the papers each side keeps. " +
+        "Any ORCID stays with the original, and the source record stops being " +
+        "refreshed, because re-fetching it would merge them again.",
+    );
+    if (!ok) return;
+    try {
+      await apiSend(`/v1/review/conflations/${c.person_id}/split`, "POST", {
+        publication_ids: ids,
+        name: c.person_name,
+        note: `split group ${group + 1} from the review queue`,
+      });
+      setConflations((prev) => (prev || []).filter((x) => x.person_id !== c.person_id));
+    } catch (e) {
+      setError(errorMessage(e));
+    }
+  };
+
   const ruleOn = async (personId: string, verdict: string) => {
     setConflations((prev) => (prev || []).filter((c) => c.person_id !== personId));
     try {
@@ -255,6 +278,17 @@ export function Review() {
                         <li key={j}>{t}</li>
                       ))}
                     </ul>
+                    {/* Splitting off the ONLY group would rename somebody
+                        rather than split them, so it is offered per group
+                        and only when there is another group to keep. */}
+                    {(c.group_ids[i]?.length || 0) > 0 && c.group_ids.length > 1 && (
+                      <button
+                        className="btn sm ghost"
+                        onClick={() => splitOff(c, i, c.group_ids[i])}
+                      >
+                        Split these off
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>

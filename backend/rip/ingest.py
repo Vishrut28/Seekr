@@ -168,6 +168,14 @@ logger = logging.getLogger("rip.ingest")
 FREE_TEXT_ATTRS = frozenset({"bio", "summary", "role", "award", "location", "headline"})
 
 
+class SplitRecordError(Exception):
+    """Raised instead of re-merging people somebody separated by hand.
+
+    A caller refreshing a whole source should catch this and move on: the
+    record is deliberately frozen, not broken.
+    """
+
+
 def _add_evidence(
     session: Session,
     person: Person,
@@ -338,6 +346,19 @@ def ingest_profile(session: Session, profile: NormalizedProfile) -> Person:
         session.execute(select(_func.max(ChangeLog.id))).scalar() or 0
     )
     record, _changed = _upsert_source_record(session, profile)
+
+    # A record somebody has pulled apart by hand describes more than one
+    # person, and the source cannot express that — its author-level claims are
+    # about the conflated whole. Re-ingesting would put those people back
+    # together, so the record is refused instead. See rip.split.
+    from .split import was_split
+
+    if was_split(session, record.id):
+        logger.info("skipping %s:%s — it was split by hand and would re-merge",
+                    profile.source, profile.external_id)
+        raise SplitRecordError(
+            f"{profile.source}:{profile.external_id} was split into separate people; "
+            f"re-ingesting it would merge them back")
 
     # resolution (reuse existing link if this record was seen before)
     link = session.execute(

@@ -984,6 +984,9 @@ def review_conflations(
             "score": round(split.score, 2),
             "papers": split.papers,
             "shares_an_employer": shares_an_employer(db, split),
+            # the ids are what a split acts on; the titles are what a reader
+            # decides on, so both go
+            "group_ids": [sorted(g) for g in split.groups if len(g) >= 2],
             "groups": describe(db, split, per_group=4),
         })
         if len(out) >= limit:
@@ -1018,6 +1021,39 @@ def review_conflation(person_id: str, payload: dict, db: Session = Depends(get_d
     row.note = (payload.get("note") or None)
     db.commit()
     return {"person_id": person_id, "verdict": verdict, "recorded": True}
+
+
+@app.post("/v1/review/conflations/{person_id}/split")
+def split_person(person_id: str, payload: dict, db: Session = Depends(get_db)):
+    """Move a group of papers off this person onto a new one.
+
+    Takes publication ids rather than a group number: a group is recomputed
+    from the papers on every request, so its position is not a name for
+    anything and would silently point at a different set later.
+
+    The source record is frozen afterwards — it describes both people and
+    re-ingesting it would put them back together. See rip.split.
+    """
+    from .split import split_off
+
+    ids = payload.get("publication_ids")
+    if not isinstance(ids, list) or not all(isinstance(i, int) for i in ids):
+        raise HTTPException(400, "publication_ids must be a list of integers")
+    try:
+        out = split_off(db, person_id, ids,
+                        name=(payload.get("name") or None),
+                        note=(payload.get("note") or None))
+    except ValueError as exc:
+        # every refusal here is "that is not a split", not a server fault
+        raise HTTPException(400, str(exc))
+    return {
+        "from_person_id": out.from_person_id,
+        "to_person_id": out.to_person_id,
+        "papers_moved": out.papers_moved,
+        "subjects_rewritten": out.evidence_rewritten,
+        "affiliations_moved": out.affiliations_moved,
+        "frozen_source_record": out.frozen_record_id,
+    }
 
 
 @app.post("/v1/review/duplicates/{candidate_id}/merge")
