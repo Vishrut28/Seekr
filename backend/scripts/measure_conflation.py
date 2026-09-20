@@ -50,7 +50,8 @@ def main() -> None:
             split = conflation.split_of(session, person.id, person.canonical_name)
             big = [g for g in split.groups if len(g) >= conflation.MIN_GROUP]
             cover = (sum(len(g) for g in big[:2]) / split.papers) if split.papers else 0.0
-            rows.append((label, split.score, cover, person.canonical_name))
+            shared = conflation.shares_an_employer(session, split)
+            rows.append((label, split.score, cover, person.canonical_name, shared))
 
     conflated = sum(1 for label, *_ in rows if label)
     print(f"{conflated} conflated and {len(rows) - conflated} single-person records "
@@ -60,15 +61,20 @@ def main() -> None:
     if not conflated:
         sys.exit("nothing labelled conflated is present; the numbers would mean nothing")
 
-    print(f"\n{'score>=':<9}{'cover>=':<9}{'flagged':>8}{'hit':>5}{'miss':>6}"
-          f"{'precision':>11}{'recall':>9}")
-    for score_at in args.score:
-        for cover_at in args.cover:
-            hit = [r for r in rows if r[1] >= score_at and r[2] >= cover_at]
-            true = sum(1 for label, *_ in hit if label)
-            precision = true / len(hit) if hit else 0.0
-            print(f"{score_at:<9}{cover_at:<9}{len(hit):>8}{true:>5}"
-                  f"{len(hit) - true:>6}{precision:>10.0%}{true / conflated:>9.0%}")
+    # Reported with the employer check both off and on, so the refinement has
+    # to keep earning its place rather than being assumed to.
+    for employer_check in (False, True):
+        print(f"\nemployer check {'on' if employer_check else 'off'}")
+        print(f"{'score>=':<9}{'cover>=':<9}{'flagged':>8}{'hit':>5}{'miss':>6}"
+              f"{'precision':>11}{'recall':>9}")
+        for score_at in args.score:
+            for cover_at in args.cover:
+                hit = [r for r in rows if r[1] >= score_at and r[2] >= cover_at
+                       and not (employer_check and r[4] is True)]
+                true = sum(1 for label, *_ in hit if label)
+                precision = true / len(hit) if hit else 0.0
+                print(f"{score_at:<9}{cover_at:<9}{len(hit):>8}{true:>5}"
+                      f"{len(hit) - true:>6}{precision:>10.0%}{true / conflated:>9.0%}")
 
 
 if __name__ == "__main__":

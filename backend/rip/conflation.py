@@ -80,7 +80,7 @@ from dataclasses import dataclass, field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .models import Authorship, Person, Publication
+from .models import Authorship, IdentityLink, Person, Publication, SourceRecord
 
 # Above this many names a paper says nothing about who anyone collaborates
 # with: a 100-author collaboration would link every physicist to every other.
@@ -191,8 +191,16 @@ def split_of(session: Session, person_id: str, name: str | None = None) -> Split
 
 
 def candidates(session: Session, above: float = REPORT_ABOVE,
-               min_papers: int = MIN_PAPERS) -> list[Split]:
+               min_papers: int = MIN_PAPERS,
+               check_employer: bool = True) -> list[Split]:
     """Every person whose work falls into two comparable halves.
+
+    CHECK_EMPLOYER drops the ones whose halves share an institution the author
+    put on their own papers, because one person takes their affiliation with
+    them across a change of subject. Measured on the hand-labelled set that
+    lifts precision from 50% to 60% and costs no recall — the only refinement
+    of four tried that did anything. It reads stored OpenAlex payloads, so it
+    runs over the shortlist rather than over everybody.
 
     One pass over authorships rather than a query per person: the whole corpus
     is a few thousand rows, and doing it per person made this too slow to run
@@ -224,8 +232,81 @@ def candidates(session: Session, above: float = REPORT_ABOVE,
                       papers=len(papers), groups=_group(papers))
         if split.score >= above:
             out.append(split)
+    if check_employer:
+        out = [s for s in out if shares_an_employer(session, s) is not True]
     out.sort(key=lambda s: (-s.score, -s.papers))
     return out
+
+
+def _own_affiliations(session: Session, person_id: str) -> dict[str, set]:
+    """Per paper, the institutions THIS author put on it.
+
+    Not the person's affiliations as a whole — the ones attached to their own
+    authorship line, paper by paper. That is how author disambiguation is
+    really done, and OpenAlex hands it to us inside the payload already on
+    disk. Only OpenAlex: Semantic Scholar and Europe PMC records carry no
+    per-paper institutions, so people known only through those come back empty
+    and are reported as unknown rather than as evidence of anything.
+    """
+    rows = session.execute(
+        select(SourceRecord.raw)
+        .join(IdentityLink, IdentityLink.source_record_id == SourceRecord.id)
+        .where(IdentityLink.person_id == person_id, SourceRecord.source == "openalex")
+    ).all()
+    out: dict[str, set] = {}
+    for (raw,) in rows:
+        payload = raw if isinstance(raw, dict) else json.loads(raw or "{}")
+        mine = ((payload.get("author") or {}).get("id") or "").rsplit("/", 1)[-1]
+        if not mine:
+            continue
+        for work in payload.get("works") or []:
+            key = (work.get("id") or "").rsplit("/", 1)[-1]
+            for line in work.get("authorships") or []:
+                who = ((line.get("author") or {}).get("id") or "").rsplit("/", 1)[-1]
+                if who != mine:
+                    continue
+                named = {i.get("display_name") for i in line.get("institutions") or []
+                         if i.get("display_name")}
+                if named:
+                    out.setdefault(key, set()).update(named)
+    return out
+
+
+def shares_an_employer(session: Session, split: Split) -> bool | None:
+    """Do the two bodies of work carry an institution in common?
+
+    One person takes their affiliation with them: even a career that changed
+    subject entirely keeps naming the same university across the turn. Two
+    people filed under one name share nothing, because they were never in the
+    same place.
+
+    True when the halves overlap, False when they demonstrably do not, and
+    None when the papers carry no institutions to compare — which is most of
+    the corpus outside OpenAlex, and must not be read as either answer.
+
+    On the seventeen records read by hand this was right every time it could
+    answer at all: all five conflations came back False, all four single
+    people True.
+    """
+    big = [g for g in split.groups if len(g) >= MIN_GROUP]
+    if len(big) < 2:
+        return None
+    by_work = _own_affiliations(session, split.person_id)
+    if not by_work:
+        return None
+
+    def employers(group) -> set:
+        found = set()
+        for (external_id,) in session.execute(
+            select(Publication.external_id).where(Publication.id.in_(group))
+        ):
+            found |= by_work.get((external_id or "").rsplit("/", 1)[-1], set())
+        return found
+
+    first, second = employers(big[0]), employers(big[1])
+    if not first or not second:
+        return None
+    return bool(first & second)
 
 
 def describe(session: Session, split: Split, per_group: int = 4) -> list[dict]:

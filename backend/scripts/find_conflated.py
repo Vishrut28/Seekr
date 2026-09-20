@@ -44,8 +44,13 @@ def main() -> None:
                   f"(score >= {above})\n")
 
         for split in found:
+            shared = conflation.shares_an_employer(session, split)
+            employer = {True: "shares an employer — probably one person",
+                        False: "no employer in common",
+                        None: "no institutions on file to compare"}[shared]
             print(f"{split.score:.2f}  {split.name or '?'}  [{split.person_id[:8]}]  "
                   f"{split.papers} papers, groups {split.sizes[:6]}")
+            print(f"      {employer}")
             for group in conflation.describe(session, split, per_group=args.titles):
                 print(f"      {group['papers']:>3} papers  {group['years']:<11}"
                       f"{', '.join(group['topics'][:3])}")
