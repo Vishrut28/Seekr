@@ -111,6 +111,13 @@ def _rewrite_subjects(session: Session, person: Person, record: SourceRecord | N
         select(Authorship.publication_id).where(Authorship.person_id == person.id)
     ).scalars().all()
     topics = _paper_topics(session, papers)
+    if not topics:
+        # Nothing to replace them with, so nothing is taken away. Papers from
+        # Semantic Scholar and Europe PMC carry no topics, and rewriting on
+        # that basis deleted every subject a person had and wrote back none —
+        # it left a 47-paper physicist unfindable by any subject at all. An
+        # imprecise inherited subject beats no subject.
+        return 0
 
     dropped = 0
     for row in session.execute(

@@ -220,3 +220,29 @@ def test_a_split_person_gets_no_more_subjects_than_anyone_else(session):
         .where(Authorship.person_id == who.id)).all() if t != "Other paper"]
     out = split.split_off(session, who.id, moved)
     assert len(subjects(session, out.to_person_id)) <= split.MAX_SUBJECTS
+
+
+def test_a_split_never_leaves_somebody_with_no_subjects_at_all(session):
+    """Papers from Semantic Scholar and Europe PMC carry no topics. Rewriting
+    on that basis deleted every subject a person had and wrote back none,
+    which left a 47-paper physicist unfindable by any subject — strictly worse
+    than the imprecise subjects they started with."""
+    who = ingest_profile(session, make_profile(
+        source="openalex", external_id="notopics", url="https://openalex.org/notopics",
+        raw={"id": "notopics"}, name="Ann Topicless", usernames=["openalex:notopics"],
+        evidence=[EvidenceItem(attribute_type="research_interest", value="Superconductivity")],
+        publications=[
+            PublicationData(title=f"Paper {i}", external_id=f"Wnt-{i}", topics=[],
+                            raw_authors=["Ann Topicless", f"Colleague {i % 2}"])
+            for i in range(8)
+        ]))
+    session.commit()
+    before = subjects(session, who.id)
+    assert before == {"Superconductivity"}
+
+    moved = session.execute(
+        select(Authorship.publication_id).where(Authorship.person_id == who.id)
+    ).scalars().all()[:3]
+    out = split.split_off(session, who.id, list(moved))
+
+    assert subjects(session, out.from_person_id) == before, "subjects were deleted"
