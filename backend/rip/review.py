@@ -99,16 +99,29 @@ def list_suspicious(session: Session) -> dict:
         .order_by(MergeCandidate.score.desc())
     ).scalars().all()
     duplicate_out = []
+    # A pair is queued against the people who existed when it was queued, and
+    # one of them may since have been folded into somebody else. Following the
+    # tombstone is what triage already does, and without it this queue showed
+    # a record that is no longer its own person — an empty profile, with a
+    # Merge button that would have merged the tombstone — and showed the same
+    # living pair twice under two candidate ids.
+    seen_pairs: set = set()
     for mc in duplicates:
-        a = session.get(Person, mc.person_id)
-        b = session.get(Person, mc.candidate_person_id)
+        a = _living(session, mc.person_id)
+        b = _living(session, mc.candidate_person_id)
+        if a is None or b is None or a.id == b.id:
+            continue                    # answered already; triage closes these
+        pair = tuple(sorted((a.id, b.id)))
+        if pair in seen_pairs:
+            continue                    # the same question under another id
+        seen_pairs.add(pair)
         duplicate_out.append(
             {
                 "candidate_id": mc.id,
-                "person_id": mc.person_id,
-                "person_name": a.canonical_name if a else None,
-                "duplicate_person_id": mc.candidate_person_id,
-                "duplicate_person_name": b.canonical_name if b else None,
+                "person_id": a.id,
+                "person_name": a.canonical_name,
+                "duplicate_person_id": b.id,
+                "duplicate_person_name": b.canonical_name,
                 "score": mc.score,
                 "signals": mc.signals,
             }
@@ -240,7 +253,18 @@ def resolve_duplicate(session: Session, candidate_id: int, action: str) -> dict:
     if mc.status != "pending":
         raise ValueError(f"candidate {candidate_id} already {mc.status}")
     if action == "merge":
-        keep = merge_persons(session, mc.person_id, mc.candidate_person_id)
+        # Merge who these two ARE NOW. Either side may have been folded into
+        # somebody else since the pair was queued, and merging a tombstone
+        # moves nothing while leaving the real person unmerged.
+        a, b = _living(session, mc.person_id), _living(session, mc.candidate_person_id)
+        if a is None or b is None:
+            raise ValueError(f"candidate {candidate_id} refers to a person that is gone")
+        if a.id == b.id:
+            mc.status = "merged"        # already one person; nothing left to do
+            session.commit()
+            return {"candidate_id": candidate_id, "status": "merged",
+                    "kept_person_id": a.id, "already_one_person": True}
+        keep = merge_persons(session, a.id, b.id)
         mc.status = "merged"
         session.commit()
         return {"candidate_id": candidate_id, "status": "merged", "kept_person_id": keep.id}
