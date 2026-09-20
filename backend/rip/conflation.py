@@ -23,14 +23,46 @@ and the topics have nothing in common.
 The score is the second-largest group over the largest. One dominant group
 scores near zero; two comparable bodies of work score near one.
 
+HOW WELL, EXACTLY
+
+Measured against seventeen records read by hand — evaluation/conflation_labels
+.json, reproduced by scripts/measure_conflation.py — reporting at 0.5 and
+above gives HALF PRECISION AND 86% RECALL. Six of the twelve it flags are
+really several people; it misses one of seven.
+
+Half. Not the "half to two-thirds" an earlier version of this file claimed
+from spot-checking three of them; checking all seventeen gave a worse and
+more honest number.
+
+WHAT DID NOT WORK, so nobody spends the afternoon again
+
+Three refinements were implemented and measured, and every one made the
+detector worse or did nothing:
+
+  requiring the groups to cover a share of the work   50% -> 44% precision
+  topic-graph distance between the two groups         does not separate them
+  whether the groups' active years overlap            does not separate them
+
+Coverage fails because a single-group record covers nearly everything, so a
+high coverage is the signature of a CLEAN record, not a split one. Distance
+fails outright: the widest gap in the whole benchmark, five hops, belongs to
+an immunologist who is one person, while the plainest conflation in it —
+a paediatric surgeon filed with a combinatorialist — sits at three. Years
+fail because a conflation and a change of field look identical from outside.
+Raising the threshold does not help either: at 0.9 precision FALLS to 40%,
+because the top of the list is where the two-paper artefacts live.
+
+What actually separated them was reading the titles and knowing that
+petroleum waterflood and dengue entomology are not one career while arterial
+stiffness and COPD pharmacy are. None of the features here encode that.
+
 WHAT IT IS NOT
 
 A candidate generator, not a verdict — the same contract as the merge queue.
-Checked by hand against this corpus, a high score is right perhaps half to
-two-thirds of the time: it flagged a record holding irrigation engineering,
-petroleum recovery, dengue entomology AND gas turbines (three people at
-least), and also a biostatistician whose real range across cancer trials,
-exercise studies and eating disorders only looks like two careers.
+It flagged a record holding irrigation engineering, petroleum recovery,
+dengue entomology AND gas turbines (three people at least), and also a
+biostatistician whose real range across cancer trials, exercise studies and
+eating disorders merely looks like two careers.
 
 A LOW SCORE IS NOT A CLEAN BILL. Milder conflations sit right on top of
 legitimate range: a record mixing agronomy with wireless sensor networks
@@ -59,8 +91,9 @@ MIN_PAPERS = 6
 # A group has to reach this size to count as a body of work rather than a
 # stray paper that simply shares nothing.
 MIN_GROUP = 2
-# Reported by default. Chosen from the corpus: the verified conflations score
-# 0.69 and 0.75, every verified-clean record scores 0.10 or less.
+# Reported by default, and measured: 0.5 is the best of every threshold tried
+# (scripts/measure_conflation.py). Higher is not better — precision falls to
+# 40% at 0.9, because two-paper artefacts score 1.00 as easily as two careers.
 REPORT_ABOVE = 0.5
 
 _WORD = re.compile(r"[^\W\d_]+")
