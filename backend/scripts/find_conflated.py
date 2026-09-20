@@ -1,0 +1,58 @@
+"""List person records that look like several people, with the evidence.
+
+    python scripts/find_conflated.py                 # score 0.5 and up
+    python scripts/find_conflated.py --above 0.3     # cast wider
+    python scripts/find_conflated.py --person 74929d68
+
+Read-only. See rip/conflation.py for what the score does and does not mean —
+in particular a low score is not a clean bill of health.
+"""
+
+import argparse
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--above", type=float, default=None,
+                        help="report splits at or above this score")
+    parser.add_argument("--person", help="just this person (id or its first characters)")
+    parser.add_argument("--titles", type=int, default=3, help="titles shown per group")
+    args = parser.parse_args()
+
+    from rip import conflation
+    from rip.db import SessionLocal, init_db
+    from rip.models import Person
+    from sqlalchemy import select
+
+    init_db()
+    with SessionLocal() as session:
+        if args.person:
+            person = session.execute(
+                select(Person).where(Person.id.like(args.person + "%"))
+            ).scalars().first()
+            if person is None:
+                sys.exit(f"no person whose id starts with {args.person}")
+            found = [conflation.split_of(session, person.id, person.canonical_name)]
+        else:
+            above = conflation.REPORT_ABOVE if args.above is None else args.above
+            found = conflation.candidates(session, above=above)
+            print(f"{len(found)} records split into two comparable bodies of work "
+                  f"(score >= {above})\n")
+
+        for split in found:
+            print(f"{split.score:.2f}  {split.name or '?'}  [{split.person_id[:8]}]  "
+                  f"{split.papers} papers, groups {split.sizes[:6]}")
+            for group in conflation.describe(session, split, per_group=args.titles):
+                print(f"      {group['papers']:>3} papers  {group['years']:<11}"
+                      f"{', '.join(group['topics'][:3])}")
+                for title in group["titles"]:
+                    print(f"           {(title or '')[:76]}")
+            print()
+
+
+if __name__ == "__main__":
+    main()
