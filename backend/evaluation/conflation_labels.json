@@ -326,6 +326,6 @@
   "7e430dae": "Aparna Lal - enteric-disease and climate epidemiology, plus tsunami tide-gauge data and green-turtle ecology. Cannot tell if the marine work is hers"
  },
  "not_a_person": {
-  "d6800ca5": "Verlag Hans Huber - a Swiss medical PUBLISHER that OpenAlex lists as an author with 73 works. Not a conflation; a personhood failure"
+  "d6800ca5": "Verlag Hans Huber - a Swiss medical PUBLISHER that OpenAlex lists as an author with 73 works. Not a conflation; a personhood failure, closed 2026-09-21 by adding 'verlag' to ENTITY_WORDS. The record itself predates the rule and is still in the corpus, now unreachable as an author"
  }
 }

@@ -52,6 +52,21 @@ ENTITY_WORDS = {
     "services", "technologies", "pvt", "ltd", "inc", "llc", "gmbh", "foundation",
     "association", "society", "consortium", "committee", "department", "journal",
     "proceedings", "newsletter", "podcast", "magazine",
+    # Publishers. OpenAlex credits some of them as AUTHORS: "Verlag Hans
+    # Huber", a Swiss medical publisher, arrived with 73 works and scored 0.40
+    # on the conflation detector, which is what a publisher's catalogue looks
+    # like from the inside. None of these is a surname anybody bears.
+    #
+    # "press" is deliberately NOT here. It is a real surname — William H.
+    # Press wrote Numerical Recipes — and this file rejects nothing on a
+    # signal that could cost a real person their record. The publishers that
+    # carry it are caught anyway: "Oxford University Press" by "university",
+    # "MIT Press Ltd" by "ltd".
+    # Only the forms something in the corpus or a real publisher's name
+    # actually uses. Singular "publisher" and "imprint" were tried and
+    # dropped: nothing carries them, and every word here is a way to lose a
+    # real person, so an untested one is a liability rather than cover.
+    "verlag", "publishers", "publishing", "publications",
 }
 
 # Ordinary words. A page title made mostly of these is about something, not

@@ -102,3 +102,68 @@ def test_a_legacy_community_record_cannot_turn_a_topic_into_a_name_filter(sessio
     parsed = parse(session, "deep learning researchers")
     assert parsed.name_terms == []
     assert [p.canonical_name for p in execute(session, parsed)] == ["Mahmoud Badry"]
+
+
+@pytest.mark.parametrize("name", [
+    # the record that prompted this: OpenAlex credits the publisher as an
+    # author, with 73 works and a conflation score of 0.40
+    "Verlag Hans Huber",
+    "Verlag Hans Huber (Bern)",
+    "Springer Publishing",
+    "Karger Publishers",
+    "Wiley Publishers",
+    "Hogrefe Publications",
+    "Oxford University Press",          # caught by "university", not "press"
+    "MIT Press Ltd",                    # caught by "ltd", not "press"
+])
+def test_publishers_credited_as_authors_are_not_people(name):
+    assert not assess(name, "openalex").is_person
+
+
+@pytest.mark.parametrize("name", [
+    # "press" is a surname and must survive. William H. Press wrote Numerical
+    # Recipes; rejecting him to catch a publisher is the wrong trade, because
+    # a rejected person is lost silently and a kept publisher is visible.
+    "William H. Press", "Frank Press", "S. Press",
+])
+def test_a_person_called_press_is_still_a_person(name):
+    verdict = assess(name, "openalex")
+    assert verdict.is_person and verdict.name == name
+
+
+def test_a_publisher_is_not_offered_as_an_author():
+    """The publisher is already in the corpus with 25 papers, and the gate
+    only guards new ingests. nlq screens author results through the same
+    has_entity_signal, so adding the word closes both doors at once and the
+    record can no longer be returned as a person.
+
+    A real name inside the string is still a real name -- searching "verlag
+    hans huber" does find Hans Huber, correctly -- so this pins the narrower
+    thing that has to hold: the publisher's own name never passes as an
+    author's, while the name it is built around still does.
+
+    Not asserted here: nlq's own NOT_A_PERSON pattern has always listed
+    "press", so _looks_like_a_person already rejects William H. Press. That
+    is a separate and stricter policy for filtering live index results, and
+    personhood.assess -- which decides what gets STORED -- correctly keeps
+    him. See test_a_person_called_press_is_still_a_person.
+    """
+    from rip.nlq import _looks_like_a_person
+
+    assert not _looks_like_a_person("Verlag Hans Huber")
+    assert not _looks_like_a_person("Verlag Hans Huber (Bern)")
+    assert _looks_like_a_person("Hans Huber")
+
+
+def test_ingest_now_refuses_the_publisher_that_got_through(session):
+    """The exact record and external id that reached the corpus."""
+    from rip.personhood import NotAPerson
+
+    with pytest.raises(NotAPerson) as caught:
+        ingest_profile(session, NormalizedProfile(
+            source="openalex", source_type="scholarly", external_id="A5081967324",
+            url="https://openalex.org/A5081967324", raw={},
+            name="Verlag Hans Huber",
+            evidence=[EvidenceItem(attribute_type="research_interest",
+                                   value="Haemochromatosis")]))
+    assert "verlag" in str(caught.value)
