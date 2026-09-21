@@ -134,6 +134,9 @@ export function Review() {
           <Banner kind="warn">
             Merging moves everything one person holds onto the other and cannot be
             undone. "Different people" only closes the pair, and changes nothing.
+            Use "Can't tell" when nothing settles it: the pair leaves this queue
+            and comes back if either person later gains evidence, which
+            "Different people" cannot do once said.
           </Banner>
         )}
         {duplicates.length ? (
@@ -182,6 +185,20 @@ export function Review() {
                   onClick={() => act(`/v1/review/duplicates/${d.candidate_id}/reject`)}
                 >
                   Different people
+                </button>
+                {/* The absence of an answer, not a third one. Thirteen pairs
+                    needed it at once: six records of one ALICE physicist
+                    holding a hundred papers between them and not one of their
+                    own, so there was nothing to read either way. Saying
+                    "Different people" there would have made a claim nobody
+                    could support, permanently. */}
+                <button
+                  className="btn ghost sm"
+                  disabled={acting}
+                  title="Nothing here settles it. Leaves the queue, and returns if evidence appears."
+                  onClick={() => act(`/v1/review/duplicates/${d.candidate_id}/defer`)}
+                >
+                  Can't tell
                 </button>
               </div>
             </div>

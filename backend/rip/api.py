@@ -1083,11 +1083,31 @@ def review_duplicate_merge(candidate_id: int, db: Session = Depends(get_db)):
 
 
 @app.post("/v1/review/duplicates/{candidate_id}/reject")
-def review_duplicate_reject(candidate_id: int, db: Session = Depends(get_db)):
+def review_duplicate_reject(candidate_id: int, payload: dict | None = None,
+                            db: Session = Depends(get_db)):
     from .review import resolve_duplicate
 
     try:
-        return resolve_duplicate(db, candidate_id, "reject")
+        return resolve_duplicate(db, candidate_id, "reject",
+                                 (payload or {}).get("note"))
+    except ValueError as exc:
+        raise HTTPException(404, str(exc))
+
+
+@app.post("/v1/review/duplicates/{candidate_id}/defer")
+def review_duplicate_defer(candidate_id: int, payload: dict | None = None,
+                           db: Session = Depends(get_db)):
+    """Nothing reachable settles this pair.
+
+    Not a third opinion but the absence of one: it leaves the queue, and
+    dedupe.plan returns it if either person later gains evidence — which is
+    what "Different people" cannot do once it has been said.
+    """
+    from .review import resolve_duplicate
+
+    try:
+        return resolve_duplicate(db, candidate_id, "defer",
+                                 (payload or {}).get("note"))
     except ValueError as exc:
         raise HTTPException(404, str(exc))
 

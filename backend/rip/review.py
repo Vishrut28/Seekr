@@ -245,13 +245,30 @@ def merge_persons(session: Session, keep_id: str, merge_id: str) -> Person:
     return keep
 
 
-def resolve_duplicate(session: Session, candidate_id: int, action: str) -> dict:
-    """Act on a possible-duplicate candidate: action = 'merge' or 'reject'."""
+def resolve_duplicate(session: Session, candidate_id: int, action: str,
+                      note: str | None = None) -> dict:
+    """Act on a possible-duplicate candidate: 'merge', 'reject' or 'defer'.
+
+    DEFER is for a pair nothing reachable can settle, which is a different
+    thing from either answer. Rejecting says "different people" and stops the
+    pair being proposed again; on a pair that is probably one person and simply
+    unprovable, that is a false statement made permanent. Deferring takes it
+    off the queue and dedupe.plan puts it back by itself if either person later
+    gains evidence — so the queue empties without anybody claiming to know.
+
+    Thirteen pairs needed it at once: eleven fragments of an ALICE heavy-ion
+    author whose six records hold a hundred papers between them and not one of
+    their own, every paper a mass-authorship credit, with an empty ORCID
+    record and affiliations contaminated by co-authors' institutions. There
+    was nothing to read, and rejecting would have said otherwise.
+    """
     mc = session.get(MergeCandidate, candidate_id)
     if mc is None:
         raise ValueError(f"merge candidate {candidate_id} not found")
     if mc.status != "pending":
         raise ValueError(f"candidate {candidate_id} already {mc.status}")
+    if action not in ("merge", "reject", "defer"):
+        raise ValueError(f"unknown action {action!r}: merge, reject or defer")
     if action == "merge":
         # Merge who these two ARE NOW. Either side may have been folded into
         # somebody else since the pair was queued, and merging a tombstone
@@ -268,7 +285,17 @@ def resolve_duplicate(session: Session, candidate_id: int, action: str) -> dict:
         mc.status = "merged"
         session.commit()
         return {"candidate_id": candidate_id, "status": "merged", "kept_person_id": keep.id}
+    if action == "defer":
+        mc.status = "deferred"
+        # why, not just that: a deferred pair is meant to be picked up again,
+        # and the next reader needs to know what was already looked for.
+        mc.signals = {**(mc.signals or {}),
+                      "deferred_because": note or "nothing reachable settles it"}
+        session.commit()
+        return {"candidate_id": candidate_id, "status": "deferred"}
     mc.status = "rejected"
+    if note:
+        mc.signals = {**(mc.signals or {}), "rejected_because": note}
     session.commit()
     return {"candidate_id": candidate_id, "status": "rejected"}
 
