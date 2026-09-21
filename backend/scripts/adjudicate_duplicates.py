@@ -262,7 +262,8 @@ def main() -> None:
               f"{f' (from {rows} candidate rows)' if rows != len(pairs) else ''}\n")
         for verdict, pair, why in sorted(verdicts, key=lambda v: (rank[v[0]], v[1].id)):
             left, right = living[pair.id]
-            name = session.get(Person, left).canonical_name
+            # a name is optional: a bare GitHub login ingests without one
+            name = session.get(Person, left).canonical_name or "(no name)"
             print(f"{verdict.upper():<7} #{pair.id:<5} {name[:24]:<26}"
                   f"{left[:8]} x {right[:8]}  {why}")
         tally = {k: sum(1 for v, _p, _w in verdicts if v == k) for k in rank}

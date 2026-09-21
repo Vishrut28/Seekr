@@ -193,3 +193,15 @@ def test_co_authors_and_topics_are_never_called_proof(session):
         paper(session, b, f"Paper B{i}", ["Ann Example", "Bob Colleague"])
     candidate = queued(session, a, b)
     assert verdicts_for(session)[candidate.id][0] == "hold"
+
+
+def test_a_person_with_no_name_at_all_is_still_reported(session):
+    """Person.canonical_name is nullable and the corpus now has one: a GitHub
+    account carrying nothing but a login ingests with aliases and no name.
+    Formatting the report must not be what discovers that."""
+    a = person(session, None)
+    a.aliases = ["vish1810"]
+    b = person(session, "Vish Example")
+    session.flush()
+    candidate = queued(session, a, b)
+    assert verdicts_for(session)[candidate.id][0] == "hold"

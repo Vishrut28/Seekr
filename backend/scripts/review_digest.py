@@ -127,7 +127,10 @@ def main() -> None:
         # pairs are the same name against itself
         groups = defaultdict(list)
         for mc in rows:
-            groups[session.get(Person, mc.person_id).canonical_name.lower()].append(mc)
+            # a name is optional: a GitHub account with nothing on it but a
+            # login ingests as a person with aliases and no canonical name
+            who = session.get(Person, mc.person_id).canonical_name or "(no name)"
+            groups[who.lower()].append(mc)
         print(f"{len(rows)} pending pairs, in {len(groups)} name groups")
         for name in sorted(groups):
             print(f"\n{'=' * 72}\n{name.upper()}  ({len(groups[name])} pairs)")
