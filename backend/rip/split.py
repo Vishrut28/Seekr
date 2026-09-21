@@ -166,6 +166,45 @@ def _own_institutions(record: SourceRecord | None, publication_ids_by_work) -> s
     return found
 
 
+def _blame(session: Session, person_id: str, publication_ids) -> SourceRecord | None:
+    """Which of this person's records put the wrong papers on them?
+
+    That is the record a split has to freeze, and until a person could hold
+    more than one it was always simply their first. A merge breaks that: the
+    combinatorialist ended up with three records, one carrying a stray surgery
+    paper and two innocent, and the lowest id was an innocent one. Freezing it
+    would have stopped a correct record ever refreshing again, for a mistake
+    made somewhere else -- while the record that made the mistake carried on.
+
+    So the moved papers name it themselves, through the record they arrived on.
+    Falling back to the first record keeps the single-record case as it was,
+    including papers stored without provenance.
+    """
+    linked = session.execute(
+        select(SourceRecord)
+        .join(IdentityLink, IdentityLink.source_record_id == SourceRecord.id)
+        .where(IdentityLink.person_id == person_id)
+        .order_by(SourceRecord.id)
+    ).scalars().all()
+    if len(linked) < 2:
+        return linked[0] if linked else None
+
+    blamed: dict[int, int] = {}
+    for (source_record_id,) in session.execute(
+        select(Publication.source_record_id)
+        .where(Publication.id.in_(list(publication_ids)))
+    ):
+        if source_record_id is not None:
+            blamed[source_record_id] = blamed.get(source_record_id, 0) + 1
+    by_id = {record.id: record for record in linked}
+    # only a record this person actually holds: a paper can arrive on somebody
+    # else's record, and freezing that would punish a stranger
+    culpable = [(count, rid) for rid, count in blamed.items() if rid in by_id]
+    if not culpable:
+        return linked[0]
+    return by_id[max(culpable)[1]]
+
+
 def split_off(session: Session, person_id: str, publication_ids: list[int],
               name: str | None = None, note: str | None = None) -> SplitResult:
     """Move PUBLICATION_IDS off this person onto a new one.
@@ -190,12 +229,7 @@ def split_off(session: Session, person_id: str, publication_ids: list[int],
     if wanted == theirs:
         raise ValueError("that is every paper they have; a split has to leave some")
 
-    record = session.execute(
-        select(SourceRecord)
-        .join(IdentityLink, IdentityLink.source_record_id == SourceRecord.id)
-        .where(IdentityLink.person_id == person_id)
-        .order_by(SourceRecord.id)
-    ).scalars().first()
+    record = _blame(session, person_id, wanted)
 
     other = Person(canonical_name=name or person.canonical_name,
                    location=person.location, country=person.country,

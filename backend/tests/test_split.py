@@ -246,3 +246,106 @@ def test_a_split_never_leaves_somebody_with_no_subjects_at_all(session):
     out = split.split_off(session, who.id, list(moved))
 
     assert subjects(session, out.from_person_id) == before, "subjects were deleted"
+
+
+def test_the_split_freezes_the_record_that_got_it_wrong(session):
+    """A merged person holds several records, and only one of them is at fault.
+
+    Until a person could hold more than one record, "their record" and "the
+    record that put the wrong papers on them" were the same thing, so the
+    split took the first by id. A merge separates them: the real
+    combinatorialist ended up with three records, a stray surgery paper having
+    arrived on the second of them, and the first was innocent. Freezing the
+    innocent one stops a correct record ever refreshing, over a mistake made
+    somewhere else, and leaves the guilty record free to re-add the paper.
+    """
+    from rip.review import merge_persons
+    from rip.split import was_split
+
+    clean = ingest_profile(session, make_profile(
+        source="openalex", external_id="clean", url="https://openalex.org/clean",
+        raw={"id": "clean"}, name="Ann Double", usernames=["openalex:clean"],
+        publications=[PublicationData(title=f"Maths paper {i}", external_id=f"Wclean-m{i}",
+                                      topics=MATHS, raw_authors=["Ann Double"])
+                      for i in range(4)]))
+    session.commit()
+    guilty = conflated(session, tag="guilty")          # ingested second: higher id
+    kept = merge_persons(session, clean.id, guilty.id)
+    session.commit()
+
+    records = {
+        r.external_id: r.id for r in session.execute(
+            select(SourceRecord).join(
+                IdentityLink, IdentityLink.source_record_id == SourceRecord.id)
+            .where(IdentityLink.person_id == kept.id)).scalars()
+    }
+    assert records["clean"] < records["guilty"], "the innocent record must sort first"
+
+    out = split.split_off(session, kept.id, papers_titled(session, kept.id, "Surgery"))
+    assert out.frozen_record_id == records["guilty"]
+    assert was_split(session, records["guilty"])
+    assert not was_split(session, records["clean"]), "an innocent record keeps refreshing"
+
+
+def two_records(session):
+    """One person holding an innocent record and a guilty one, after a merge."""
+    from rip.review import merge_persons
+
+    clean = ingest_profile(session, make_profile(
+        source="openalex", external_id="clean2", url="https://openalex.org/clean2",
+        raw={"id": "clean2"}, name="Ann Double", usernames=["openalex:clean2"],
+        publications=[PublicationData(title=f"Maths paper {i}", external_id=f"Wc2-m{i}",
+                                      topics=MATHS, raw_authors=["Ann Double"])
+                      for i in range(4)]))
+    session.commit()
+    guilty = conflated(session, tag="guilty2")
+    kept = merge_persons(session, clean.id, guilty.id)
+    session.commit()
+    ids = {
+        r.external_id: r.id for r in session.execute(
+            select(SourceRecord).join(
+                IdentityLink, IdentityLink.source_record_id == SourceRecord.id)
+            .where(IdentityLink.person_id == kept.id)).scalars()
+    }
+    return kept, ids
+
+
+def test_a_split_never_freezes_a_record_this_person_does_not_hold(session):
+    """A publication row belongs to whichever record reached it first, and for
+    a co-authored paper that is somebody else's record. Blaming it would stop
+    a stranger's profile refreshing over a paper they were right about."""
+    from rip.split import was_split
+
+    kept, ids = two_records(session)
+    stranger = conflated(session, tag="stranger", name="Bob Separate")
+    theirs = session.execute(
+        select(SourceRecord).join(
+            IdentityLink, IdentityLink.source_record_id == SourceRecord.id)
+        .where(IdentityLink.person_id == stranger.id)).scalars().one()
+
+    moving = papers_titled(session, kept.id, "Surgery")
+    for pid in moving:                     # the paper arrived on their record
+        session.get(Publication, pid).source_record_id = theirs.id
+    session.commit()
+
+    out = split.split_off(session, kept.id, moving)
+    assert out.frozen_record_id != theirs.id
+    assert not was_split(session, theirs.id), "a stranger's record keeps refreshing"
+    assert out.frozen_record_id in ids.values()
+
+
+def test_a_split_still_freezes_a_record_when_papers_have_no_provenance(session):
+    """Not every connector stores which record a paper came from. With nothing
+    to go on the split has to fall back to the person's first record, because
+    the alternative is freezing nothing and letting a refresh re-merge them."""
+    from rip.split import was_split
+
+    kept, ids = two_records(session)
+    moving = papers_titled(session, kept.id, "Surgery")
+    for pid in moving:
+        session.get(Publication, pid).source_record_id = None
+    session.commit()
+
+    out = split.split_off(session, kept.id, moving)
+    assert out.frozen_record_id == min(ids.values())
+    assert was_split(session, out.frozen_record_id)
