@@ -73,10 +73,18 @@ def test_the_same_orcid_on_both_sides_is_proof(session):
 
 
 def test_two_different_orcids_are_proof_of_the_opposite(session):
+    """Settled on the pair itself, and the reason has to say so. The second
+    pass would also reject this, by pooling ORCIDs through merges that are not
+    there -- so without checking the wording, removing the direct branch looks
+    like it changed nothing and the reader is told about merges that never
+    happened."""
     a = person(session, "Ann Example", orcid="0000-0001-0000-0001")
     b = person(session, "Ann Example", orcid="0000-0002-0000-0002")
     candidate = queued(session, a, b)
-    assert verdicts_for(session)[candidate.id][0] == "reject"
+    verdict, why = verdicts_for(session)[candidate.id]
+    assert verdict == "reject"
+    assert why.startswith("different ORCIDs 0000-0001"), why
+    assert "once the proven merges" not in why, why
 
 
 def test_one_paper_under_both_records_is_proof(session):
@@ -92,12 +100,12 @@ def test_one_paper_under_both_records_is_proof(session):
 
 
 def test_a_thousand_author_paper_proves_nothing(session):
-    """Two ALICE heavy-ion records shared four papers. Every heavy-ion
-    physicist shares those, and OpenAlex stores only the first hundred authors,
-    so the adjudicated name was not even in the list that was checked."""
+    """Two ALICE heavy-ion records shared four papers. OpenAlex stores the
+    first hundred authors, so the stored list is not the list: the name could
+    be on the paper again where nothing can see it."""
     a, b = person(session, "D. Dixit"), person(session, "D. Dixit")
     # The name IS on the paper, exactly once, on both copies - so only the
-    # size of the author list can stop this being read as proof.
+    # list being cut off can stop this being read as proof.
     crowd = ["Dhruv Dixit"] + [f"Collaborator {i}" for i in range(200)]
     title = "Measurement of charged-particle jet suppression"
     paper(session, a, title, crowd, external_id="alice-a")
@@ -205,3 +213,91 @@ def test_a_person_with_no_name_at_all_is_still_reported(session):
     session.flush()
     candidate = queued(session, a, b)
     assert verdicts_for(session)[candidate.id][0] == "hold"
+
+
+def test_a_thirty_five_author_paper_with_one_of_the_name_is_proof(session):
+    """The proof an earlier crowd-size ceiling threw away. A KLOE drift-chamber
+    paper lists 35 authors and exactly one R. Messi, so there is one slot and
+    one person who can be in it. Fully listed beats small."""
+    a, b = person(session, "R. Messi"), person(session, "R. Messi")
+    crowd = ["R. Messi"] + [f"Collaborator {i}" for i in range(34)]
+    title = "The full-length prototype of the KLOE drift chamber"
+    paper(session, a, title, crowd, external_id="openalex-copy")
+    paper(session, b, title, crowd, external_id="other-copy")
+    candidate = queued(session, a, b)
+    verdict, why = verdicts_for(session)[candidate.id]
+    assert verdict == "merge", why
+    assert "35 authors" in why
+
+
+def test_a_copy_with_no_author_list_counts_only_if_self_claimed(session):
+    """ORCID stores no author list, so a work on an ORCID record looks like
+    missing data. It is not: the holder put it there themselves. Any OTHER
+    source with no list really is unknown and proves nothing."""
+    title = "The full-length prototype of the KLOE drift chamber"
+    crowd = ["R. Messi"] + [f"Collaborator {i}" for i in range(34)]
+
+    a, b = person(session, "R. Messi"), person(session, "R. Messi")
+    paper(session, a, title, crowd, external_id="W2020918607")
+    paper(session, b, title, [], external_id="orcid-work:19109464")
+    claimed = queued(session, a, b)
+
+    c, d = person(session, "R. Messi"), person(session, "R. Messi")
+    paper(session, c, title, crowd, external_id="W-other")
+    paper(session, d, title, [], external_id="s2:whatever")
+    unknown = queued(session, c, d)
+
+    calls = verdicts_for(session)
+    assert calls[claimed.id][0] == "merge", calls[claimed.id][1]
+    assert "claimed on ORCID" in calls[claimed.id][1]
+    assert calls[unknown.id][0] == "hold", calls[unknown.id][1]
+
+
+def test_a_paper_at_the_storage_cap_is_refused_even_with_the_name_once(session):
+    """Exactly at the cap is where truncation starts, so it is refused there
+    rather than one above. One fewer author and the same paper is proof, which
+    is what pins the boundary to the cap and not to somebody's taste."""
+    from scripts.adjudicate_duplicates import AUTHOR_LIST_CAP, paper_proves
+
+    a, b = person(session, "D. Dixit"), person(session, "D. Dixit")
+    title = "Measurement of charged-particle jet suppression"
+    at_cap = ["Dhruv Dixit"] + [f"Collaborator {i}" for i in range(AUTHOR_LIST_CAP - 1)]
+    assert len(at_cap) == AUTHOR_LIST_CAP
+    one_short = at_cap[:-1]
+
+    pub_a = paper(session, a, title, at_cap, external_id="alice-a")
+    pub_b = paper(session, b, title, at_cap, external_id="alice-b")
+    candidate = queued(session, a, b)
+    assert verdicts_for(session)[candidate.id][0] == "hold"
+
+    ok, why = paper_proves(pub_a, pub_b, ("d", "dixit"))
+    assert not ok and "cut off" in why, why
+
+    pub_b.raw_authors = one_short
+    session.commit()
+    ok, why = paper_proves(pub_a, pub_b, ("d", "dixit"))
+    assert not ok, "one side is still at the cap, so it is still truncated"
+
+    pub_a.raw_authors = one_short
+    session.commit()
+    ok, why = paper_proves(pub_a, pub_b, ("d", "dixit"))
+    assert ok and f"{AUTHOR_LIST_CAP - 1} authors" in why, why
+
+
+def test_either_side_of_a_pair_is_followed_to_where_it_ended_up(session):
+    """Both sides, not just one. A candidate row names whichever id the sweep
+    saw first, so the tombstone turns up on the left as often as the right,
+    and following only one side leaves half the queue judging empty records."""
+    survivor = person(session, "Ann Example", orcid="0000-0001-0000-0001")
+    partner = person(session, "Ann Example", orcid="0000-0001-0000-0001", as_url=True)
+    gone = person(session, "Ann Example")
+    gone.merged_into = survivor.id
+    session.flush()
+
+    left = queued(session, gone, partner)       # tombstone as person_id
+    right = queued(session, partner, gone)      # and as candidate_person_id
+    calls = verdicts_for(session)
+    decided = [v for v, _w in calls.values()]
+    assert decided and all(v == "merge" for v in decided), calls
+    assert len(calls) == 1, "both rows ask the same question once resolved"
+    assert set(calls) <= {left.id, right.id}

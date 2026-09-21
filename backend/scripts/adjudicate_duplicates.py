@@ -20,19 +20,28 @@ marked hold, which means a person decides, not that nothing is known.
 
 WHY A SHARED PAPER IS NOT AUTOMATICALLY PROOF
 
-Both guards below come from pairs in this queue that looked proven:
+What makes a shared paper proof is a NAME SLOT only one person can be in: the
+name appears exactly once, on an author list that is all there. Both guards
+below come from pairs in this queue that looked proven:
 
-  Mass authorship. Two ALICE heavy-ion records shared four papers. Those
-  papers carry thousands of authors, OpenAlex stores the first hundred, and
-  the name being adjudicated was not among the hundred - so the shared paper
-  could not be checked at all, and every heavy-ion physicist shares it anyway.
-  dedupe refuses co-author evidence above MAX_AUTHORS_FOR_COAUTHORS for the
-  same reason, and the same ceiling applies here.
+  A truncated list. Two ALICE heavy-ion records shared four papers. Those
+  carry thousands of authors and OpenAlex stores the first hundred, so the
+  stored list is not the list - the name could be on the paper a second time
+  where nothing can see it, and the name being adjudicated was not even among
+  the hundred that were kept.
 
   The name twice. An agronomy paper carried both a Chetan Singh and a Karan
   Singh. Where the adjudicated name appears more than once, the two records
   may be the two different authors - the shared paper would then be evidence
   of the opposite of what it looks like.
+
+An earlier version rejected on CROWD SIZE instead, borrowing dedupe's ceiling
+of 25 co-authors. That ceiling is right for counting shared collaborators,
+where a crowd tells nobody apart, and wrong here: it threw away the one real
+proof in the queue, a 35-author KLOE drift-chamber paper with a single
+R. Messi on it, claimed on ORCID by one of the two records. Thirty-five
+authors fully listed name one R. Messi; a thousand truncated to a hundred
+name nobody in particular.
 
 WHY IT RUNS TWICE
 
@@ -78,20 +87,56 @@ def author_names(publication) -> list:
     return [n for n in listed if isinstance(n, str)]
 
 
-def paper_proves(a_pub, b_pub, who: tuple, ceiling: int) -> tuple:
-    """Can this shared paper tell two people of the same name apart?"""
-    sides = [names for names in (author_names(a_pub), author_names(b_pub)) if names]
-    biggest = max((len(n) for n in sides), default=0)
-    if biggest > ceiling:
-        return False, f"{biggest} authors - mass authorship, tells nobody apart"
-    if not sides:
+# OpenAlex stores the first 100 authorships of a work and drops the rest. At
+# or above that, the stored list may not be the whole list, and the name could
+# be on the paper a second time where it cannot be seen.
+AUTHOR_LIST_CAP = 100
+
+
+def self_claimed(pub) -> bool:
+    """Did the person put this work on their own record?
+
+    An ORCID work entry is the holder's own claim to a paper, which is a
+    stronger statement than an author list a crawler assembled -- and ORCID
+    stores no author list at all, so without this the claim reads as missing
+    data and gets thrown away.
+    """
+    return (pub.external_id or "").startswith("orcid-work")
+
+
+def paper_proves(a_pub, b_pub, who: tuple) -> tuple:
+    """Can this shared paper tell two people of the same name apart?
+
+    What makes a shared paper proof is a name slot only one person can be in:
+    the name appears exactly once, on a list that is all there. So the limit
+    here is TRUNCATION, not crowd size. An earlier version borrowed the
+    co-author ceiling of 25 instead, on the reasoning that a crowd tells
+    nobody apart -- true of counting shared collaborators, wrong here, and it
+    threw away the one real proof in the queue: a 35-author KLOE paper with a
+    single R. Messi on it, claimed on ORCID by one of the two records.
+    """
+    sides = [(names, pub) for names, pub in
+             ((author_names(a_pub), a_pub), (author_names(b_pub), b_pub))]
+    listed = [(names, pub) for names, pub in sides if names]
+    if not listed:
         return False, "neither copy stores an author list"
-    counted = [sum(1 for n in side if initialled(n) == who) for side in sides]
+    # A side with no list is only acceptable when the person claimed the work
+    # themselves; otherwise it is simply unknown and proves nothing.
+    for names, pub in sides:
+        if not names and not self_claimed(pub):
+            return False, "one copy stores no author list and was not self-claimed"
+
+    biggest = max(len(names) for names, _pub in listed)
+    if biggest >= AUTHOR_LIST_CAP:
+        return False, (f"{biggest} authors - at the storage cap, so the list may be "
+                       f"cut off and the name could be on it twice unseen")
+    counted = [sum(1 for n in names if initialled(n) == who) for names, _pub in listed]
     if any(c == 0 for c in counted):
         return False, "the name is not in the stored author list"
     if any(c > 1 for c in counted):
         return False, f"the name appears {max(counted)} times - could be two people"
-    return True, f"{biggest} authors, this name exactly once on each"
+    claimed = " and claimed on ORCID by the other" if len(listed) == 1 else ""
+    return True, f"{biggest} authors, this name exactly once{claimed}"
 
 
 ORCID = re.compile(r"(\d{4}-\d{4}-\d{4}-\d{3}[\dX])", re.I)
@@ -164,7 +209,6 @@ def still_open(session, pairs) -> tuple:
 
 def adjudicate(session, pairs, living, verbose=False) -> tuple:
     """[(verdict, pair, why)] where verdict is merge | reject | hold."""
-    from rip.dedupe import MAX_AUTHORS_FOR_COAUTHORS as CEILING
     from rip.models import Person
 
     known = {}
@@ -187,7 +231,7 @@ def adjudicate(session, pairs, living, verbose=False) -> tuple:
 
         reason = None
         for title in sorted(set(a["by_title"]) & set(b["by_title"]), key=len, reverse=True):
-            ok, why = paper_proves(a["by_title"][title], b["by_title"][title], who, CEILING)
+            ok, why = paper_proves(a["by_title"][title], b["by_title"][title], who)
             if verbose:
                 print(f"       {'OK ' if ok else '-- '}{title[:44]}: {why}")
             if ok:
