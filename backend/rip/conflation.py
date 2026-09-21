@@ -23,7 +23,7 @@ and the topics have nothing in common.
 The score is the second-largest group over the largest. One dominant group
 scores near zero; two comparable bodies of work score near one.
 
-HOW WELL, EXACTLY
+HOW WELL, EXACTLY — AND WHEN
 
 Measured against seventeen records read by hand — evaluation/conflation_labels
 .json, reproduced by scripts/measure_conflation.py — reporting at 0.5 and
@@ -33,6 +33,19 @@ really several people; it misses one of seven.
 Half. Not the "half to two-thirds" an earlier version of this file claimed
 from spot-checking three of them; checking all seventeen gave a worse and
 more honest number.
+
+THAT FIGURE NO LONGER REPRODUCES, and not because anything here changed. It
+was taken before the queue was worked. Acting on what the detector found
+repaired the records the labels describe: five of its seven positives have
+since been split into the people they held or merged away, so the benchmark
+has two usable positives left and measures nothing. measure_conflation.py says
+so and refuses to print a table rather than reporting a number that would read
+as a regression — the detector is right about those records now, which is the
+whole point of having built it.
+
+So the figures above describe the pre-remediation snapshot and stand as the
+record of what this rule was worth when it could be tested. Judging any future
+change to it needs the set re-labelled against the corpus as it then is.
 
 WHAT DID NOT WORK, so nobody spends the afternoon again
 
