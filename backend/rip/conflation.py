@@ -25,21 +25,29 @@ scores near zero; two comparable bodies of work score near one.
 
 HOW WELL, EXACTLY
 
-Measured 2026-09-21 against 63 records read by hand — evaluation/conflation
+Measured 2026-09-21 against records read by hand - evaluation/conflation
 _labels.json, reproduced by scripts/measure_conflation.py. At 0.5 and above,
-with the employer check on: PRECISION 35%, RECALL 0%.
+with the employer check on, counting a record reported by EITHER signal:
 
-The recall figure is the one that matters, and it is new. An earlier set said
-86%, but every record in it came from this detector's own candidates, so that
-number only ever meant: of the conflations it pointed at, it pointed at 86%.
-The re-labelled set samples three ways and records which arm chose each
-record — the detector's own output, signals it cannot see (a career span of 45
-years or more, breadth across the OpenAlex domain hierarchy), and an unbiased
-draw. Recall is computed only over the arms the detector had no part in
-choosing, and over those:
+                                    score only     with the temporal break
+  precision                            35%                  52%
+  recall, on conflations found
+  WITHOUT this detector                 0%                  83%
 
-    IT FOUND NONE OF THEM. Six records that reading the titles shows to be
-    several people, and the highest score among them is 0.29.
+Both columns are the same 63 records, labelled before the break signal
+existed, so the gain is not an artefact of labelling what it found. Nine more
+records the break surfaced have since been labelled too; counting those as
+well puts precision at 57%, and they are marked `flagged` in the label file so
+they can never count towards recall.
+
+The recall figure is the one that matters, and it is why the break exists. An
+earlier label set reported 86% recall, but every record in it came from this
+detector's own candidates, so that number only ever meant: of the conflations
+it pointed at, it pointed at 86%. The re-labelled set samples three ways and
+records which arm chose each record - the detector's own output, signals it
+cannot see (a career span of 45 years or more, breadth across the OpenAlex
+domain hierarchy), and an unbiased draw. Over the arms the detector had no
+part in choosing, the group-ratio score alone found NONE of six conflations:
 
     0f57a85c  0.29  1928-61 insulation physics + 2023-26 science education
     835353de  0.00  1895 Labrador geology + 1982 middle managers + materials
@@ -48,21 +56,22 @@ choosing, and over those:
     ed70afd5  0.09  quantum optics + Hukushima-Nemoto exchange Monte Carlo
     f0fd5769  0.12  1971 HeLa autophagy + thermophotovoltaics + LC-MS assays
 
-Every one has the same shape, and it is the shape this rule cannot see. The
-intruder is one or two papers that share no topic and no co-author with
-anything else in the record, so they form their own singleton groups — and the
-score is the SECOND-LARGEST group over the largest, which singletons never
-reach. A record that is 45 papers of superconductivity plus one 1952
-aeronautics paper scores zero, correctly by the rule and uselessly in fact.
+The temporal break finds five of the six. The one it cannot is ed70afd5: a
+1996 replica-exchange Monte Carlo paper five years before the quantum-optics
+work it is filed with. Five years is a normal gap, so no rule about time will
+ever see it, and that record is the honest limit of this file.
 
-Precision is the half of the picture this rule does do: 35% at 0.5, and 50-57%
-at 0.3 with the employer check on, against a BASE RATE OF 8% in the unbiased
-draw. Flagging is four to seven times better than guessing. Finding is not.
+What the break costs is one false positive worth naming: cc175355, twenty-five
+years of silence inside one career in Tibetan Buddhist philology, 1960 and
+then 1985-2008 on the same manuscripts. A long gap is not always two people,
+and the label set keeps that record deliberately.
 
-So: this is a usable ranker of records a person should read, and it is not a
-detector. The queue it feeds was worth working — 20 splits came out of it —
-but "score 0.00" means nothing whatever about a record, and the low scores
-above are why the Review page must never present a clean score as a verdict.
+Against a BASE RATE OF 8% in the unbiased draw, flagging is now six times
+better than guessing rather than four. But this is still a ranker of records a
+person should read, not a verdict: half of what it reports is one person with
+range, and the Review page must go on printing the papers rather than a score.
+
+A LOW SCORE IS STILL NOT A CLEAN BILL, for the reason ed70afd5 shows.
 
 WHAT DID NOT WORK, so nobody spends the afternoon again
 
@@ -126,6 +135,34 @@ MIN_GROUP = 2
 # 40% at 0.9, because two-paper artefacts score 1.00 as easily as two careers.
 REPORT_ABOVE = 0.5
 
+# A TEMPORAL BREAK, which is the other half of the job. The score above is a
+# ratio of group sizes, so it cannot see the commonest conflation in this
+# corpus: one or two intruder papers sharing no topic and no co-author with
+# anything else. Those form singleton groups, and a singleton is never the
+# second-LARGEST group, so a 45-paper physicist filed with a 1952 aeronautics
+# paper scores 0.00 -- right by the rule and useless in fact. Measured recall
+# against records found by other signals was nil.
+#
+# What those records have instead is a hole in time. Two shapes of it:
+#
+#   LONELY_PAPER_YEARS  one paper whose nearest other work is this far away.
+#                       No active publication record has a fifteen-year hole
+#                       around a single paper with work on both sides of it.
+#   SPLIT_CAREER_YEARS  the largest gap between consecutive papers, which
+#                       catches a record made of two blocks where no single
+#                       paper is lonely: 1928-61 electrical insulation, then
+#                       2023-26 science education, 62 years apart. Set well
+#                       beyond a career break, because a sabbatical, a move
+#                       to industry and a late return are all real.
+#
+# Measured 2026-09-21 on the 63-record labelled set: together these flag 4% of
+# the corpus, 8 of the labelled records, and ALL EIGHT are conflated -- while
+# finding 5 of the 6 conflations the score missed entirely. The sixth shares
+# no signal with them: a 1996 replica-exchange Monte Carlo paper five years
+# before the quantum-optics work it is filed with, which no gap can see.
+LONELY_PAPER_YEARS = 15
+SPLIT_CAREER_YEARS = 40
+
 _WORD = re.compile(r"[^\W\d_]+")
 
 
@@ -137,6 +174,7 @@ class Split:
     name: str | None
     papers: int
     groups: list[list[int]] = field(default_factory=list)   # publication ids
+    years: list[int] = field(default_factory=list)          # one per dated paper
 
     @property
     def sizes(self) -> list[int]:
@@ -149,6 +187,40 @@ class Split:
         if len(big) < 2:
             return 0.0
         return len(big[1]) / len(big[0])
+
+    @property
+    def break_years(self) -> int:
+        """The size of the temporal hole in this record, or 0 if there is none.
+
+        Papers are compared BY POSITION, not by year value: asking for other
+        years unequal to this one makes a record whose papers all share a year
+        look infinitely isolated, and thirty papers from 2025 is the opposite
+        of a conflation.
+        """
+        years = self.years
+        if len(years) < 2:
+            return 0
+        worst = 0
+        for i, year in enumerate(years):
+            nearest = min(abs(year - years[j]) for j in range(len(years)) if j != i)
+            if nearest >= LONELY_PAPER_YEARS:
+                worst = max(worst, nearest)
+        ordered = sorted(years)
+        widest = max(b - a for a, b in zip(ordered, ordered[1:]))
+        if widest >= SPLIT_CAREER_YEARS:
+            worst = max(worst, widest)
+        return worst
+
+    @property
+    def reportable(self) -> bool:
+        """Worth a person's attention, by either signal."""
+        return self.score >= REPORT_ABOVE or self.break_years > 0
+
+
+def _year(published_date) -> list[int]:
+    """[1952] or [], because a paper with no date says nothing about time."""
+    text = str(published_date or "")[:4]
+    return [int(text)] if text.isdigit() else []
 
 
 def _as_list(value) -> list:
@@ -207,17 +279,19 @@ def split_of(session: Session, person_id: str, name: str | None = None) -> Split
         name = person.canonical_name if person else None
     surname = (name or "").lower().split()[-1] if name else ""
     rows = session.execute(
-        select(Publication.id, Publication.topics, Publication.raw_authors)
+        select(Publication.id, Publication.topics, Publication.raw_authors,
+               Publication.published_date)
         .join(Authorship, Authorship.publication_id == Publication.id)
         .where(Authorship.person_id == person_id)
     ).all()
-    papers = {}
-    for pub_id, topics, raw in rows:
+    papers, years = {}, []
+    for pub_id, topics, raw, when in rows:
         marks = {("topic", t) for t in _as_list(topics)}
         marks |= {("with", c) for c in _coauthors(raw, surname)}
         papers[pub_id] = marks
+        years.extend(_year(when))
     return Split(person_id=person_id, name=name, papers=len(papers),
-                 groups=_group(papers))
+                 groups=_group(papers), years=years)
 
 
 def candidates(session: Session, above: float = REPORT_ABOVE,
@@ -241,30 +315,38 @@ def candidates(session: Session, above: float = REPORT_ABOVE,
     ).all())
     rows = session.execute(
         select(Authorship.person_id, Publication.id, Publication.topics,
-               Publication.raw_authors)
+               Publication.raw_authors, Publication.published_date)
         .join(Publication, Publication.id == Authorship.publication_id)
     ).all()
 
     per_person: dict[str, dict[int, set]] = {}
-    for person_id, pub_id, topics, raw in rows:
+    per_years: dict[str, list[int]] = {}
+    for person_id, pub_id, topics, raw, when in rows:
         if person_id not in names:
             continue
         surname = (names[person_id] or "").lower().split()[-1] if names[person_id] else ""
         marks = {("topic", t) for t in _as_list(topics)}
         marks |= {("with", c) for c in _coauthors(raw, surname)}
         per_person.setdefault(person_id, {})[pub_id] = marks
+        per_years.setdefault(person_id, []).extend(_year(when))
 
     out = []
     for person_id, papers in per_person.items():
         if len(papers) < min_papers:
             continue
         split = Split(person_id=person_id, name=names.get(person_id),
-                      papers=len(papers), groups=_group(papers))
-        if split.score >= above:
+                      papers=len(papers), groups=_group(papers),
+                      years=per_years.get(person_id, []))
+        # Either signal. ABOVE tunes the score only, so asking for a lower
+        # score never hides a record the temporal break found.
+        if split.score >= above or split.break_years > 0:
             out.append(split)
     if check_employer:
         out = [s for s in out if shares_an_employer(session, s) is not True]
-    out.sort(key=lambda s: (-s.score, -s.papers))
+    # Score first, then the size of the temporal hole, so a record found only
+    # by the break is ordered by how implausible its gap is rather than
+    # arriving at the bottom with every other 0.00.
+    out.sort(key=lambda s: (-s.score, -s.break_years, -s.papers))
     return out
 
 
@@ -337,6 +419,52 @@ def shares_an_employer(session: Session, split: Split) -> bool | None:
     if not first or not second:
         return None
     return bool(first & second)
+
+
+def break_evidence(session: Session, split: Split) -> dict:
+    """Why the temporal break fired, in the terms a reader can check.
+
+    describe() only reports groups of MIN_GROUP or more, because a stray paper
+    that shares nothing is usually just a stray paper. But an intruder IS a
+    singleton -- that is precisely why the score cannot see it -- so a record
+    reported by the break would otherwise reach the review page showing only
+    its coherent work, with nothing to say why it is there.
+
+    Two shapes, matching the two thresholds:
+      lonely    papers whose nearest other work is LONELY_PAPER_YEARS away
+      split_at  the (before, after, gap) of a hole wider than a career
+    """
+    if not split.break_years:
+        return {"lonely": [], "split_at": None}
+
+    rows = session.execute(
+        select(Publication.id, Publication.title, Publication.published_date)
+        .join(Authorship, Authorship.publication_id == Publication.id)
+        .where(Authorship.person_id == split.person_id)
+    ).all()
+    dated = [(pub_id, title, _year(when)[0])
+             for pub_id, title, when in rows if _year(when)]
+    years = [year for _id, _title, year in dated]
+
+    lonely = []
+    for index, (pub_id, title, year) in enumerate(dated):
+        # by position, exactly as break_years does: papers sharing a year are
+        # each other's neighbours, not outliers
+        nearest = min([abs(year - years[j]) for j in range(len(years)) if j != index]
+                      or [0])
+        if nearest >= LONELY_PAPER_YEARS:
+            lonely.append({"publication_id": pub_id, "title": title,
+                           "year": year, "alone_by": nearest})
+
+    split_at = None
+    ordered = sorted(years)
+    if len(ordered) >= 2:
+        before, after = max(zip(ordered, ordered[1:]), key=lambda ab: ab[1] - ab[0])
+        if after - before >= SPLIT_CAREER_YEARS:
+            split_at = {"before": before, "after": after, "gap": after - before}
+
+    return {"lonely": sorted(lonely, key=lambda r: -r["alone_by"]),
+            "split_at": split_at}
 
 
 def describe(session: Session, split: Split, per_group: int = 4) -> list[dict]:

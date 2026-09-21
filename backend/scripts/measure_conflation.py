@@ -101,10 +101,18 @@ def by_arm(rows) -> tuple:
 
 
 def score_rows(rows, score_at, cover_at, employer_check):
-    """The rows the detector would report at these settings."""
+    """The rows the detector would report at these settings.
+
+    EITHER signal reports a record, so the score threshold cannot hide one the
+    temporal break found — that is the whole point of adding the break, and a
+    sweep that ANDed them would have undone it. The employer check applies to
+    the score only: it asks whether two bodies of work share an institution,
+    which says nothing about a paper fifty years from anything else.
+    """
     return [r for r in rows
-            if r["score"] >= score_at and r["cover"] >= cover_at
-            and not (employer_check and r["employer"] is True)]
+            if ((r["score"] >= score_at and r["cover"] >= cover_at
+                 and not (employer_check and r["employer"] is True))
+                or r["break_years"] > 0)]
 
 
 def main() -> None:
@@ -170,6 +178,7 @@ def main() -> None:
                 "short": short, "label": label,
                 "arms": arms.get(short, []),
                 "score": split.score,
+                "break_years": split.break_years,
                 "cover": (sum(len(g) for g in big[:2]) / split.papers) if split.papers else 0.0,
                 "employer": conflation.shares_an_employer(session, split),
                 "name": person.canonical_name,
@@ -219,10 +228,12 @@ def main() -> None:
     else:
         print(f"  {'score>=':<9}{'found':>7}{'missed':>8}{'recall':>9}")
         for score_at in args.score:
-            found = [r for r in true_independent if r["score"] >= score_at]
+            found = [r for r in true_independent
+                     if r["score"] >= score_at or r["break_years"] > 0]
             print(f"  {score_at:<9}{len(found):>7}{len(true_independent) - len(found):>8}"
                   f"{len(found) / len(true_independent):>8.0%}")
-        worst = [r for r in true_independent if r["score"] < min(args.score)]
+        worst = [r for r in true_independent
+                 if r["score"] < min(args.score) and r["break_years"] == 0]
         if worst:
             print(f"\n  scored below {min(args.score)} despite being several people:")
             for r in sorted(worst, key=lambda r: r["short"]):

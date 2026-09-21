@@ -270,11 +270,27 @@ export interface ConflationGroup {
   titles: string[];
 }
 
+export interface LonelyPaper {
+  publication_id: number;
+  title: string | null;
+  year: number;
+  /** years to this person's nearest other paper */
+  alone_by: number;
+}
+
 export interface Conflation {
   person_id: string;
   person_name: string | null;
   score: number;
   papers: number;
+  /** size of the hole in time, 0 if there is none. A record can be queued on
+   *  this alone, with a score of 0.00 — an intruder paper is a singleton, and
+   *  the score is the second-LARGEST group over the largest. */
+  break_years?: number;
+  break?: {
+    lonely: LonelyPaper[];
+    split_at: { before: number; after: number; gap: number } | null;
+  };
   /** publication ids per group, in the same order as `groups` — what a split
    *  acts on, since a group's position is recomputed and names nothing. */
   group_ids: number[][];

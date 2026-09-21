@@ -33,7 +33,14 @@
   "",
   "Ids belong to this corpus snapshot. scripts/measure_conflation.py reports",
   "what is missing and what has since been repaired rather than quietly",
-  "dropping it, because a shrinking benchmark flatters every change made to it."
+  "dropping it, because a shrinking benchmark flatters every change made to it.",
+  "",
+  "ADDED 2026-09-21, second pass: nine records the temporal-break signal found",
+  "that the group-ratio score scored at or below 0.29. Their arm is `flagged`,",
+  "because the break is part of the detector now -- they measure its precision",
+  "and must never count towards its recall. cc175355 is kept deliberately: a",
+  "25-year gap inside one career in Tibetan philology, and the clearest false",
+  "positive this signal produces."
  ],
  "labelled_at": "2026-09-21",
  "corpus": {
@@ -249,6 +256,30 @@
   ],
   "d6800ca5": [
    "flagged"
+  ],
+  "40d93b5c": [
+   "flagged"
+  ],
+  "6912e0bc": [
+   "flagged"
+  ],
+  "5f87e2e6": [
+   "flagged"
+  ],
+  "b830ec4f": [
+   "flagged"
+  ],
+  "cc175355": [
+   "flagged"
+  ],
+  "621360ef": [
+   "flagged"
+  ],
+  "6c37bfe1": [
+   "flagged"
+  ],
+  "945c7f07": [
+   "flagged"
   ]
  },
  "conflated": {
@@ -271,7 +302,11 @@
   "a13f78eb": "Joseph E. Davies - a 1952 aircraft longitudinal-dynamics paper, then 2004-09 nanomagnetics and electrodeposition",
   "e3404899": "Nicholas Wagner - a 1976 coal-boiler baghouse paper, IRENA renewable-energy roadmaps, and a Brooklyn Park nature playscape plan",
   "f0fd5769": "Jen-Yuan Chang - 1971 HeLa autophagocytosis, 2008 thermophotovoltaics, 2010 ocular PUFA, then LC-MS residue analysis",
-  "ed70afd5": "Kae Nemoto - quantum optics and quantum computing, plus Hukushima-Nemoto exchange Monte Carlo (Koji Nemoto) and laser ion acceleration"
+  "ed70afd5": "Kae Nemoto - quantum optics and quantum computing, plus Hukushima-Nemoto exchange Monte Carlo (Koji Nemoto) and laser ion acceleration",
+  "40d93b5c": "Shay Moran - 1984 NP-completeness of network testing, 2003 ab initio magnetism in Fe, then 2014-22 learning theory. The learning theorist was not publishing in 1984",
+  "6912e0bc": "Joel Veness - a 1982 paper on gully development in New South Wales, then AIXI and deep reinforcement learning",
+  "5f87e2e6": "Vishesh Khanna - 1992 nosocomial C. difficile, 2012 cranial neural crest development, 2012 lichen planus, 2017-20 neuro-oncology incidence. What is left after an earlier split, still several people",
+  "b830ec4f": "Rahul Gupta - 1995 trace radionuclide analysis, a wall of Global Burden of Disease studies, and a 2023 paper on social media brand communities"
  },
  "one_person": {
   "1a768d1f": "Vivek Podder - diabetes and mental health in South Asia, with Global Burden of Disease collaborations. One global-health researcher",
@@ -316,14 +351,18 @@
   "e16a4087": "John Mingers - decision-tree induction, then management science, autopoiesis and multimethodology. Both are his",
   "f0fc4601": "Ricardo Gorini - Brazilian and global energy-transition analysis",
   "f39c98d2": "S.K. Dhattarwal - forensic medicine in Rohtak, Haryana, 2001-2024",
-  "f7d8b235": "Ram Karan Singh - agricultural economics and on-farm water management. What remains after the 2026-09 split"
+  "f7d8b235": "Ram Karan Singh - agricultural economics and on-farm water management. What remains after the 2026-09 split",
+  "cc175355": "Amano - Tibetan and Sanskrit Buddhist philology throughout, the Abhisamayalamkara manuscripts. The 1960 paper is the same field as the 1985-2008 work: a 25-year gap inside one career, and the clearest false positive the temporal break produces"
  },
  "unsure": {
   "4e2abb9b": "V. Mishra - coal geochemistry throughout, plus one soil-microbial-remediation chapter. One paper is not enough to call it",
   "15b2b2f9": "Karan P. Singh - public-health biostatistics across many fields, plus cancer-chemoprevention bench papers. A biostatistician may or may not span both",
   "5461dc9a": "Vishrut K. Srinivasan - haematopathology, plus one 2026 breast-surgery service evaluation. Could be a move between posts",
   "2f2b1cac": "Abigail Fraser - neutropenia antibiotic meta-analyses and cardiovascular/liver epidemiology. Two programmes, both clinical epidemiology",
-  "7e430dae": "Aparna Lal - enteric-disease and climate epidemiology, plus tsunami tide-gauge data and green-turtle ecology. Cannot tell if the marine work is hers"
+  "7e430dae": "Aparna Lal - enteric-disease and climate epidemiology, plus tsunami tide-gauge data and green-turtle ecology. Cannot tell if the marine work is hers",
+  "621360ef": "V. Mishra - 1983 IgA deposits in alcoholic liver disease, then 2013-14 dermatology. IgA in skin is dermatology-adjacent, so a 30-year gap in one career is possible",
+  "6c37bfe1": "V. Mishra - 1994-97 brachytherapy dosimetry, then a 2020 paper on mobile-phone electromagnetic radiation. Both are radiation; the 23-year silence between them is the only oddity",
+  "945c7f07": "M. Gori - 1997-2008 recursive and graph neural networks, then 2025 NOX forecasting for gas turbines. Marco Gori is prolific and an applied paper is not impossible"
  },
  "not_a_person": {
   "d6800ca5": "Verlag Hans Huber - a Swiss medical PUBLISHER that OpenAlex lists as an author with 73 works. Not a conflation; a personhood failure. Closed 2026-09-21 by adding 'verlag' to ENTITY_WORDS, and the record itself was then purged with scripts/purge_person.py, so it is no longer in the corpus. Kept here as the reason the rule exists"

@@ -192,3 +192,120 @@ def test_papers_with_no_institutions_answer_neither_way(session):
     assert conflation.shares_an_employer(session, split) is None
     # unknown is not a reason to drop it
     assert [s.person_id for s in conflation.candidates(session)] == [who.id]
+
+
+# ---- the temporal break: what the group-ratio score cannot see -------------
+
+def dated(session, tag, name, papers):
+    """papers: list of (year, title, topics, coauthors)."""
+    from rip.normalize import PublicationData
+
+    person = ingest_profile(session, make_profile(
+        external_id=tag, url=f"https://openalex.org/{tag}", raw={"id": tag},
+        name=name, usernames=[f"openalex:{tag}"],
+        publications=[
+            PublicationData(title=title, external_id=f"{tag}-{i}",
+                            topics=list(topics), raw_authors=[name, *coauthors],
+                            published_date=str(year))
+            for i, (year, title, topics, coauthors) in enumerate(papers)
+        ]))
+    session.commit()
+    return person
+
+
+def career(start, n, topic, coauthor, step=1):
+    return [(start + i * step, f"Paper {i} on {topic}", [topic], [coauthor])
+            for i in range(n)]
+
+
+def test_one_intruder_paper_decades_away_is_found(session):
+    """The shape the score cannot see. Forty-five papers of superconductivity
+    and one 1952 aeronautics paper: the intruder shares no topic and no
+    co-author, so it is a singleton, and a singleton is never the
+    SECOND-largest group. The score is 0.00 and the record is two people."""
+    papers = career(2004, 8, "Superconductivity", "Bob Physicist")
+    papers += [(1952, "Equations of motion for longitudinal dynamics",
+                ["Aircraft Design"], ["Cal Engineer"])]
+    who = dated(session, "lonely", "Joseph Davies", papers)
+
+    split = conflation.split_of(session, who.id)
+    assert split.score == 0.0, split.sizes
+    assert split.break_years >= conflation.LONELY_PAPER_YEARS
+    assert split.reportable
+    assert who.id in [c.person_id for c in conflation.candidates(session)]
+
+
+def test_two_blocks_of_work_a_lifetime_apart_are_found(session):
+    """No single paper is lonely here -- each has a neighbour a year away --
+    so only the gap between consecutive papers sees it. 1928-61 electrical
+    insulation, then 2023-26 science education."""
+    papers = career(1928, 5, "Electrical Insulation", "Hans Kollege", step=8)
+    papers += career(2023, 4, "Science Education", "Greta Lehrerin")
+    who = dated(session, "blocks", "P. Boening", papers)
+
+    split = conflation.split_of(session, who.id)
+    assert split.break_years >= conflation.SPLIT_CAREER_YEARS
+    assert split.reportable
+
+
+def test_a_long_quiet_spell_inside_one_field_is_not_two_people(session):
+    """The false positive this costs, kept as a test so it stays a known cost:
+    twenty-five years of silence inside one career in Tibetan philology. The
+    break fires, and reading the titles is what settles it -- so the gap must
+    stay below SPLIT_CAREER_YEARS for a real career break."""
+    papers = [(1960, "On the usage of Can in Tibetan", ["Tibetan Studies"], ["Ko Hara"])]
+    papers += career(1985, 8, "Tibetan Studies", "Ko Hara", step=3)
+    who = dated(session, "quiet", "Amano", papers)
+
+    split = conflation.split_of(session, who.id)
+    # 25 years is long enough to flag and NOT long enough to be a split career
+    assert split.break_years >= conflation.LONELY_PAPER_YEARS
+    assert split.break_years < conflation.SPLIT_CAREER_YEARS
+
+
+def test_a_continuous_career_has_no_break(session):
+    who = dated(session, "steady", "Ann Steady",
+                career(2005, 10, "Forensic Pathology", "Bob Helper"))
+    split = conflation.split_of(session, who.id)
+    assert split.break_years == 0 and not split.reportable
+
+
+def test_papers_that_all_share_one_year_are_not_isolated(session):
+    """The bug the first version of this had: it looked for other years
+    UNEQUAL to this one, so a record whose papers all share a year had no
+    neighbours and every paper looked infinitely isolated. Thirty papers from
+    one year is the opposite of a conflation."""
+    papers = [(2025, f"Paper {i}", ["Spatial Transcriptomics"], ["Bo Helper"])
+              for i in range(8)]
+    who = dated(session, "burst", "Ann Burst", papers)
+    split = conflation.split_of(session, who.id)
+    assert split.years == [2025] * 8
+    assert split.break_years == 0, "same-year papers are neighbours, not outliers"
+
+
+def test_a_paper_with_no_date_says_nothing_about_time(session):
+    papers = career(2005, 7, "Forensic Pathology", "Bob Helper")
+    who = dated(session, "undated", "Ann Undated", papers)
+    from rip.models import Authorship, Publication
+    from sqlalchemy import select as sa_select
+
+    first = session.execute(sa_select(Publication).join(
+        Authorship, Authorship.publication_id == Publication.id)
+        .where(Authorship.person_id == who.id)).scalars().first()
+    first.published_date = None
+    session.commit()
+
+    split = conflation.split_of(session, who.id)
+    assert len(split.years) == 6, "the undated paper is left out, not counted as year 0"
+    assert split.break_years == 0
+
+
+def test_the_break_reports_a_record_the_score_threshold_would_hide(session):
+    """`above` tunes the score only. Raising it must never hide a record the
+    break found, or adding the break would have achieved nothing."""
+    papers = career(2004, 8, "Superconductivity", "Bob Physicist")
+    papers += [(1952, "Equations of motion", ["Aircraft Design"], ["Cal Engineer"])]
+    who = dated(session, "hidden", "Joseph Davies", papers)
+
+    found = conflation.candidates(session, above=0.99)
+    assert who.id in [c.person_id for c in found]

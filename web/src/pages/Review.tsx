@@ -287,6 +287,24 @@ export function Review() {
                 </b>{" "}
                 <span className="muted">{c.papers} papers</span>
               </div>
+              {/* Why this record is here, in terms a reader can check. A
+                  record found only by the hole in time scores 0.00 and its
+                  evidence is a SINGLETON paper, which the groups below never
+                  print — so without this the queue looks broken. */}
+              {(c.break_years || 0) > 0 && (
+                <div className="idline">
+                  <b>
+                    {c.break?.split_at
+                      ? `nothing published between ${c.break.split_at.before} and ${c.break.split_at.after} — a ${c.break.split_at.gap}-year gap`
+                      : `${c.break_years} years from the nearest other work`}
+                  </b>
+                </div>
+              )}
+              {(c.break?.lonely || []).slice(0, 3).map((p) => (
+                <div className="idline" key={p.publication_id}>
+                  {p.year} · alone by {p.alone_by} years · {p.title}
+                </div>
+              ))}
               <div className="idline">
                 {c.shares_an_employer === false
                   ? "the two halves name no employer in common"

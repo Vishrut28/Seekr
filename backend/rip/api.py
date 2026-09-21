@@ -967,7 +967,8 @@ def review_conflations(
     with years, subjects and titles, because that is what the decision is
     actually made on.
     """
-    from .conflation import candidates, describe, shares_an_employer
+    from .conflation import (break_evidence, candidates, describe,
+                             shares_an_employer)
     from .models import ConflationReview, PersonSplit
 
     seen = {
@@ -1000,6 +1001,12 @@ def review_conflations(
             "papers": split.papers,
             "shares_an_employer": employer,
             "split_already": split.person_id in started,
+            # A record can be here on the group ratio, on a hole in time, or
+            # both. Without this a reader sees "score 0.00" next to a record
+            # in the queue and concludes the queue is broken -- the papers
+            # that explain it are singletons, which `groups` never shows.
+            "break_years": split.break_years,
+            "break": break_evidence(db, split),
             # the ids are what a split acts on; the titles are what a reader
             # decides on, so both go
             "group_ids": [sorted(g) for g in split.groups if len(g) >= 2],
