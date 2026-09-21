@@ -1023,9 +1023,11 @@ def review_conflation(person_id: str, payload: dict, db: Session = Depends(get_d
 
     The detector recomputes from the papers every time and cannot remember
     anything, so without this a record somebody has already cleared comes back
-    for ever. Neither verdict changes a Person: "several_people" marks work for
-    a splitting tool that does not exist yet, and nothing here pretends to do
-    it.
+    for ever. Neither verdict changes a Person, and that is the point: the
+    split endpoint below is what acts. "several_people" is for a conflation
+    the split tool cannot divide -- papers belonging to different people that
+    share topics or co-authors, so no group separates them -- and it records
+    the finding rather than pretending to act on it.
     """
     from .models import ConflationReview, Person
 

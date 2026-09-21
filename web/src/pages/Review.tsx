@@ -61,12 +61,20 @@ export function Review() {
     };
   }, []);
 
-  /** Move one body of work onto a person of its own. The source record is
-   *  frozen afterwards: it describes both people, so re-fetching it would put
-   *  them back together. */
-  const splitOff = async (c: Conflation, group: number, ids: number[]) => {
+  /** Move papers off this record onto a person of their own.
+   *
+   *  Takes the ids and what to call them, not a group index: the commonest
+   *  conflation is ONE paper from somebody else's life, which is a group of
+   *  one and was unreachable from this page — a reviewer could read "1952 ·
+   *  alone by 52 years" and have no button for it.
+   *
+   *  The source record is frozen afterwards: it describes both people, so
+   *  re-fetching it would put them back together.
+   */
+  const splitOff = async (c: Conflation, ids: number[], what: string) => {
     const ok = window.confirm(
-      `Move these ${ids.length} papers off "${c.person_name}" onto a new person?` +
+      `Move ${ids.length === 1 ? "this paper" : `these ${ids.length} papers`}` +
+        ` off "${c.person_name}" onto a new person?` +
         "\n\nTheir subjects are recomputed from the papers each side keeps. " +
         "Any ORCID stays with the original, and the source record stops being " +
         "refreshed, because re-fetching it would merge them again.",
@@ -76,7 +84,7 @@ export function Review() {
       await apiSend(`/v1/review/conflations/${c.person_id}/split`, "POST", {
         publication_ids: ids,
         name: c.person_name,
-        note: `split group ${group + 1} from the review queue`,
+        note: `${what}, split from the review queue`,
       });
       setConflations((prev) => (prev || []).filter((x) => x.person_id !== c.person_id));
     } catch (e) {
@@ -300,9 +308,25 @@ export function Review() {
                   </b>
                 </div>
               )}
-              {(c.break?.lonely || []).slice(0, 3).map((p) => (
+              {(c.break?.lonely || []).slice(0, 4).map((p) => (
                 <div className="idline" key={p.publication_id}>
-                  {p.year} · alone by {p.alone_by} years · {p.title}
+                  {p.year} · alone by {p.alone_by} years · {p.title}{" "}
+                  {/* A paper standing alone in time is the one thing on this
+                      page that cannot be a group, so it gets its own button.
+                      Splitting it never empties the record: it is one paper
+                      among many, which is why it stood out. */}
+                  <button
+                    className="btn sm ghost"
+                    onClick={() =>
+                      splitOff(
+                        c,
+                        [p.publication_id],
+                        `the ${p.year} paper, ${p.alone_by} years from any other work`,
+                      )
+                    }
+                  >
+                    Not this person
+                  </button>
                 </div>
               ))}
               <div className="idline">
@@ -330,7 +354,13 @@ export function Review() {
                     {(c.group_ids[i]?.length || 0) > 0 && c.group_ids.length > 1 && (
                       <button
                         className="btn sm ghost"
-                        onClick={() => splitOff(c, i, c.group_ids[i])}
+                        onClick={() =>
+                          splitOff(
+                            c,
+                            c.group_ids[i],
+                            `${g.papers} papers on ${g.topics[0] || "another subject"}`,
+                          )
+                        }
                       >
                         Split these off
                       </button>
@@ -339,14 +369,16 @@ export function Review() {
                 ))}
               </div>
               <div className="btn-row" style={{ marginTop: 10 }}>
-                {/* Nothing here can split one source record into two people
-                    yet, so this records the finding rather than claiming to
-                    act on it. */}
+                {/* Splitting DOES exist now - the buttons above do it - so
+                    this is for a conflation the tool cannot divide: papers
+                    belonging to different people that share topics or
+                    co-authors, so no group separates them. It records the
+                    finding and takes the record off the queue. */}
                 <button
                   className="btn primary sm"
                   onClick={() => ruleOn(c.person_id, "several_people")}
                 >
-                  Several people — note it
+                  Several people, but not separable
                 </button>
                 <button
                   className="btn sm"

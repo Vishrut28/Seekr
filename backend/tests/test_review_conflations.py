@@ -48,8 +48,10 @@ def test_ruling_on_a_record_takes_it_out_of_the_queue(session):
 
 
 def test_calling_it_several_people_changes_nobody(session):
-    """Nothing here can split one source record into two people yet, so this
-    records the finding. It must not quietly do something else instead."""
+    """rip.split divides a record along its groups, but some conflations have
+    no dividing line -- papers belonging to different people that share a
+    topic or a co-author. This verdict records that and must not quietly do
+    something else instead."""
     who = split_record(session)
     api.review_conflation(who.id, {"verdict": "several_people"}, db=session)
 

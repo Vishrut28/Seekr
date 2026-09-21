@@ -583,9 +583,11 @@ class ConflationReview(Base):
 
     The flag is recomputed from the papers every time, so it cannot remember
     anything; this is what stops a record a human has already cleared from
-    coming back forever. "several_people" is recorded rather than acted on —
-    nothing here can split one source record into two people yet, so it marks
-    the work for when something can.
+    coming back forever. "several_people" is recorded rather than acted on:
+    rip.split does divide a record, but only along its groups, so this is for
+    a conflation nothing can separate -- papers belonging to different people
+    that share a topic or a co-author. It marks the finding and closes the
+    record.
     """
 
     __tablename__ = "conflation_review"
