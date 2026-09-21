@@ -23,29 +23,46 @@ and the topics have nothing in common.
 The score is the second-largest group over the largest. One dominant group
 scores near zero; two comparable bodies of work score near one.
 
-HOW WELL, EXACTLY — AND WHEN
+HOW WELL, EXACTLY
 
-Measured against seventeen records read by hand — evaluation/conflation_labels
-.json, reproduced by scripts/measure_conflation.py — reporting at 0.5 and
-above gives HALF PRECISION AND 86% RECALL. Six of the twelve it flags are
-really several people; it misses one of seven.
+Measured 2026-09-21 against 63 records read by hand — evaluation/conflation
+_labels.json, reproduced by scripts/measure_conflation.py. At 0.5 and above,
+with the employer check on: PRECISION 35%, RECALL 0%.
 
-Half. Not the "half to two-thirds" an earlier version of this file claimed
-from spot-checking three of them; checking all seventeen gave a worse and
-more honest number.
+The recall figure is the one that matters, and it is new. An earlier set said
+86%, but every record in it came from this detector's own candidates, so that
+number only ever meant: of the conflations it pointed at, it pointed at 86%.
+The re-labelled set samples three ways and records which arm chose each
+record — the detector's own output, signals it cannot see (a career span of 45
+years or more, breadth across the OpenAlex domain hierarchy), and an unbiased
+draw. Recall is computed only over the arms the detector had no part in
+choosing, and over those:
 
-THAT FIGURE NO LONGER REPRODUCES, and not because anything here changed. It
-was taken before the queue was worked. Acting on what the detector found
-repaired the records the labels describe: five of its seven positives have
-since been split into the people they held or merged away, so the benchmark
-has two usable positives left and measures nothing. measure_conflation.py says
-so and refuses to print a table rather than reporting a number that would read
-as a regression — the detector is right about those records now, which is the
-whole point of having built it.
+    IT FOUND NONE OF THEM. Six records that reading the titles shows to be
+    several people, and the highest score among them is 0.29.
 
-So the figures above describe the pre-remediation snapshot and stand as the
-record of what this rule was worth when it could be tested. Judging any future
-change to it needs the set re-labelled against the corpus as it then is.
+    0f57a85c  0.29  1928-61 insulation physics + 2023-26 science education
+    835353de  0.00  1895 Labrador geology + 1982 middle managers + materials
+    a13f78eb  0.00  a 1952 aircraft-dynamics paper + 2000s nanomagnetics
+    e3404899  0.00  a 1976 coal-boiler paper + IRENA energy roadmaps
+    ed70afd5  0.09  quantum optics + Hukushima-Nemoto exchange Monte Carlo
+    f0fd5769  0.12  1971 HeLa autophagy + thermophotovoltaics + LC-MS assays
+
+Every one has the same shape, and it is the shape this rule cannot see. The
+intruder is one or two papers that share no topic and no co-author with
+anything else in the record, so they form their own singleton groups — and the
+score is the SECOND-LARGEST group over the largest, which singletons never
+reach. A record that is 45 papers of superconductivity plus one 1952
+aeronautics paper scores zero, correctly by the rule and uselessly in fact.
+
+Precision is the half of the picture this rule does do: 35% at 0.5, and 50-57%
+at 0.3 with the employer check on, against a BASE RATE OF 8% in the unbiased
+draw. Flagging is four to seven times better than guessing. Finding is not.
+
+So: this is a usable ranker of records a person should read, and it is not a
+detector. The queue it feeds was worth working — 20 splits came out of it —
+but "score 0.00" means nothing whatever about a record, and the low scores
+above are why the Review page must never present a clean score as a verdict.
 
 WHAT DID NOT WORK, so nobody spends the afternoon again
 

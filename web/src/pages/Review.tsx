@@ -240,15 +240,26 @@ export function Review() {
         </h2>
         {/* Sources disambiguate authors themselves and get it wrong, and a
             record that holds two people's work answers searches with the wrong
-            half. About three in five of these are real; the rest are one
-            person with a wide career, which is why the papers are printed
-            rather than a verdict. */}
+            half. Measured 2026-09-21, about a third of these are real at the
+            threshold this queue uses; the rest are one person with a wide
+            career, which is why the papers are printed rather than a verdict.
+            A third still beats the 8% base rate by four times over, so the
+            queue is worth reading — but only as a reading order. */}
         {conflations === null ? (
           <Loading message="Reading publication records…" />
         ) : conflations.length === 0 ? (
           <EmptyState
             title="Nothing to look at"
-            body="No record splits into two unrelated bodies of work."
+            /* Not "nothing is wrong". The score is the second-largest group
+               of papers over the largest, so a record whose intruder is one
+               or two papers that share no topic and no co-author scores zero
+               — 1895 Labrador geology filed with 2019 materials science among
+               them. Measured recall against records found by other signals
+               was nil, and saying so here is cheaper than somebody inferring
+               a clean corpus from an empty list. */
+            body="No record splits into two comparable bodies of work. That is
+                  not a clean bill of health: this test cannot see a stray
+                  paper or two, only a second career."
           />
         ) : (
           conflations.map((c) => (

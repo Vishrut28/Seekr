@@ -1,35 +1,331 @@
 {
-  "_comment": [
-    "Person records judged by hand from their publication titles: 1 where one",
-    "record holds several people's work, 0 where it is one person with range.",
-    "Ids belong to this corpus snapshot, so the set only measures anything on a",
-    "database that still contains them — scripts/measure_conflation.py says so",
-    "and skips the rest rather than pretending.",
-    "",
-    "Written to settle whether a proposed change to the detector helps. Three",
-    "were tried against it and did not: requiring the two groups to cover a",
-    "share of the work, topic-graph distance between them, and whether their",
-    "active years overlap. The numbers are in rip/conflation.py."
+ "_comment": [
+  "Person records judged by hand from their publication titles, re-labelled",
+  "2026-09-21 after the previous set was spent: acting on what the detector",
+  "found repaired five of its seven positives, leaving nothing to measure.",
+  "",
+  "HOW A RECORD GOT HERE, because it decides what can be computed from it.",
+  "Every record carries the arm that selected it:",
+  "",
+  "  flagged      the detector reported it (score >= 0.3, employer check off).",
+  "               These measure PRECISION. They cannot measure recall: they",
+  "               are what the detector found, so it found all of them.",
+  "  independent  selected by signals the detector does not use -- a career",
+  "               span of 45 years or more, or work spanning three OpenAlex",
+  "               domains or six fields. These can measure RECALL, because",
+  "               nothing about the detector decided to look here.",
+  "  random       an unbiased draw from everybody with enough papers. These",
+  "               give the base rate and catch what both of the others miss.",
+  "",
+  "The previous set was drawn entirely from the detector's own candidates, so",
+  "its 86% recall only ever meant: of the conflations the detector pointed at,",
+  "it pointed at 86%. Arms exist so that number cannot be quoted again.",
+  "",
+  "WHAT conflated MEANS: reading the titles shows work belonging to more than",
+  "one person, however small the minority. Whether the split tool can act on",
+  "it is a different question -- several of these hold a single intruder",
+  "paper, which it cannot -- and keeping that out of the label is what lets",
+  "precision and recall mean anything.",
+  "",
+  "unsure is scored by nothing. It is for records where the reading is",
+  "genuinely open, and forcing them into a bucket would be inventing ground",
+  "truth. not_a_person is a different defect that happened to surface here.",
+  "",
+  "Ids belong to this corpus snapshot. scripts/measure_conflation.py reports",
+  "what is missing and what has since been repaired rather than quietly",
+  "dropping it, because a shrinking benchmark flatters every change made to it."
+ ],
+ "labelled_at": "2026-09-21",
+ "corpus": {
+  "living_people": 676,
+  "with_enough_papers": 417,
+  "min_papers": 6,
+  "note": "after 20 splits and 3 proven merges"
+ },
+ "arms": {
+  "9e92c285": [
+   "flagged"
   ],
-  "conflated": {
-    "a8d533eb": "V. Mishra — superconductivity, and the photogravitational elliptic restricted three-body problem",
-    "f7d8b235": "Ram Karan Singh — agricultural economics, malaria/dengue vectors, hydrology, gas turbines, petroleum waterflood",
-    "9e92c285": "Virat Abhishek — meat quality, celiac disease, SERDES semiconductor loopback testing",
-    "6ee110ab": "A. Aman — celiac disease, molecular docking, fish freshness detection, SERDES testing, photojournalism",
-    "74929d68": "Vishesh Jain — paediatric surgery and combinatorics",
-    "cbaa998f": "Dhruv Dixit — 1973 sea-urchin gametes through 2025 reinforcement learning",
-    "90a11e15": "Karan Singh — scabies epidemiology, paddy threshers, Drosophila evolution, air pollution"
-  },
-  "one_person": {
-    "bdd15494": "V. Mishra — strategic studies throughout; the two groups are 2 papers each out of 47",
-    "1a768d1f": "Vivek Podder — COVID mental health, diabetes burden, Global Burden of Disease: one global-health researcher",
-    "ce667673": "Aparna Keshaviah — breast-cancer trials, then eating disorders, then wastewater surveillance: one biostatistician",
-    "edf988fe": "A. Aman — history and social-studies education in Purworejo, both groups",
-    "bfbfdf07": "Yvonne Dombrowski — psoriasis and TNF, then remyelination and Treg: one immunologist's arc",
-    "a1ca85c1": "Luc Van Bortel — arterial stiffness, pharmaceutical care, HIV microbicides: one clinical pharmacologist",
-    "f39c98d2": "S.K. Dhattarwal — forensic medicine in Haryana, 2001-2024",
-    "27b10b03": "Vishesh Jain — paediatric surgery at AIIMS",
-    "cf653566": "Dhruv Utpalkumar Dixit — high-energy particle physics",
-    "274b7d79": "Vishesh Jain — theoretical computer science at UIC"
-  }
+  "a8d533eb": [
+   "flagged"
+  ],
+  "ff4041c6": [
+   "flagged"
+  ],
+  "084942d4": [
+   "flagged"
+  ],
+  "1621cea1": [
+   "flagged"
+  ],
+  "414e8663": [
+   "flagged"
+  ],
+  "61e91646": [
+   "flagged"
+  ],
+  "84ea6425": [
+   "flagged"
+  ],
+  "eb72a3bf": [
+   "flagged"
+  ],
+  "a236627e": [
+   "flagged"
+  ],
+  "15ddd824": [
+   "flagged"
+  ],
+  "3bc6a3d1": [
+   "flagged"
+  ],
+  "d63d79f1": [
+   "flagged"
+  ],
+  "382a9967": [
+   "flagged"
+  ],
+  "0f57a85c": [
+   "independent"
+  ],
+  "835353de": [
+   "independent"
+  ],
+  "a13f78eb": [
+   "independent"
+  ],
+  "e3404899": [
+   "independent"
+  ],
+  "f0fd5769": [
+   "independent"
+  ],
+  "ed70afd5": [
+   "random"
+  ],
+  "1a768d1f": [
+   "flagged"
+  ],
+  "bdd15494": [
+   "flagged"
+  ],
+  "ce667673": [
+   "flagged"
+  ],
+  "edf988fe": [
+   "flagged"
+  ],
+  "bfbfdf07": [
+   "flagged"
+  ],
+  "a1ca85c1": [
+   "flagged"
+  ],
+  "3cbe3826": [
+   "flagged"
+  ],
+  "ce5d0b0f": [
+   "flagged"
+  ],
+  "0e0ef63a": [
+   "flagged"
+  ],
+  "b72688ef": [
+   "flagged"
+  ],
+  "2e296d6b": [
+   "flagged"
+  ],
+  "8d2e635e": [
+   "flagged"
+  ],
+  "f6711a06": [
+   "flagged"
+  ],
+  "a7da6d83": [
+   "flagged"
+  ],
+  "63544236": [
+   "flagged"
+  ],
+  "28a16036": [
+   "flagged"
+  ],
+  "26f75ac0": [
+   "flagged"
+  ],
+  "4b064550": [
+   "flagged"
+  ],
+  "768a2195": [
+   "flagged"
+  ],
+  "9639df11": [
+   "flagged"
+  ],
+  "05f8b9fe": [
+   "independent"
+  ],
+  "082331e5": [
+   "random"
+  ],
+  "2a95530f": [
+   "independent"
+  ],
+  "38a05364": [
+   "independent"
+  ],
+  "518f17a2": [
+   "random"
+  ],
+  "52431542": [
+   "independent"
+  ],
+  "6fdc4d7d": [
+   "random"
+  ],
+  "7fe5a9b3": [
+   "independent"
+  ],
+  "9c6d52ac": [
+   "independent"
+  ],
+  "9d91d7f0": [
+   "random"
+  ],
+  "a60c1bd8": [
+   "random"
+  ],
+  "b399215c": [
+   "random"
+  ],
+  "ba5ca8cf": [
+   "random"
+  ],
+  "c34b15a0": [
+   "random"
+  ],
+  "c52925f1": [
+   "independent"
+  ],
+  "c7d32105": [
+   "independent"
+  ],
+  "ca230060": [
+   "independent"
+  ],
+  "ce87a6dc": [
+   "random"
+  ],
+  "d5d9f305": [
+   "random"
+  ],
+  "e16a4087": [
+   "independent"
+  ],
+  "f0fc4601": [
+   "random"
+  ],
+  "f39c98d2": [
+   "independent"
+  ],
+  "f7d8b235": [
+   "independent"
+  ],
+  "4e2abb9b": [
+   "flagged"
+  ],
+  "15b2b2f9": [
+   "flagged"
+  ],
+  "5461dc9a": [
+   "flagged"
+  ],
+  "2f2b1cac": [
+   "flagged"
+  ],
+  "7e430dae": [
+   "independent"
+  ],
+  "d6800ca5": [
+   "flagged"
+  ]
+ },
+ "conflated": {
+  "9e92c285": "Virat Abhishek - food science and meat quality, plus reinforced-concrete wall openings and waterproofing QC",
+  "a8d533eb": "V. Mishra - superconductivity theory, plus a thermal-metrology cluster (3-omega sensors, thermal-conductivity switching) and a heavy-ion fusion singleton",
+  "ff4041c6": "Allen P. Miraflor - dermatopathology and computational pathology (one person), plus a 2008 soybean phytoestrogen chemist",
+  "084942d4": "Dhruv Dixit - 1973 sea-urchin gametes, socio-economic disparities, bi-complex matrices, IoT/ML, endometrial carcinoma",
+  "1621cea1": "Vishesh Saxena - 1970-71 protein folding, then 2020s surface science and antiferromagnets. 55-year span",
+  "414e8663": "Pierre Aman - cereal and dietary-fibre chemistry, plus FUS/CHOP myxoid liposarcoma genetics. Per Aman and Pierre Aman",
+  "61e91646": "Chirag Doshi - urology, agile software culture, IBM deep learning, GBD collaborations, coronary endarterectomy",
+  "84ea6425": "Rahul Gupta - 1998 antioxidants in Indian foods, then a wall of Global Burden of Disease collaborations",
+  "eb72a3bf": "Samir Bhatt - 1989-93 mouse Hox/FGF developmental biology, then dengue and malaria mapping. The mapper was a child in 1989",
+  "a236627e": "Debashish Das - GWAS consortia, plasma exosomes, oral squamous cell carcinoma, PCI/STEMI, a malaria microscopy device",
+  "15ddd824": "Kanwar Pal Singh - marigold and gerbera horticulture, plus Hot Lake microbial mats and 16S rRNA tag sequencing",
+  "3bc6a3d1": "Vishrut Shah - a coherent clinical body, plus a 2019 machine-learning data platform",
+  "d63d79f1": "Jeremy K. Cockcroft - powder neutron diffraction crystallography, plus arterial stiffness and antihypertensives. Jeremy and John Cockcroft",
+  "382a9967": "Wenbin Zhang - parametric surface waves, ML fairness and malware detection, camelid genomes, flotillin endocytosis",
+  "0f57a85c": "P. Boening - 1928-61 electrical insulation breakdown physics, plus 2023-26 German science-education research. 98-year span",
+  "835353de": "Robert Bell - 1895 Labrador Peninsula geology, 1982 middle managers, 1994 science assessment, 2009 fault prediction, 2015-21 materials science. 129-year span",
+  "a13f78eb": "Joseph E. Davies - a 1952 aircraft longitudinal-dynamics paper, then 2004-09 nanomagnetics and electrodeposition",
+  "e3404899": "Nicholas Wagner - a 1976 coal-boiler baghouse paper, IRENA renewable-energy roadmaps, and a Brooklyn Park nature playscape plan",
+  "f0fd5769": "Jen-Yuan Chang - 1971 HeLa autophagocytosis, 2008 thermophotovoltaics, 2010 ocular PUFA, then LC-MS residue analysis",
+  "ed70afd5": "Kae Nemoto - quantum optics and quantum computing, plus Hukushima-Nemoto exchange Monte Carlo (Koji Nemoto) and laser ion acceleration"
+ },
+ "one_person": {
+  "1a768d1f": "Vivek Podder - diabetes and mental health in South Asia, with Global Burden of Disease collaborations. One global-health researcher",
+  "bdd15494": "V. Mishra - strategic studies, Indo-Pacific security, Indian politics throughout",
+  "ce667673": "Aparna Keshaviah - breast-cancer trials, then eating disorders and grief, then wastewater surveillance: one biostatistician",
+  "edf988fe": "A. Aman - history and social-studies education in Purworejo, both groups",
+  "bfbfdf07": "Yvonne Dombrowski - psoriasis, vitamin D and antimicrobial peptides, tumour immune escape: one immunologist",
+  "a1ca85c1": "Luc Van Bortel - arterial stiffness, drug utilisation, phase I pharmacology: one clinical pharmacologist",
+  "3cbe3826": "Rebecca L. Achey - neuro-oncology epidemiology then clinical neurosurgery: one training arc",
+  "ce5d0b0f": "Rileen Sinha - alternative splicing bioinformatics, then cancer genomics and cBioPortal",
+  "0e0ef63a": "Santosh Jaju - mechanical and industrial engineering: components, quality cost, supply chain, bone drilling",
+  "b72688ef": "Eric Giannella - diffusion of DNA microarray technology, then drug-policy and benefits-claiming research: one social scientist",
+  "2e296d6b": "Marc Garnier - anaesthesia, intensive care and beta-lactam stewardship throughout",
+  "8d2e635e": "Aparna Ichalangod Narayana - prosthodontics, with Global Burden of Disease collaborations",
+  "f6711a06": "Neil J Sebire - fetal medicine and paediatric pathology: a documented broad career",
+  "a7da6d83": "Holger Gohlke - DrugScore, MM-PBSA, Amber: one computational biophysicist",
+  "63544236": "Glenn Ellison - social learning, industrial agglomeration, mutual funds: one economist",
+  "28a16036": "A. Aman - Indonesian history and social-studies education throughout",
+  "26f75ac0": "Chris Volinsky - Bayesian model averaging, network proximity, the BellKor Netflix Prize solution: one AT&T statistician",
+  "4b064550": "Chirag G. Patil - neurosurgical outcomes research throughout",
+  "768a2195": "Jeffrey Mark Siskind - grounding language in visual perception, event classification, image segmentation",
+  "9639df11": "Jean Golding - ALSPAC and national birth-cohort epidemiology throughout",
+  "05f8b9fe": "Chirag J. Patel - environment-wide association studies and the exposome throughout",
+  "082331e5": "Virat Agarwal - Cell Broadband Engine and multicore high-performance computing",
+  "2a95530f": "Aung Pyae Phyo - artemisinin resistance on the Thai-Myanmar border throughout",
+  "38a05364": "Luke Geneslaw - computational and digital pathology at one cancer centre",
+  "518f17a2": "Gediminas Adomavicius - recommender systems and context-aware recommendation",
+  "52431542": "Gabriele Campanella - deep learning for pathology throughout",
+  "6fdc4d7d": "Haley Gittleman - CBTRUS brain and CNS tumour epidemiology",
+  "7fe5a9b3": "Poravuth Yi - antimalarial efficacy and resistance in Cambodia throughout",
+  "9c6d52ac": "Roddy Cowie - emotion recognition from speech, FEELTRACE, HUMAINE",
+  "9d91d7f0": "Alex K.-Y. Jen - organic electronics, nonlinear optical polymers, solar cells",
+  "a60c1bd8": "Xiaoxuan Liu - uveitis and ophthalmic imaging, then evaluation of AI in medicine; the 2014 bladder-cancer paper reads as early-career work",
+  "b399215c": "Daniel Hayoz - endothelial function, arterial compliance and microcirculation throughout",
+  "ba5ca8cf": "Helge Janicke - SCADA, critical-infrastructure and IoT security throughout",
+  "c34b15a0": "Mahesh Kharde - plant science, ethnomedicinal plants and plant-extract bioefficacy",
+  "c52925f1": "Chirag Shah - breast radiation oncology and lymphedema; the stroke-trial paper is one mass-authorship credit",
+  "c7d32105": "Francois Nosten - malaria treatment and resistance throughout",
+  "ca230060": "Allen Newell - problem solving, GPS, production systems, physical symbol systems. The 62-year span is reprints",
+  "ce87a6dc": "Alex R. Chang - chronic kidney disease epidemiology throughout",
+  "d5d9f305": "M. Javad Aman - cytokine-receptor signalling, then filovirus vaccines and therapeutics: one arc",
+  "e16a4087": "John Mingers - decision-tree induction, then management science, autopoiesis and multimethodology. Both are his",
+  "f0fc4601": "Ricardo Gorini - Brazilian and global energy-transition analysis",
+  "f39c98d2": "S.K. Dhattarwal - forensic medicine in Rohtak, Haryana, 2001-2024",
+  "f7d8b235": "Ram Karan Singh - agricultural economics and on-farm water management. What remains after the 2026-09 split"
+ },
+ "unsure": {
+  "4e2abb9b": "V. Mishra - coal geochemistry throughout, plus one soil-microbial-remediation chapter. One paper is not enough to call it",
+  "15b2b2f9": "Karan P. Singh - public-health biostatistics across many fields, plus cancer-chemoprevention bench papers. A biostatistician may or may not span both",
+  "5461dc9a": "Vishrut K. Srinivasan - haematopathology, plus one 2026 breast-surgery service evaluation. Could be a move between posts",
+  "2f2b1cac": "Abigail Fraser - neutropenia antibiotic meta-analyses and cardiovascular/liver epidemiology. Two programmes, both clinical epidemiology",
+  "7e430dae": "Aparna Lal - enteric-disease and climate epidemiology, plus tsunami tide-gauge data and green-turtle ecology. Cannot tell if the marine work is hers"
+ },
+ "not_a_person": {
+  "d6800ca5": "Verlag Hans Huber - a Swiss medical PUBLISHER that OpenAlex lists as an author with 73 works. Not a conflation; a personhood failure"
+ }
 }
