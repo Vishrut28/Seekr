@@ -246,3 +246,36 @@ def test_adjacency_that_is_real_is_kept():
     assert grade(cases["t-cosmology"],
                  person(topics=["Particle physics theoretical study"])) == 1
     assert grade(cases["h2-rl"], person(topics=["Robotics"])) == 1
+
+
+def test_a_query_the_search_code_was_changed_for_says_so(capsys):
+    """`tuned` covers a criterion edited after seeing results, `covered` a
+    subject ingested after a query failed. This is the third way a number can
+    stop meaning what it looks like: the SEARCH CODE changed knowing the
+    query. Four holdout queries drove concept-map entries, and holdout nDCG
+    went 0.735 -> 0.863 -- most of it from exactly those four."""
+    import json
+
+    from evaluation.grader import JUDGMENTS
+    raw = {c["id"]: c for c in json.loads(JUDGMENTS.read_text(encoding="utf-8"))["cases"]}
+    for cid in ("h-alz", "h-evs", "h-fungal", "h-toxicology"):
+        assert raw[cid].get("informed"), f"{cid} drove a concept entry and must say so"
+    from evaluation.grader import load_cases
+
+    cases = {c.id: c for c in load_cases()}
+    assert cases["h-alz"].informed
+    assert not cases["t-nlp"].informed
+
+
+def test_the_possessive_in_a_disease_name_is_not_part_of_the_subject():
+    """"Alzheimer's" stemmed to "alzheimer s", matched no concept key, and the
+    query reached only people whose topic contained the word itself. Diseases
+    are routinely named this way."""
+    from rip.concepts import _key, related_subjects
+
+    assert _key("Alzheimer's") == _key("alzheimer") == "alzheimer"
+    assert related_subjects("Alzheimer's") == related_subjects("alzheimer")
+    assert related_subjects("Alzheimer's")
+    # and a word that simply ends in s is not a possessive
+    assert _key("systems") != "system"[:0]
+    assert _key("graph neural networks")

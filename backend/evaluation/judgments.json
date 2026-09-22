@@ -1,5 +1,5 @@
 {
- "about": "Criteria for what a relevant person is, per query. See grader.py for how they are applied: `strong` subjects in a person's stated topics grade 2; `strong` subjects only in their titles or bio, or `related` subjects in their topics, grade 1. `country` and `org` must hold unless `soft` is set, in which case a person who STATES the subject as a topic grades 1 without them -- two paper titles plus a failed constraint is two levels of weak evidence and grades 0. A soft query nobody meets in full is reported as measuring its subject only, because every relevant person then carries the same gain and the constraint is not being tested. `name` grades by name words. Kinds: topic (a subject the vocabulary holds), concept (needs related subjects understood), agent (a person noun: physicists), constrained, soft (constraints nobody may meet in full), typo, protected, name. Kind holdout: written after the concept work, criteria fixed before running, never tuned against — the check that improvements generalise. Kind holdout2: a second set written after every change listed so far, criteria fixed before its first run, scored once and never tuned against. Kind holdout/holdout2 means criteria fixed before the first run -- EXCEPT where a case carries a `tuned` field, which records that the criterion was edited after results were seen, and why. Such a case is no longer an untouched holdout and its number cannot be read as one. A case carrying a `covered` field had people for its subject ingested after it failed, so its score describes coverage that was added on its behalf and is not evidence that search generalises.",
+ "about": "Criteria for what a relevant person is, per query. See grader.py for how they are applied: `strong` subjects in a person's stated topics grade 2; `strong` subjects only in their titles or bio, or `related` subjects in their topics, grade 1. `country` and `org` must hold unless `soft` is set, in which case a person who STATES the subject as a topic grades 1 without them -- two paper titles plus a failed constraint is two levels of weak evidence and grades 0. A soft query nobody meets in full is reported as measuring its subject only, because every relevant person then carries the same gain and the constraint is not being tested. `name` grades by name words. Kinds: topic (a subject the vocabulary holds), concept (needs related subjects understood), agent (a person noun: physicists), constrained, soft (constraints nobody may meet in full), typo, protected, name. Kind holdout: written after the concept work, criteria fixed before running, never tuned against — the check that improvements generalise. Kind holdout2: a second set written after every change listed so far, criteria fixed before its first run, scored once and never tuned against. Kind holdout/holdout2 means criteria fixed before the first run -- EXCEPT where a case carries a `tuned` field, which records that the criterion was edited after results were seen, and why. Such a case is no longer an untouched holdout and its number cannot be read as one. A case carrying a `covered` field had people for its subject ingested after it failed, so its score describes coverage that was added on its behalf and is not evidence that search generalises. A case carrying an `informed` field had the SEARCH CODE changed after it was measured failing -- a concept-map entry for the subject it asks about -- so its score is not evidence that search generalises to an unseen query.",
  "cases": [
   {
    "id": "t-particle",
@@ -132,7 +132,8 @@
     "endangered species",
     "protected area"
    ],
-   "tuned": "'ecology' is the parent field: insect, polar and marine ecologists, and a heterocycle chemist with one ecology paper, were all partially relevant to wildlife conservation -- 10 of 20. Edited 2026-09-22 after seeing results: a `related` subject is one NEXT to the query, worth partial credit. A parent category is not that -- it admits every sibling."
+   "tuned": "'ecology' is the parent field: insect, polar and marine ecologists, and a heterocycle chemist with one ecology paper, were all partially relevant to wildlife conservation -- 10 of 20. Edited 2026-09-22 after seeing results: a `related` subject is one NEXT to the query, worth partial credit. A parent category is not that -- it admits every sibling.",
+   "informed": "2026-09-22: this query was measured failing (0.375, returning 2 of 10), and an entry was added to concepts.CONCEPTS for the subject it asks about so that search could reach the people whose topic names it differently. The criteria did not change; the SYSTEM did, knowing this query. Its improvement is not evidence that search generalises to a query nobody has seen."
   },
   {
    "id": "t-tb",
@@ -764,7 +765,8 @@
    "related": [
     "microrna"
    ],
-   "kind": "holdout"
+   "kind": "holdout",
+   "informed": "2026-09-22: this query was measured failing (0.613, returning 1), and an entry was added to concepts.CONCEPTS for the subject it asks about so that search could reach the people whose topic names it differently. The criteria did not change; the SYSTEM did, knowing this query. Its improvement is not evidence that search generalises to a query nobody has seen."
   },
   {
    "id": "h-fungal",
@@ -781,7 +783,8 @@
     "cryptococcus"
    ],
    "kind": "holdout",
-   "tuned": "'infectious disease' is the PARENT of fungal infection, so it admitted every tuberculosis, Ebola and leprosy researcher at grade 1 -- 11 of the 15 people this query counted. Edited 2026-09-22 after seeing results: a `related` subject is one NEXT to the query, worth partial credit. A parent category is not that -- it admits every sibling. This was a holdout criterion; its number can no longer be read as an untouched one."
+   "tuned": "'infectious disease' is the PARENT of fungal infection, so it admitted every tuberculosis, Ebola and leprosy researcher at grade 1 -- 11 of the 15 people this query counted. Edited 2026-09-22 after seeing results: a `related` subject is one NEXT to the query, worth partial credit. A parent category is not that -- it admits every sibling. This was a holdout criterion; its number can no longer be read as an untouched one.",
+   "informed": "2026-09-22: this query was measured failing (0.440, returning 1), and an entry was added to concepts.CONCEPTS for the subject it asks about so that search could reach the people whose topic names it differently. The criteria did not change; the SYSTEM did, knowing this query. Its improvement is not evidence that search generalises to a query nobody has seen."
   },
   {
    "id": "h-airpollution",
@@ -882,7 +885,8 @@
     "pesticide exposure"
    ],
    "kind": "holdout",
-   "tuned": "'pharmacology' is a neighbouring FIELD, not a neighbouring subject: 4 of the 6 people this query counted arrived through it. Edited 2026-09-22 after seeing results: a `related` subject is one NEXT to the query, worth partial credit. A parent category is not that -- it admits every sibling. This was a holdout criterion; its number can no longer be read as an untouched one."
+   "tuned": "'pharmacology' is a neighbouring FIELD, not a neighbouring subject: 4 of the 6 people this query counted arrived through it. Edited 2026-09-22 after seeing results: a `related` subject is one NEXT to the query, worth partial credit. A parent category is not that -- it admits every sibling. This was a holdout criterion; its number can no longer be read as an untouched one.",
+   "informed": "2026-09-22: this query was measured failing (0.000, returning nothing), and an entry was added to concepts.CONCEPTS for the subject it asks about so that search could reach the people whose topic names it differently. The criteria did not change; the SYSTEM did, knowing this query. Its improvement is not evidence that search generalises to a query nobody has seen."
   },
   {
    "id": "h-tb-india",
@@ -907,7 +911,8 @@
    "related": [
     "neurodegenerative"
    ],
-   "kind": "holdout"
+   "kind": "holdout",
+   "informed": "2026-09-22: this query was measured failing (0.365, returning 1 of the 8 relevant people), and an entry was added to concepts.CONCEPTS for the subject it asks about so that search could reach the people whose topic names it differently. The criteria did not change; the SYSTEM did, knowing this query. Its improvement is not evidence that search generalises to a query nobody has seen."
   },
   {
    "id": "h-economists",

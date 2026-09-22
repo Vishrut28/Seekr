@@ -485,11 +485,11 @@ reindexes. On the 709-person corpus, after the criteria review below:
 
 | Set | Queries | nDCG@10 | recall@50 |
 |---|---|---|---|
-| tuned (topic, concept, agent, constrained, soft, typo, name, protected) | 52 | 0.87 | 0.71 |
-| `holdout`: written mid-way, partly tuned after | 16 | 0.73 | 0.49 |
-| `holdout2`: written last, criteria fixed before the first run | 20 | 0.87 | 0.57 |
+| tuned (topic, concept, agent, constrained, soft, typo, name, protected) | 52 | 0.88 | 0.74 |
+| `holdout`: written mid-way, partly tuned after | 16 | 0.86 | 0.65 |
+| `holdout2`: written last, criteria fixed before the first run | 20 | 0.88 | 0.63 |
 
-Overall: nDCG@10 0.84, P@10 0.71, recall@50 0.63. **Read recall@50 against its
+Overall: nDCG@10 0.87, P@10 0.73, recall@50 0.69. **Read recall@50 against its
 ceiling, which is 0.96, not against 1.0**: ten queries have more than fifty
 relevant people, so no ranker can retrieve them all in fifty results.
 `machine learning engineers` has 126, capping it at 0.40.
@@ -653,6 +653,46 @@ not typos: mostly plurals (`technique`/`techniques`), some spelling variants
 `ischemia`/`ischemic`, `microscope`/`microscopy`, and `material`/`maternal`,
 which escaped being "corrected" into each other by a single holder. Exactly
 one is a typo. Telling those apart takes a dictionary, not a distance.
+
+### Widening a subject: what worked, and two things that did not
+
+A query reaches people whose stated topic contains the words typed, and
+nothing else unless `concepts.CONCEPTS` knows a wider set.
+`"Alzheimer's researchers"` found the one person whose topic says Alzheimer's
+and missed the dementia researchers beside them. The map is a hand-written
+list of 77 subjects, which does not reach worldwide, so I tried to replace it
+twice and measured both.
+
+**Co-occurrence** — subjects held by the same people are related. At this
+corpus size it is noise: 574 of 2,551 terms had any neighbour at all, none of
+the subjects actually being missed had one, and `deep learning` came out
+related to **ophthalmology**, because the handful of people carrying that
+literal keyword happen to be retina-AI researchers. It encodes who is in the
+corpus, not what the subjects mean.
+
+**OpenAlex's own hierarchy** — every topic in a stored payload carries a
+curated `subfield`. Two problems. It covers **33%** of the vocabulary and
+misses every term in question, because payloads carry only an author's top few
+topics. And a subfield is a shelf: *"Wildlife Ecology and Conservation"* sits
+in Ecology beside *"hydrology and sediment transport processes"* — the exact
+parent-category mistake that had to be taken out of the `related` lists.
+
+So the map stays a list, and `scripts/concept_coverage.py --judged` counts
+what it reaches: **37 of 81 query terms have no related subjects**. Eight
+entries were added for measured misses, plus a general fix — a trailing
+possessive is now dropped, because `"Alzheimer's"` stemmed to `alzheimer s`
+and matched nothing, and Parkinson's, Crohn's and Hodgkin's are named the same
+way.
+
+nDCG@10 0.840 → 0.870, recall@50 0.659 → 0.694, no query worse,
+`toxicology` 0.000 → 0.951 and `Alzheimer's researchers` 0.365 → 0.804.
+
+**Four of those are holdout queries whose failures I read before writing the
+entries.** `holdout` nDCG went 0.735 → 0.863 and most of it is those four.
+They carry an `informed` field and the run prints a line for each: the
+criteria did not change, the *search* did, knowing the query. That is a third
+way a number stops meaning what it looks like, alongside `tuned` and
+`covered`.
 
 ### Source payloads are stored compressed
 

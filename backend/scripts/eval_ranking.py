@@ -84,6 +84,11 @@ def main() -> None:
     for kind, s in summary["by_kind"].items():
         print(f"  {kind:12s} {json.dumps(s)}")
     for r in rows:
+        if r.get("system_informed"):
+            print(f"  {r['id']}: the search code was changed after this query was "
+                  f"measured failing, so its score is not evidence that search "
+                  f"generalises to an unseen one")
+    for r in rows:
         if r.get("subject_ingested"):
             print(f"  {r['id']}: people for this subject were ingested after it "
                   f"failed, so this score is coverage added on its behalf, not "

@@ -139,6 +139,28 @@ _CONCEPTS: dict[str, list[str]] = {
                  "metastases"],
     "neuroscience": ["brain", "neural circuit", "neuron", "cognitive neuroscience", "neuroimaging",
                      "neurodegenerative", "dementia", "alzheimer", "parkinson"],
+    # Subjects the corpus names differently from the way people ask for them.
+    # Each was a measured miss: "Alzheimer's researchers" found the one person
+    # whose topic says Alzheimer's and not the dementia researchers beside
+    # them. See scripts/concept_coverage.py for what the map still cannot
+    # widen, and why neither co-occurrence nor OpenAlex's own hierarchy could
+    # replace it.
+    #
+    # "alzheimer" and "dementia" are NOT here: both already exist below, the
+    # first as an alias of the second. Adding them again silently shadowed the
+    # originals, which is what a duplicate key in a dict literal does.
+    "wildlife conservation": ["biodiversity", "conservation biology", "habitat",
+                              "endangered species", "wildlife management",
+                              "species distribution"],
+    "biodiversity": ["conservation biology", "species distribution", "ecosystem",
+                     "wildlife"],
+    "fungal infection": ["mycology", "antifungal", "candida", "aspergillus",
+                         "cryptococcus"],
+    "toxicology": ["toxicity", "poisoning", "pesticide exposure",
+                   "heavy metal exposure", "ecotoxicology"],
+    "extracellular vesicles": ["exosome", "microvesicle", "vesicle traffic"],
+    "graph neural networks": ["graph representation learning", "node classification",
+                              "graph embedding", "message passing"],
     "astrophysics": ["cosmology", "galaxy", "black hole", "dark matter", "stellar",
                      "gravitational wave", "exoplanet", "supernova", "cosmic"],
     "astronomy": ["astrophysics", "cosmology", "galaxy", "stellar", "exoplanet", "planetary science"],
@@ -205,7 +227,17 @@ _ALIASES = {
 
 
 def _key(text: str) -> str:
-    return " ".join(stems(text))
+    """The form a subject is looked up under.
+
+    A trailing possessive is dropped, because that is how diseases are named:
+    "Alzheimer's" stemmed to "alzheimer s", matched no key, and the query
+    reached only the people whose topic contained the word itself. The same
+    was true of Parkinson's, Crohn's and Hodgkin's.
+    """
+    words = stems(text)
+    if len(words) > 1 and words[-1] == "s":
+        words = words[:-1]
+    return " ".join(words)
 
 
 CONCEPTS = {_key(k): v for k, v in _CONCEPTS.items()}

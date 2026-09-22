@@ -138,6 +138,9 @@ class Case:
     # people for this subject were ingested after the query failed: the score
     # describes coverage added on its behalf, not that search generalises
     covered: str = ""
+    # the search code was changed after this query was measured failing, so
+    # the same caveat applies for a different reason
+    informed: str = ""
 
 
 def load_cases(path: Path = JUDGMENTS) -> list[Case]:
@@ -157,6 +160,7 @@ def load_cases(path: Path = JUDGMENTS) -> list[Case]:
             soft=bool(raw.get("soft", False)),
             note=raw.get("note", ""),
             covered=raw.get("covered", ""),
+            informed=raw.get("informed", ""),
         ))
     return cases
 
@@ -239,6 +243,7 @@ def score_case(case: Case, ranked_ids: list[str], profiles: dict[str, Profile], 
         "relevant_in_corpus": len(relevant),
         "meets_constraint": holders,
         "subject_ingested": bool(case.covered),
+        "system_informed": bool(case.informed),
         "subject_only": bool(case.soft and relevant
                              and not any(g == 2 for g in grades.values())),
         "p_at_10": (sum(1 for g in top if g > 0) / k) if relevant else None,
@@ -267,6 +272,9 @@ def summarize(rows: list[dict]) -> dict:
         # a corpus changed on its behalf, so its score is coverage, not reach
         "subject_ingested_after_failing": [r["id"] for r in rows
                                            if r.get("subject_ingested")],
+        # the search code was changed knowing this query failed
+        "search_changed_after_failing": [r["id"] for r in rows
+                                         if r.get("system_informed")],
         "ndcg_at_10": mean("ndcg_at_10"),
         "p_at_10": mean("p_at_10"),
         "precision": mean("precision"),
