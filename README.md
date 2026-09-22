@@ -490,9 +490,11 @@ reindexes. On the 709-person corpus, after the criteria review below:
 | `holdout2`: written last, criteria fixed before the first run | 20 | 0.73 | 0.46 |
 
 Overall: nDCG@10 0.81, P@10 0.68, recall@50 0.59. **Read recall@50 against its
-ceiling, which is 0.95, not against 1.0**: twelve queries have more than fifty
+ceiling, which is 0.96, not against 1.0**: eleven queries have more than fifty
 relevant people, so no ranker can retrieve them all in fifty results.
 `machine learning engineers` has 126, capping it at 0.40.
+`scripts/audit_judgments.py` prints the ceiling, the share of the corpus each
+criterion calls relevant, and `--terms`, the report that found all six.
 
 ### The criteria are drafts, and five of them were wrong
 
