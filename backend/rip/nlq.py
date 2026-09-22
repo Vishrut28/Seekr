@@ -4068,11 +4068,15 @@ def _store_results(session: Session | None, raw_items: list[dict], fetched: list
 
 def discovery_suggestions(
     session: Session | None = None, parsed: NLQuery = None, limit: int = 10,
-    allow_paid: bool = True, on_source=None,
+    allow_paid: bool = True, on_source=None, persist: bool = True,
 ) -> list[dict]:
     """Live author search across sources for terms the local corpus lacks.
 
-    Returns SUGGESTIONS only — nothing is ingested here. Sources are tried in
+    Returns suggestions, and by default KEEPS what a source handed over in
+    full — the data is already bought and paid for, so storing it means the
+    next person asking is answered from the graph rather than from the
+    provider again. persist=False searches and returns without writing, for
+    a caller who is not allowed to change the corpus. Sources are tried in
     order and later ones are skipped once enough candidates are found, so the
     common case still costs a single upstream call. A failing source is
     skipped rather than failing the query.
@@ -4204,7 +4208,8 @@ def discovery_suggestions(
         if github_budget_denied(source, keep, total_stored):
             stored = 0
         else:
-            stored = persist_suggestions(session, keep) if session is not None else 0
+            stored = (persist_suggestions(session, keep)
+                      if session is not None and persist else 0)
         finish(source, keep, stored)
 
     # Sources split into three phases, preserving the exact behavior of the
@@ -4321,7 +4326,8 @@ def discovery_suggestions(
             # Session is not thread-safe, and order keeps results stable.
             for s, keep, raw_items, to_fetch in prepared:
                 fetched = [results[id(item)] for item in to_fetch]
-                finish(s, keep, _store_results(session, raw_items, fetched))
+                finish(s, keep, _store_results(session, raw_items, fetched)
+                       if persist else 0)
     finally:
         if ahead_pool is not None:
             ahead_pool.shutdown(wait=True)

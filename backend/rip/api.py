@@ -19,7 +19,7 @@ import shutil
 
 from collections import OrderedDict
 
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from sqlalchemy import String as SAString
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
@@ -111,6 +111,34 @@ def _over_rate_limit(address: str, now: float) -> float:
         return max(1.0, RATE_WINDOW - (now - seen[0]))
     seen.append(now)
     return 0.0
+
+
+def _may_write(request) -> bool:
+    """Whether this caller is allowed to change the corpus.
+
+    request is None when nl_query is called as a function rather than served
+    over HTTP -- the test suite and the evaluation harness both do that. That
+    is library use inside this process, not a request from anybody, so it is
+    allowed; there is no network caller to restrict.
+
+    GET /v1/query is a read that writes: when the corpus cannot answer, live
+    discovery searches the free sources and KEEPS what comes back. That is
+    deliberate and worth keeping -- the data is paid for by the time it
+    arrives, and the next person asking is answered from the graph. But it
+    made an unauthenticated GET a way to grow somebody else's database, and
+    probing the running server with a handful of queries added 47 people to
+    it, three of which were not people.
+
+    So it follows the same rule as any other write: a configured token means
+    the caller is authenticated, and without one only this machine may. A
+    public read-only snapshot then really is read-only, which is what it
+    claims to be.
+    """
+    import os
+
+    if request is None:
+        return True
+    return bool(os.environ.get("RIP_API_TOKEN")) or _is_loopback(request)
 
 
 WRITE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
@@ -1224,6 +1252,7 @@ def review_duplicate_defer(candidate_id: int, payload: dict | None = None,
 
 @app.get("/v1/query")
 def nl_query(
+    request: Request = None,
     q: str = Query(..., min_length=2, description="natural-language query"),
     limit: int = Query(0, ge=0, le=500, description="override the page size (0 = query default)"),
     offset: int = Query(0, ge=0, description="skip this many matches (paging)"),
@@ -1244,7 +1273,13 @@ def nl_query(
     returns `discovery_suggestions` — candidates from live searches across
     OpenAlex, Semantic Scholar and dblp that an operator may choose to
     ingest. `discover=queue` also adds them to the discovery-lead queue so a
-    worker ingests them later. Neither mode ingests during the request.
+    worker ingests them later.
+
+    A full person payload IS stored during the request (`stored_from_live`
+    counts it): the provider has already been paid by then and keeping it
+    means the next caller is answered from the graph. A caller who may not
+    write -- no token configured and not this machine -- gets the search and
+    the suggestions, and `persisted: false`, and the corpus is unchanged.
     Suggestions are not results and are not ranked.
     """
     from .nlq import (count_matches, diagnose_empty, execute, execute_progressive,
@@ -1415,7 +1450,10 @@ def nl_query(
         # Live results are persisted when the provider returned a full person
         # payload: we already paid for that data, so keeping it means the same
         # query is answered from the graph next time instead of being re-bought.
-        suggestions = discovery_suggestions(db, parsed, allow_paid=allow_paid)
+        may_write = _may_write(request)
+        suggestions = discovery_suggestions(db, parsed, allow_paid=allow_paid,
+                                            persist=may_write)
+        response["persisted"] = may_write
         stored = sum(1 for s in suggestions if s.get("stored"))
         # id-only entries replayed from a cached search: they belong in the
         # results, not in the list of candidates a user can add
@@ -1510,7 +1548,8 @@ def nl_query(
                 "limit": parsed.limit, "offset": parsed.offset,
             }
         if mode == "queue":
-            response["queued_leads"] = queue_suggestions(db, suggestions, q)
+            response["queued_leads"] = (queue_suggestions(db, suggestions, q)
+                                        if may_write else 0)
     return response
 
 

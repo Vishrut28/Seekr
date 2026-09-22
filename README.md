@@ -1102,6 +1102,15 @@ allowance is four times the number; it is a flood stop, not a quota.
 exactly this reason, and the same could be done here at the price of a write
 per request.
 
+**`GET /v1/query` is a read that writes.** When the corpus cannot answer, live
+discovery searches the free sources and keeps whole person payloads it gets
+back — the provider has been paid by then, so the next caller is answered from
+the graph instead. `stored_from_live` counts it. That makes an unauthenticated
+GET a way to grow the database, so it follows the same rule as any other
+write: with no token set, only this machine's queries persist. Everyone else
+gets the search, the suggestions, and `"persisted": false`, and the corpus is
+unchanged. A read-only snapshot is then really read-only.
+
 The UI follows the same switch rather than deciding for itself: it asks
 `GET /v1/auth`, which the bearer middleware refuses when a token is set, and
 shows its sign-in screen only then. With the token unset — the usual state in
