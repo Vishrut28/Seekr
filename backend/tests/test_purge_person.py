@@ -257,3 +257,31 @@ def test_the_script_plans_without_applying(tmp_path):
     code, output = run_script(tmp_path, "cccccccc", seed=seed)
     assert code == 0, output
     assert "plan only" in output and "purged" not in output
+def test_an_empty_record_is_removable_though_personhood_cannot_rule_on_it(session):
+    """The second way past the gate. assess() returns "nothing to judge" for a
+    record with no name, which let an empty Europe PMC payload through ingest
+    and then blocked it from being cleaned up: personhood still called it a
+    person. A record with no name, no evidence and no papers cannot cost
+    anybody their data, because it holds none."""
+    from rip.personhood import assess
+    from scripts.purge_person import is_empty
+
+    nobody = Person(canonical_name=None)
+    session.add(nobody)
+    session.flush()
+    assert assess(nobody.canonical_name, "openalex").is_person   # cannot rule
+    assert is_empty(session, nobody)                             # but holds nothing
+
+
+def test_a_record_holding_anything_at_all_is_not_empty(session):
+    from scripts.purge_person import is_empty
+
+    named = Person(canonical_name="Jes Olesen")
+    nameless = Person(canonical_name=None)
+    session.add_all([named, nameless])
+    session.flush()
+    assert not is_empty(session, named)
+    session.add(Evidence(person_id=nameless.id, attribute_type="research_interest",
+                         value="Migraine", source="europepmc"))
+    session.flush()
+    assert not is_empty(session, nameless)

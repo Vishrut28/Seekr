@@ -34,6 +34,11 @@ TOPICS = [
     ("recommender systems", ("openalex",)),
     ("reinforcement learning", ("openalex",)),
     ("diabetes", ("europepmc",)),
+    # The subject, not the query. "headache researchers in Norway" also
+    # scored zero, and asking for Norwegians would be answering the
+    # benchmark rather than filling the gap it found.
+    ("headache", ("europepmc", "openalex")),
+    ("migraine", ("europepmc",)),
 ]
 
 

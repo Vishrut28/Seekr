@@ -1,5 +1,5 @@
 {
- "about": "Criteria for what a relevant person is, per query. See grader.py for how they are applied: `strong` subjects in a person's stated topics grade 2; `strong` subjects only in their titles or bio, or `related` subjects in their topics, grade 1. `country` and `org` must hold unless `soft` is set, in which case a person who STATES the subject as a topic grades 1 without them -- two paper titles plus a failed constraint is two levels of weak evidence and grades 0. A soft query nobody meets in full is reported as measuring its subject only, because every relevant person then carries the same gain and the constraint is not being tested. `name` grades by name words. Kinds: topic (a subject the vocabulary holds), concept (needs related subjects understood), agent (a person noun: physicists), constrained, soft (constraints nobody may meet in full), typo, protected, name. Kind holdout: written after the concept work, criteria fixed before running, never tuned against — the check that improvements generalise. Kind holdout2: a second set written after every change listed so far, criteria fixed before its first run, scored once and never tuned against. Kind holdout/holdout2 means criteria fixed before the first run -- EXCEPT where a case carries a `tuned` field, which records that the criterion was edited after results were seen, and why. Such a case is no longer an untouched holdout and its number cannot be read as one.",
+ "about": "Criteria for what a relevant person is, per query. See grader.py for how they are applied: `strong` subjects in a person's stated topics grade 2; `strong` subjects only in their titles or bio, or `related` subjects in their topics, grade 1. `country` and `org` must hold unless `soft` is set, in which case a person who STATES the subject as a topic grades 1 without them -- two paper titles plus a failed constraint is two levels of weak evidence and grades 0. A soft query nobody meets in full is reported as measuring its subject only, because every relevant person then carries the same gain and the constraint is not being tested. `name` grades by name words. Kinds: topic (a subject the vocabulary holds), concept (needs related subjects understood), agent (a person noun: physicists), constrained, soft (constraints nobody may meet in full), typo, protected, name. Kind holdout: written after the concept work, criteria fixed before running, never tuned against — the check that improvements generalise. Kind holdout2: a second set written after every change listed so far, criteria fixed before its first run, scored once and never tuned against. Kind holdout/holdout2 means criteria fixed before the first run -- EXCEPT where a case carries a `tuned` field, which records that the criterion was edited after results were seen, and why. Such a case is no longer an untouched holdout and its number cannot be read as one. A case carrying a `covered` field had people for its subject ingested after it failed, so its score describes coverage that was added on its behalf and is not evidence that search generalises.",
  "cases": [
   {
    "id": "t-particle",
@@ -1004,7 +1004,8 @@
     "pain",
     "neurology"
    ],
-   "kind": "holdout2"
+   "kind": "holdout2",
+   "covered": "2026-09-22: scored 0.000, returning nothing with no headache researcher in the corpus at all. scripts/ingest_topics.py then ingested the SUBJECT -- headache and migraine, not Norwegians, and not people chosen to match these criteria. The gap was real and the query now has answers, but its number was obtained after the corpus was changed on its behalf: it is a coverage result, not evidence that search generalises. Holdout2 excluding these two moved 0.8596 -> 0.8594."
   },
   {
    "id": "h2-speech",
@@ -1206,7 +1207,8 @@
    "related": [
     "pain"
    ],
-   "kind": "holdout2"
+   "kind": "holdout2",
+   "covered": "2026-09-22: scored nothing at all -- no person in the corpus was even relevant, so every figure was withheld with no headache researcher in the corpus at all. scripts/ingest_topics.py then ingested the SUBJECT -- headache and migraine, not Norwegians, and not people chosen to match these criteria. The gap was real and the query now has answers, but its number was obtained after the corpus was changed on its behalf: it is a coverage result, not evidence that search generalises. Holdout2 excluding these two moved 0.8596 -> 0.8594."
   },
   {
    "id": "h2-cv-china",

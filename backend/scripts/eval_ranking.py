@@ -84,6 +84,11 @@ def main() -> None:
     for kind, s in summary["by_kind"].items():
         print(f"  {kind:12s} {json.dumps(s)}")
     for r in rows:
+        if r.get("subject_ingested"):
+            print(f"  {r['id']}: people for this subject were ingested after it "
+                  f"failed, so this score is coverage added on its behalf, not "
+                  f"evidence that search generalises")
+    for r in rows:
         if not r["relevant_in_corpus"]:
             print(f"  {r['id']}: the corpus holds nobody this query calls relevant, "
                   f"so every figure for it is withheld")

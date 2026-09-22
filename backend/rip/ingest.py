@@ -396,6 +396,16 @@ def ingest_profile(session: Session, profile: NormalizedProfile) -> Person:
     if not verdict.is_person:
         raise NotAPerson(f"{profile.source}:{profile.external_id} is not a person "
                          f"({verdict.reason}): {profile.name!r}")
+    # A payload with no name, no claims and no papers describes nobody. Europe
+    # PMC answers an ORCID search it holds nothing for with {"orcid": ...,
+    # "articles": []}, and that became a living person with a null name --
+    # assess() passes it because "no name given" means there is nothing to
+    # JUDGE, not that somebody is there. One reached the corpus through a
+    # topical ingest: no name, no evidence, no publications, and invisible to
+    # every search because there was nothing to match.
+    if not (profile.name or "").strip() and not profile.evidence and not profile.publications:
+        raise NotAPerson(f"{profile.source}:{profile.external_id} has no name, no "
+                         f"claims and no publications: there is nobody to record")
     if verdict.name and verdict.name != profile.name:
         logger.info("cleaned name %r -> %r", profile.name, verdict.name)
         profile.name = verdict.name

@@ -17,6 +17,15 @@ only ever remove what the gate would now refuse at the door, and it cannot be
 turned on somebody real -- not by a typo, and not by an id prefix matching
 more than was meant. Rejecting the record first is the whole authorisation.
 
+There is a second way in, and it is safe for the same reason: a record with no
+name, no evidence and no publications. assess() cannot rule on one -- "no name
+given" means there is nothing to JUDGE, not that nobody is there -- but a
+record holding nothing cannot be a real person losing their data, because
+there is no data. Europe PMC answers an ORCID search it holds nothing for with
+an empty payload, and one of those became a living person with a null name.
+Ingest now refuses it (rip.ingest.ingest_profile); this removes the ones
+stored before that rule existed.
+
 WHAT GOES, AND WHAT STAYS
 
   the person       and every row referencing it, found by walking the mapped
@@ -38,6 +47,25 @@ import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+
+def is_empty(session, person) -> bool:
+    """A record holding nothing at all: no name, no claim, no paper.
+
+    Not a judgement about whether somebody is a person -- it is the absence of
+    anybody to judge. Deleting it cannot cost a real person their record,
+    because the record carries nothing of theirs.
+    """
+    from rip.models import Authorship, Evidence
+    from sqlalchemy import func, select
+
+    if (person.canonical_name or "").strip():
+        return False
+    for table in (Evidence, Authorship):
+        if session.execute(select(func.count(table.id))
+                           .where(table.person_id == person.id)).scalar_one():
+            return False
+    return True
 
 
 def referencing_columns(target_table: str) -> list:
@@ -159,14 +187,16 @@ def main() -> None:
 
         verdict = assess(person.canonical_name, "openalex")
         print(f"{person.id}  {person.canonical_name!r}")
-        if verdict.is_person:
+        if verdict.is_person and not is_empty(session, person):
             sys.exit(
                 f"REFUSED: personhood still calls this a person, so this script "
                 f"will not touch it.\nIt removes only what ingest would now "
                 f"refuse at the door. If the record really is not a person, the "
                 f"fix is a rule in rip/personhood.py -- with a test -- and then "
                 f"this script follows from it.")
-        print(f"not a person: {verdict.reason}\n")
+        reason = ("holds no name, no evidence and no publications"
+                  if is_empty(session, person) else verdict.reason)
+        print(f"not a person: {reason}\n")
 
         proposed = plan(session, person)
         print(f"source records to delete : {proposed['records']}")

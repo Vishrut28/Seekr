@@ -1,7 +1,8 @@
 from rip.connectors.github import GitHubConnector
 from rip.connectors.openalex import OpenAlexConnector
 from rip.ingest import ingest_profile
-from rip.models import ChangeLog, Evidence, Project, Publication, SourceRecord
+from rip.models import (ChangeLog, Evidence, Person, Project, Publication,
+                        SourceRecord)
 
 GITHUB_USER = {
     "login": "jdoe",
@@ -242,3 +243,40 @@ def test_a_misspelling_inside_a_sentence_is_left_alone(session):
     session.commit()
     assert session.query(Evidence).filter(
         Evidence.attribute_type == "bio").one().value == said
+def test_a_payload_describing_nobody_does_not_become_a_person(session):
+    """Europe PMC answers an ORCID search it holds nothing for with an empty
+    payload. assess() passes it -- "no name given" means there is nothing to
+    JUDGE, not that somebody is there -- so it became a living person with a
+    null name, invisible to every search because it held nothing to match.
+    One reached the corpus through a topical ingest before this guard."""
+    import pytest
+
+    from rip.ingest import ingest_profile
+    from rip.personhood import NotAPerson
+    from tests.test_resolution import make_profile
+
+    empty = make_profile(source="europepmc", source_type="scholarly",
+                         external_id="0000-0001-5152-1242", name=None,
+                         url="https://europepmc.org/x", usernames=[],
+                         raw={"orcid": "0000-0001-5152-1242", "articles": []})
+    with pytest.raises(NotAPerson):
+        ingest_profile(session, empty)
+    assert session.query(Person).count() == 0
+
+
+def test_a_nameless_payload_that_carries_something_is_still_ingested(session):
+    """The guard is about emptiness, not about the name. A source that states
+    an interest but no name is a person whose name arrives from somewhere
+    else, and refusing it would throw away what it did say."""
+    from rip.ingest import ingest_profile
+    from rip.normalize import EvidenceItem
+    from tests.test_resolution import make_profile
+
+    person = ingest_profile(session, make_profile(
+        source="europepmc", source_type="scholarly", external_id="has-claims",
+        name=None, url="https://europepmc.org/y", usernames=[],
+        raw={"orcid": "x"},
+        evidence=[EvidenceItem(attribute_type="research_interest", value="Migraine")]))
+    session.commit()
+    assert person.id
+    assert session.query(Evidence).count() == 1

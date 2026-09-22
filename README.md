@@ -485,11 +485,11 @@ reindexes. On the 709-person corpus, after the criteria review below:
 
 | Set | Queries | nDCG@10 | recall@50 |
 |---|---|---|---|
-| tuned (topic, concept, agent, constrained, soft, typo, name, protected) | 52 | 0.86 | 0.70 |
-| `holdout`: written mid-way, partly tuned after | 16 | 0.74 | 0.49 |
-| `holdout2`: written last, criteria fixed before the first run | 20 | 0.81 | 0.51 |
+| tuned (topic, concept, agent, constrained, soft, typo, name, protected) | 52 | 0.87 | 0.71 |
+| `holdout`: written mid-way, partly tuned after | 16 | 0.73 | 0.49 |
+| `holdout2`: written last, criteria fixed before the first run | 20 | 0.87 | 0.57 |
 
-Overall: nDCG@10 0.83, P@10 0.69, recall@50 0.62. **Read recall@50 against its
+Overall: nDCG@10 0.84, P@10 0.71, recall@50 0.63. **Read recall@50 against its
 ceiling, which is 0.96, not against 1.0**: ten queries have more than fifty
 relevant people, so no ranker can retrieve them all in fifty results.
 `machine learning engineers` has 126, capping it at 0.40.
@@ -514,9 +514,13 @@ part of the result:
 - **grading nobody.** A query the corpus cannot answer produces `None` for
   every figure and averages into nothing, so it sits in the set looking like a
   measurement. `n-aggarwal` did that unnoticed; it has been removed, and the
-  condition is now named rather than left to be found again.
-  `headache researchers in Norway` is there today — the corpus holds no
-  headache researchers at all, which is a coverage gap, not a search failure.
+  condition is now named rather than left to be found again. The list is
+  empty today.
+- **subject ingested after failing.** Two queries about headache research
+  scored nothing because the corpus held no headache researcher at all. People
+  for that subject have since been ingested, so both now score 1.000 — on a
+  corpus changed on their behalf. That is a coverage result and the run says
+  so; see below.
 
 ### The criteria are drafts, and five of them were wrong
 
@@ -576,6 +580,53 @@ topic strings, and new people arrive under topic names the criteria never
 enumerated — Fiji and QuPath authors rank for "computer vision researchers"
 and grade 0. Numbers from two different corpora are not comparable, and the
 judgments need review before they are.
+
+### Filling a coverage gap is not the same as getting better
+
+`headache and migraine researchers` scored **0.000** and `headache researchers
+in Norway` had every figure withheld, because the corpus held **no headache
+researcher at all**. That is a coverage gap, not a parsing one, and
+`scripts/ingest_topics.py` is what fills it:
+
+```bash
+python scripts/ingest_topics.py --topic headache --topic migraine --per-topic 10
+python scripts/ingest_topics.py --topic headache --topic migraine --per-topic 10 --yes
+```
+
+Fourteen people, 709 → 723. The subject was ingested, **not the query**: asking
+for headache researchers *in Norway* would be answering the benchmark rather
+than filling the gap it found. Norway arrived by itself, because Norway really
+is a centre of headache research — Stovner and Hagen at NTNU Trondheim are in
+the first ten OpenAlex returns for the subject. Both queries now score 1.000,
+and `headache researchers in Norway` reaches recall 1.000.
+
+**And the honest number is the one that did not move.** `holdout2` went 0.81 →
+0.87, which looks like search improving. Excluding the two queries whose
+subject was ingested:
+
+| holdout2 | before | after |
+|---|---|---|
+| all 20 queries | 0.8144 | 0.8735 |
+| the 18 nobody fed | 0.8596 | **0.8594** |
+
+The whole gain is the two fed queries. Nothing else moved, because nothing
+else changed: search did not get better, two unanswerable questions became
+answerable. Both cases carry a `covered` field recording it and the run prints
+a line for each, for the same reason `tuned` exists — a number obtained after
+the corpus was changed on a query's behalf is not evidence that search
+generalises.
+
+Five queries got slightly worse, which is what a bigger corpus does: more
+people compete for ten slots. `h-alz` (Alzheimer's) fell hardest, 0.43 → 0.37,
+losing places to neurologists who now outrank it.
+
+Three of the fourteen are not headache researchers at all — a thyroid
+oncologist and two Wuhan clinicians whose COVID papers list headache as a
+symptom. The criteria grade all three 0, so they cost nothing, but it is the
+same polysemy that put seven disease-process clinicians into `computational
+pathology`: a topical search matches the word, not the subject. They were left
+in. Removing people because they are not what the benchmark wanted is how a
+corpus stops resembling the world.
 
 ### A corpus typo defeats the typo tolerance
 
