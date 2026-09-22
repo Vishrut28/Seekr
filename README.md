@@ -1377,6 +1377,13 @@ warns that the API is open. `--host 0.0.0.0` accepts connections from other
 machines; `--workers N` needs Postgres, because SQLite does not take
 concurrent writers.
 
+**Use the workers.** Ranking is CPU-bound Python, so a second concurrent
+request does not get a second core — measured over HTTP on one process,
+`/v1/query` serves **13.5 requests a second serially and 10.7 with ten
+clients**, because they contend for the GIL rather than sharing the work.
+More processes is the only thing that raises that number; more threads
+lowers it.
+
 What "full" means, against the read-only snapshot described below:
 
 | | Full build | Bundled snapshot |
