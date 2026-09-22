@@ -199,7 +199,7 @@ def list_persons(
     has_cv: bool | None = Query(None, description="has a published CV/résumé link"),
     has_email: bool | None = Query(None, description="has a public email"),
     sort: str = Query("relevance", description="relevance (insertion order) | recent | name"),
-    limit: int = Query(50, le=500),
+    limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
 ):
@@ -481,7 +481,7 @@ _ALL_FILTERS_NONE = {
 @app.get("/v1/facets")
 def facets(
     field: str = Query(..., description="country | source | organization | skill | role | technology"),
-    limit: int = Query(30, le=200),
+    limit: int = Query(30, ge=1, le=200),
     db: Session = Depends(get_db),
 ):
     """Available filter values and how many people carry each.
@@ -888,7 +888,7 @@ def get_provenance(person_id: str, db: Session = Depends(get_db)):
 def get_changes(
     since_id: int = Query(0, description="integer cursor: changes with id > this (preferred)"),
     since: datetime | None = Query(None, description="legacy ISO-timestamp cursor"),
-    limit: int = Query(500, le=5000),
+    limit: int = Query(500, ge=1, le=5000),
     db: Session = Depends(get_db),
 ):
     """Incremental sync feed. Poll with next_cursor; the integer cursor is
@@ -1124,7 +1124,7 @@ def review_duplicate_defer(candidate_id: int, payload: dict | None = None,
 @app.get("/v1/query")
 def nl_query(
     q: str = Query(..., min_length=2, description="natural-language query"),
-    limit: int = Query(0, le=500, description="override the page size (0 = query default)"),
+    limit: int = Query(0, ge=0, le=500, description="override the page size (0 = query default)"),
     offset: int = Query(0, ge=0, description="skip this many matches (paging)"),
     discover: str = Query(
         "auto",
@@ -1766,7 +1766,7 @@ def person_dossier_pdf(person_id: str, db: Session = Depends(get_db)):
 @app.get("/v1/query/stream")
 def query_stream(
     q: str = Query(..., description="the question, in plain language"),
-    limit: int = Query(50, le=200),
+    limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
 ):
     """The same search as /v1/query, reported as it happens.
