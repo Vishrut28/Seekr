@@ -131,7 +131,8 @@ class Case:
     person_ids: list[str]
     name: tuple[str, ...] = ()
     # a query whose constraints nobody may meet in full: the best answer is
-    # then the subject without them, graded 1 instead of 0
+    # then the subject without them, graded 1 instead of 0. The fallback needs
+    # the subject STATED -- see grade().
     soft: bool = False
     note: str = ""
 
@@ -156,15 +157,24 @@ def load_cases(path: Path = JUDGMENTS) -> list[Case]:
     return cases
 
 
+def meets_constraints(case: Case, profile: Profile) -> bool:
+    """Whether the country and organization asked for hold. Separate from
+    grade() because how many people meet a constraint AT ALL is the thing
+    that says whether a query can measure it: eight people are at Oxford, so
+    "deep learning researchers at Oxford" returning none of them is a real
+    miss, not an empty corpus."""
+    return not (
+        (case.country and profile.country != case.country)
+        or (case.org and not _mentions(profile.orgs, case.org))
+    )
+
+
 def grade(case: Case, profile: Profile) -> int:
     if case.person_ids:
         return 2 if profile.person_id in case.person_ids else 0
     if case.name:
         return _name_grade(case.name, profile.names)
-    constrained = not (
-        (case.country and profile.country != case.country)
-        or (case.org and not _mentions(profile.orgs, case.org))
-    )
+    constrained = meets_constraints(case, profile)
     if not case.strong and not case.related:
         return 2 if constrained else 0   # constraints alone ("people at Google")
     if _mentions(profile.topics, case.strong):
@@ -176,7 +186,13 @@ def grade(case: Case, profile: Profile) -> int:
         return 0
     if constrained:
         return subject
-    return 1 if case.soft else 0
+    # The soft fallback says: the subject without the constraint is the best
+    # answer left. "The subject" has to mean the one they STATE. Two paper
+    # titles is already weak evidence, and weak evidence plus a failed
+    # constraint is two levels of not-really that used to add up to relevant
+    # -- 61 of the 102 people graded relevant to "deep learning researchers
+    # at Oxford" were neither deep learning researchers nor at Oxford.
+    return 1 if case.soft and subject == 2 else 0
 
 
 def _name_grade(wanted: tuple[str, ...], names: list[tuple[str, ...]]) -> int:
@@ -202,12 +218,24 @@ def score_case(case: Case, ranked_ids: list[str], profiles: dict[str, Profile], 
     top = [grades.get(pid, 0) for pid in ranked_ids[:k]]
     ideal = sorted(grades.values(), reverse=True)[:k]
     idcg = dcg(ideal)
+    # A soft query whose constraint nobody meets TOGETHER WITH the subject has
+    # quietly become the subject query: every relevant person carries the same
+    # gain, so any order of them scores 1.000 and a ranker that ignored the
+    # constraint entirely is indistinguishable from one that honoured it. The
+    # score is still worth having -- relaxing to the subject is what the
+    # product should do -- but it measures the subject, and says so here
+    # rather than being read as evidence the constraint works.
+    holders = (sum(1 for p in profiles.values() if meets_constraints(case, p))
+               if (case.country or case.org) else None)
     return {
         "id": case.id,
         "query": case.query,
         "kind": case.kind,
         "returned": len(ranked_ids),
         "relevant_in_corpus": len(relevant),
+        "meets_constraint": holders,
+        "subject_only": bool(case.soft and relevant
+                             and not any(g == 2 for g in grades.values())),
         "p_at_10": (sum(1 for g in top if g > 0) / k) if relevant else None,
         # precision over what was returned, for queries with fewer than k answers
         "precision": (sum(1 for g in top if g > 0) / len(top)) if top else None,
@@ -226,6 +254,10 @@ def summarize(rows: list[dict]) -> dict:
     judged = [r for r in rows if r["relevant_in_corpus"]]
     out = {
         "queries": len(rows),
+        "measuring_the_subject_only": [r["id"] for r in rows if r.get("subject_only")],
+        # A query the corpus cannot answer scores nothing and averages into
+        # nothing, so it sits in the set looking like a measurement. Name it.
+        "grading_nobody": [r["id"] for r in rows if not r["relevant_in_corpus"]],
         "ndcg_at_10": mean("ndcg_at_10"),
         "p_at_10": mean("p_at_10"),
         "precision": mean("precision"),

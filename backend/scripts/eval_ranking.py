@@ -83,6 +83,15 @@ def main() -> None:
     print("\nsummary:", json.dumps({k: v for k, v in summary.items() if k != "by_kind"}))
     for kind, s in summary["by_kind"].items():
         print(f"  {kind:12s} {json.dumps(s)}")
+    for r in rows:
+        if not r["relevant_in_corpus"]:
+            print(f"  {r['id']}: the corpus holds nobody this query calls relevant, "
+                  f"so every figure for it is withheld")
+    for r in rows:
+        if r.get("subject_only"):
+            print(f"  {r['id']}: nobody meets the constraint AND the subject "
+                  f"({r['meets_constraint']} meet the constraint at all), so this "
+                  f"score measures the subject only")
 
     if args.compare:
         base = json.load(open(args.compare, encoding="utf-8"))

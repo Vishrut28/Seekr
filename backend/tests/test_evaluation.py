@@ -149,3 +149,55 @@ def test_a_criterion_edited_after_seeing_results_says_so():
                 "h2-energy", "h2-pathology"):
         assert raw[cid]["kind"].startswith("holdout")
         assert raw[cid].get("tuned"), f"{cid} was edited after results and must say so"
+
+
+# The soft fallback: "nobody is a deep learning researcher at Oxford, so the
+# best answer left is a deep learning researcher". It has to mean the subject
+# they STATE -- and when nobody meets the query in full, the score that comes
+# out is about the subject, not the constraint, and has to say so.
+
+def test_the_soft_fallback_needs_the_subject_stated_not_merely_published_on():
+    c = case(strong=["deep learning"], org=["oxford"], soft=True)
+    titles = ["Deep learning for genomes", "Deep learning for proteins"]
+    assert grade(c, person(topics=["Deep learning"], orgs=["Oxford"])) == 2
+    assert grade(c, person(texts=titles, orgs=["Oxford"])) == 1      # constraint holds
+    assert grade(c, person(topics=["Deep learning"], orgs=["MIT"])) == 1   # subject stated
+    # neither at Oxford nor a stated deep learning researcher: two levels of
+    # weak evidence used to add up to relevant, and 61 people rode in on it
+    assert grade(c, person(texts=titles, orgs=["MIT"])) == 0
+
+
+def test_a_soft_query_nobody_meets_in_full_reports_what_it_measured():
+    c = case(strong=["deep learning"], org=["oxford"], soft=True)
+    profiles = {
+        "a": person("a", topics=["Deep learning"], orgs=["MIT"]),
+        "b": person("b", topics=["Deep learning"], orgs=["Berkeley"]),
+        "ox": person("ox", topics=["Medieval history"], orgs=["Oxford"]),
+    }
+    row = score_case(c, ["a", "b"], profiles)
+    assert row["subject_only"] is True
+    assert row["meets_constraint"] == 1     # someone IS at Oxford: not an empty corpus
+    assert row["ndcg_at_10"] == 1.0         # and any order of the two scores the same
+    assert summarize([row])["measuring_the_subject_only"] == [c.id]
+
+
+def test_a_soft_query_someone_does_meet_measures_the_constraint_normally():
+    c = case(strong=["drug discovery"], country="IN", soft=True)
+    profiles = {
+        "in": person("in", country="IN", topics=["Drug discovery"]),
+        "us": person("us", country="US", topics=["Drug discovery"]),
+    }
+    assert score_case(c, ["in", "us"], profiles)["subject_only"] is False
+    # and the constraint is what the ranking is tested on
+    assert score_case(c, ["in", "us"], profiles)["ndcg_at_10"] == 1.0
+    assert score_case(c, ["us", "in"], profiles)["ndcg_at_10"] < 1.0
+
+
+def test_a_query_the_corpus_cannot_answer_is_named_not_averaged_away():
+    """Every figure is None, so it vanishes into the means and sits in the set
+    looking like a measurement. n-aggarwal did that for 89 queries."""
+    profiles = {"a": person("a", topics=["Cosmology"])}
+    rows = [score_case(case(strong=["headache"]), ["a"], profiles),
+            score_case(case(id="ok", strong=["cosmology"]), ["a"], profiles)]
+    assert rows[0]["relevant_in_corpus"] == 0 and rows[0]["ndcg_at_10"] is None
+    assert summarize(rows)["grading_nobody"] == ["x"]

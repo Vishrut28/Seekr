@@ -485,16 +485,38 @@ reindexes. On the 709-person corpus, after the criteria review below:
 
 | Set | Queries | nDCG@10 | recall@50 |
 |---|---|---|---|
-| tuned (topic, concept, agent, constrained, soft, typo, name, protected) | 53 | 0.86 | 0.67 |
+| tuned (topic, concept, agent, constrained, soft, typo, name, protected) | 52 | 0.86 | 0.70 |
 | `holdout`: written mid-way, partly tuned after | 16 | 0.74 | 0.49 |
-| `holdout2`: written last, criteria fixed before the first run | 20 | 0.73 | 0.46 |
+| `holdout2`: written last, criteria fixed before the first run | 20 | 0.76 | 0.49 |
 
-Overall: nDCG@10 0.81, P@10 0.68, recall@50 0.59. **Read recall@50 against its
-ceiling, which is 0.96, not against 1.0**: eleven queries have more than fifty
+Overall: nDCG@10 0.82, P@10 0.68, recall@50 0.61. **Read recall@50 against its
+ceiling, which is 0.96, not against 1.0**: ten queries have more than fifty
 relevant people, so no ranker can retrieve them all in fifty results.
 `machine learning engineers` has 126, capping it at 0.40.
 `scripts/audit_judgments.py` prints the ceiling, the share of the corpus each
-criterion calls relevant, and `--terms`, the report that found all six.
+criterion calls relevant, and `--terms`, the report that found the six criteria
+below.
+
+Two lines under the summary name what a figure does not cover, and they are
+part of the result:
+
+- **measuring the subject only.** `soft` says that when nobody meets a query in
+  full, the subject without the constraint is the best answer left — the right
+  behaviour for `deep learning researchers at Oxford` when no Oxford person
+  does deep learning. But then every relevant person carries the same gain, any
+  order of them scores 1.000, and a ranker that ignored "at Oxford" is
+  indistinguishable from one that honoured it. Four queries are in that state.
+  Each is still worth scoring, because relaxing to the subject is what should
+  happen; none is evidence that constraints work. The count of people who meet
+  the constraint *at all* is printed with it — eight are at Oxford, eighty in
+  India — because an empty conjunction and an empty corpus are different
+  failures.
+- **grading nobody.** A query the corpus cannot answer produces `None` for
+  every figure and averages into nothing, so it sits in the set looking like a
+  measurement. `n-aggarwal` did that unnoticed; it has been removed, and the
+  condition is now named rather than left to be found again.
+  `headache researchers in Norway` is there today — the corpus holds no
+  headache researchers at all, which is a coverage gap, not a search failure.
 
 ### The criteria are drafts, and five of them were wrong
 
@@ -519,6 +541,14 @@ neuroscientist. `neuroscientists` and `neuroscience` both scored a perfect
 those queries on "neural" and "brain" too, so the criterion and the ranker
 agreed on the same error and the benchmark called it perfect. The loose
 criteria were not noise; they were concealing a real search defect.
+
+The soft rule hid a third perfect score the same way. It graded a person
+relevant to `deep learning researchers at Oxford` for two paper titles
+mentioning deep learning while not being at Oxford — two levels of weak
+evidence adding up to relevant, and 61 of the 102 people it called relevant
+were neither. The fallback now needs the subject *stated* as a topic. That
+query scored **1.000** and now scores **0.92**; `computer vision researchers in
+China` scored 0.31 and now scores **0.10**.
 
 Fixing them cost 0.01 nDCG overall, so the headline claim survives — but four
 of the six are `holdout` or `holdout2`, whose whole value was that nobody had
@@ -1171,7 +1201,7 @@ Still open:
 - Negation, "both" and count thresholds are pattern-based. "not" inside a
   longer clause ("researchers who are not only…") is handled for the common
   forms, not for every English construction.
-- Search quality on queries nobody tuned for (`holdout2`, nDCG@10 0.73) is
+- Search quality on queries nobody tuned for (`holdout2`, nDCG@10 0.76) is
   below the tuned sets (0.86), and five of those criteria have now been
   edited after seeing results — see *Measuring search quality*.
 - Bulk ingest is single-threaded; throughput is bounded by resolution, not IO.
