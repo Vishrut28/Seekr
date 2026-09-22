@@ -20,6 +20,21 @@ them, while keeping a bad record is visible and purgeable, so anything short of
 a clear signal is kept. The clear signals: a known topic phrase or entity word
 inside the name, nothing that reads as a name at all, or (web pages only,
 where the name is a page title) a name made mostly of ordinary words.
+
+SCRIPT. Those signals are word lists, and a word list needs words. Chinese,
+Japanese and Korean do not space them, so "第一次机器学习回归函数" ("first
+machine learning regression function") is ONE token: it passed the "1-5 words"
+test, matched no English topic phrase, and became a person in the graph --
+while "Deep Learning Tutorial", the same kind of string in English, was
+correctly refused. CJK now has its own signals below, in the kinds that script
+offers: length, and characters that do grammatical work.
+
+Every other script is still unjudged, and says so rather than passing quietly.
+"Машинное обучение" is Russian for "machine learning" and nothing here can
+tell. A Verdict carries `judged=False` in that case; it is still accepted,
+because the asymmetry above has not changed and refusing every name this file
+cannot read would lose most of the world. scripts/unjudged_names.py lists
+them, so the gap is countable instead of invisible.
 """
 
 from __future__ import annotations
@@ -69,6 +84,70 @@ ENTITY_WORDS = {
     "verlag", "publishers", "publishing", "publications",
 }
 
+# Scripts that do not space their words: CJK ideographs, kana, and hangul.
+CJK_RANGES = "\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uac00-\ud7af"
+_CJK = re.compile(f"[{CJK_RANGES}]")
+
+# Personal names in these scripts are short: Chinese is a 1-2 character
+# surname and a 1-2 character given name, Japanese and Korean run to about
+# six. A longer unbroken run is a phrase -- the same judgement the Latin path
+# makes with "1-5 words", in the unit this script actually has.
+MAX_CJK_NAME = 7
+
+# Characters doing grammatical work, which join words into a phrase and do not
+# appear in a personal name: 的 is the attributive particle ("奔跑的小刺猬",
+# "running little hedgehog" -- a handle that reached the graph as a person),
+# 第 forms ordinals ("第一次", "the first time"), 了 marks aspect, and 吗 呢 吧
+# end questions. Kept to the ones no name bears: 和 and 有 were considered and
+# left out because Japanese given names use them (和也, 有里).
+CJK_FUNCTION_CHARS = "的第了吗呢吧"
+
+# The CJK half of TOPIC_PHRASES and ENTITY_WORDS. Matched as substrings
+# because there are no word boundaries to match on; each is a compound of two
+# or more characters, so none of them lands inside a personal name.
+CJK_ENTITY_WORDS = (
+    # subjects
+    "机器学习", "深度学习", "神经网络", "人工智能", "数据科学", "计算机视觉",
+    "自然语言", "强化学习", "数据分析", "软件工程", "网络安全",
+    # kinds of document
+    "教程", "笔记", "入门", "指南", "手册", "文档", "总结", "实战", "简介",
+    # kinds of organisation
+    "大学", "学院", "研究所", "出版社", "有限公司", "公司", "协会", "委员会",
+)
+
+
+def cjk_signal(name: str) -> str | None:
+    """The clear non-person signal in a CJK name, if any."""
+    text = "".join(str(name or "").split())
+    if not _CJK.search(text):
+        return None
+    for word in CJK_ENTITY_WORDS:
+        if word in text:
+            return f"contains '{word}'"
+    for char in text:
+        if char in CJK_FUNCTION_CHARS:
+            return f"contains the grammatical character '{char}'"
+    if len(_CJK.findall(text)) > MAX_CJK_NAME:
+        return f"{len(_CJK.findall(text))} characters unbroken: a phrase, not a name"
+    return None
+
+
+def unjudged(name: str) -> bool:
+    """True when nothing in this file can speak to NAME at all.
+
+    The signals are Latin word lists plus the CJK rules above. A name written
+    only in Cyrillic, Arabic, Hebrew, Thai or Devanagari matches none of them
+    and is accepted for want of any reason to refuse it -- which is a gap, not
+    a judgement, and worth being able to count.
+    """
+    text = str(name or "")
+    if not text.strip():
+        return False
+    if _CJK.search(text):
+        return False
+    return not re.search(r"[A-Za-z]", text)
+
+
 # Ordinary words. A page title made mostly of these is about something, not
 # someone. Used only for web pages, where the name IS a page title — never for
 # a source that states a name, because real names collide with ordinary words.
@@ -109,6 +188,10 @@ class Verdict:
     # other spellings found inside the name as given ("Rahul M Mulajkar,Rahul
     # Mukundrao Mulajkar,RMM" is one person written three ways)
     aliases: tuple = ()
+    # False when no rule here can speak to this name's script at all, so
+    # is_person is the default rather than a finding. Last, because callers
+    # pass aliases positionally. See unjudged().
+    judged: bool = True
 
 
 def _alpha_words(text: str) -> list[str]:
@@ -121,6 +204,9 @@ def _is_place(word: str) -> bool:
 
 def has_entity_signal(name: str) -> str | None:
     """The clear non-person signal in NAME, if any."""
+    cjk = cjk_signal(name)
+    if cjk:
+        return cjk
     low = " ".join(_alpha_words(name))
     padded = f" {low} "
     for phrase in TOPIC_PHRASES:
@@ -200,6 +286,9 @@ def assess(name: str | None, source: str | None = None) -> Verdict:
         return Verdict(True, _tidy(namelike[0]), "kept the name part")
     cleaned = _strip(raw)
     name, aliases, why = _unpack_commas(_tidy(cleaned) if cleaned else raw)
+    if unjudged(raw):
+        return Verdict(True, name, why or "no rule here reads this script",
+                       tuple(aliases), judged=False)
     return Verdict(True, name, why, tuple(aliases))
 
 

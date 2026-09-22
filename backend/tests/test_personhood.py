@@ -167,3 +167,80 @@ def test_ingest_now_refuses_the_publisher_that_got_through(session):
             evidence=[EvidenceItem(attribute_type="research_interest",
                                    value="Haemochromatosis")]))
     assert "verlag" in str(caught.value)
+# Script. Every test above this line is written in Latin letters, and that was
+# the whole defect: the signals are word lists, a word list needs words, and
+# Chinese, Japanese and Korean do not space them. "第一次机器学习回归函数" --
+# "first machine learning regression function" -- was ONE token to .split(),
+# so "1-5 words" passed it and no English topic phrase matched. It reached the
+# real graph through an ordinary API query, while "Deep Learning Tutorial",
+# the same kind of string in English, was correctly refused.
+
+@pytest.mark.parametrize("name, why", [
+    ("第一次机器学习回归函数", "an article title: first machine learning regression function"),
+    ("机器学习教程", "machine learning tutorial"),
+    ("深度学习笔记", "deep learning notes"),
+    ("神经网络入门", "introduction to neural networks"),
+    ("奔跑的小刺猬", "a handle: running little hedgehog"),
+    ("北京大学", "Peking University"),
+    ("清华大学出版社", "a university press"),
+    ("人工智能实战指南", "a practical guide to AI"),
+])
+def test_a_cjk_phrase_is_not_a_person(name, why):
+    verdict = assess(name, "openalex")
+    assert not verdict.is_person, f"{name} ({why}) was accepted as a person"
+    assert verdict.reason
+
+
+@pytest.mark.parametrize("name", [
+    "李文乾",          # Chinese, three characters
+    "欧阳修",          # two-character surname
+    "宇琛 付",         # as OpenAlex spells it, given name first
+    "宏英 天野",       # Japanese, spaced
+    "山田太郎",        # Japanese, unspaced
+    "김민준",          # Korean
+    "和也 鈴木",       # 和 is a name character, deliberately not a stopped one
+    "有里 田中",       # 有 likewise
+])
+def test_a_real_cjk_name_is_kept(name):
+    """The asymmetry this file is built on does not change by script:
+    refusing a real person loses them silently. 和 and 有 do grammatical work
+    and are still left out of CJK_FUNCTION_CHARS, because Japanese given names
+    are built from them."""
+    assert assess(name, "openalex").is_person
+
+
+def test_the_length_rule_reads_characters_not_tokens():
+    """A phrase with no entity word and no particle is still a phrase. Seven
+    characters is the ceiling: a 1-2 character surname and a given name."""
+    from rip.personhood import MAX_CJK_NAME, cjk_signal
+
+    assert MAX_CJK_NAME == 7
+    assert cjk_signal("鹿" * 8)
+    assert cjk_signal("鹿" * 7) is None
+
+
+def test_a_script_with_no_rules_says_so_instead_of_passing_quietly():
+    """Cyrillic, Arabic, Thai, Devanagari: nothing here can read them. They
+    are accepted, because refusing every name this file cannot parse would
+    lose most of the world -- but the verdict records that is_person was the
+    default and not a finding, so the gap can be counted."""
+    russian_topic = assess("Машинное обучение", "openalex")   # "machine learning"
+    russian_name = assess("Дмитрий Иванов", "openalex")
+    for verdict in (russian_topic, russian_name):
+        assert verdict.is_person
+        assert not verdict.judged
+    assert not assess("محمد الأحمد", "openalex").judged
+    # and a script the rules DO read is judged, whichever way it goes
+    assert assess("Jes Olesen", "openalex").judged
+    assert assess("李文乾", "openalex").judged
+    assert assess("机器学习教程", "openalex").judged
+
+
+def test_a_cjk_phrase_is_refused_at_ingest_like_any_other_non_person():
+    from tests.test_resolution import make_profile
+
+    with pytest.raises(NotAPerson):
+        ingest_profile(None, make_profile(
+            source="openalex", source_type="scholarly", external_id="A9",
+            url="https://openalex.org/A9", raw={"id": "A9"},
+            name="第一次机器学习回归函数", usernames=[]))
