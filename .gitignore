@@ -43,3 +43,10 @@ Recruitment_Screener.zip
 demo/frames/
 demo/check/
 demo/film.log
+
+# Coverage data, not source
+.coverage
+.coverage.*
+htmlcov/
+.ruff_cache/
+.mypy_cache/
