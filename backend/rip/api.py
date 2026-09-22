@@ -17,6 +17,8 @@ import pathlib
 import re
 import shutil
 
+from collections import OrderedDict
+
 from fastapi import Depends, FastAPI, HTTPException, Query
 from sqlalchemy import String as SAString
 from sqlalchemy import func, or_, select
@@ -66,6 +68,51 @@ app = FastAPI(
 )
 
 
+# Requests per minute from one address before /v1 starts answering 429.
+# Generous for a person: the measured ceiling of the search endpoint on one
+# core is about 6 requests a second, so this is a flood stop, not a quota.
+# RIP_RATE_LIMIT=0 turns it off.
+RATE_LIMIT = int(os.environ.get("RIP_RATE_LIMIT", "120"))
+RATE_WINDOW = 60.0
+# Addresses tracked at once. An attacker with a botnet would otherwise grow
+# this dict without bound, so the oldest entry goes when it is full -- which
+# costs them nothing and costs us nothing either, because a bucket that has
+# been idle longest is the one least likely to be mid-flood.
+RATE_MEMORY = 4096
+_buckets: "OrderedDict[str, list]" = OrderedDict()
+
+
+def _over_rate_limit(address: str, now: float) -> float:
+    """Seconds to wait, or 0 when this request is within the allowance.
+
+    A sliding window of timestamps rather than a counter reset on the minute,
+    which would let twice the limit through across a boundary.
+
+    In-process, and therefore per worker: with --processes 4 the effective
+    allowance is four times RATE_LIMIT. SourceThrottle puts the equivalent
+    outbound state in the database precisely because per-process state is
+    invisible to siblings, and the same fix would work here -- at the price of
+    a database write on every request, which is a poor trade for a flood stop.
+    The number is documented as approximate for that reason.
+    """
+    if RATE_LIMIT <= 0:
+        return 0.0
+    seen = _buckets.get(address)
+    if seen is None:
+        if len(_buckets) >= RATE_MEMORY:
+            _buckets.popitem(last=False)
+        seen = _buckets[address] = []
+    else:
+        _buckets.move_to_end(address)
+    cutoff = now - RATE_WINDOW
+    while seen and seen[0] < cutoff:
+        seen.pop(0)
+    if len(seen) >= RATE_LIMIT:
+        return max(1.0, RATE_WINDOW - (now - seen[0]))
+    seen.append(now)
+    return 0.0
+
+
 WRITE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 LOOPBACK = frozenset({"127.0.0.1", "::1", "localhost", "testclient"})
 
@@ -98,11 +145,21 @@ async def bearer_auth(request, call_next):
     for this machine, which leaves local development exactly as it was and
     closes the hole everywhere else.
     """
-    import os
+    import time
 
     from starlette.responses import JSONResponse
 
     if request.url.path.startswith("/v1"):
+        # Loopback is exempt, as it is for writes: the UI polls this API and a
+        # developer running a script against their own machine is not the
+        # traffic this guards against.
+        if not _is_loopback(request):
+            wait = _over_rate_limit(request.client.host if request.client else "?",
+                                    time.monotonic())
+            if wait:
+                return JSONResponse(
+                    {"detail": f"rate limit: {RATE_LIMIT} requests a minute"},
+                    status_code=429, headers={"Retry-After": str(int(wait))})
         token = os.environ.get("RIP_API_TOKEN")
         if token:
             if request.headers.get("authorization", "") != f"Bearer {token}":

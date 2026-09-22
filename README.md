@@ -1092,6 +1092,16 @@ this protection does not apply** — the socket peer is then the proxy, so every
 forwarded request looks local. `X-Forwarded-For` is deliberately not trusted
 (anybody can send one), so a deployment behind a proxy must set the token.
 
+**Rate limiting.** `/v1` answers 429 past `RIP_RATE_LIMIT` requests a minute
+from one address (120 by default, 0 to disable), on a sliding window rather
+than a counter cleared on the minute — that would let twice the limit through
+across a boundary. Requests from the machine itself are exempt, as writes are.
+The counters live in process memory, so with `--processes 4` the real
+allowance is four times the number; it is a flood stop, not a quota.
+`SourceThrottle` keeps the equivalent *outbound* state in the database for
+exactly this reason, and the same could be done here at the price of a write
+per request.
+
 The UI follows the same switch rather than deciding for itself: it asks
 `GET /v1/auth`, which the bearer middleware refuses when a token is set, and
 shows its sign-in screen only then. With the token unset — the usual state in
@@ -1216,6 +1226,7 @@ you run several workers at once.
 | `SEEKR_SEARCH_TTL_DAYS` | reuse a cached live search for this many days (default 7) |
 | `RIP_DATABASE_URL` | defaults to `sqlite:///rip.db` |
 | `RIP_API_TOKEN` | set on the *serving* side; makes `/v1` require a bearer token |
+| `RIP_RATE_LIMIT` | requests a minute from one address before `/v1` answers 429 (default 120, 0 = off) |
 
 `rip.cli check-db` prints which of these are set, along with engine, journal
 mode, and queue depths — run it first when something looks wrong.
