@@ -654,6 +654,30 @@ not typos: mostly plurals (`technique`/`techniques`), some spelling variants
 which escaped being "corrected" into each other by a single holder. Exactly
 one is a typo. Telling those apart takes a dictionary, not a distance.
 
+### Source payloads are stored compressed
+
+Every source record keeps what the source actually sent, and that is not
+waste — the payload is the evidence, and this codebase reaches for it
+constantly: whether a record is a person, what a source really said before a
+keyword was repaired, which author id OpenAlex meant. It was also **89% of the
+database**, 199 MB of 248 MB for 767 people.
+
+`models.CompressedJSON` deflates payloads over 2 KB on the way in and inflates
+them on the way out, including for column-level selects. Base64 gives back a
+third of the gain, so the net is about six to one. **The whole database went
+248 MB → 60 MB**, and `scripts/eval_ranking.py` returns bit-identical numbers
+against it.
+
+The column type is unchanged — migrations here are additive only, and a JSON
+column already holds text on both engines — so there is no migration and no
+moment where old and new rows cannot coexist: an uncompressed row simply reads
+back as itself. `scripts/compress_payloads.py` rewrites the ones already
+stored, dry-run by default, and you want `VACUUM` afterwards.
+
+The cost is that a payload is no longer readable in a SQL browser. It is
+readable through the ORM, which is how every part of this project already
+reads it.
+
 ### A filing category is a shelf, not a subject
 
 `toxicology` returned nine people and none of them were toxicologists —

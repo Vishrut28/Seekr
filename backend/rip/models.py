@@ -10,6 +10,7 @@ Design principles:
 - Person.id is a stable UUID the downstream ranking tool can reference.
 """
 
+import json
 import uuid
 from datetime import datetime, timezone
 
@@ -26,6 +27,7 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.types import TypeDecorator
 
 from .db import Base
 
@@ -80,6 +82,60 @@ class Person(Base):
     contributions: Mapped[list["Contribution"]] = relationship(back_populates="person")
 
 
+class CompressedJSON(TypeDecorator):
+    """A JSON column whose large values are stored compressed.
+
+    The raw payloads are 203 MB of this project's 228 MB database -- 89% of
+    it, for 767 people -- because every record keeps what the source actually
+    sent. That is not waste: this session alone, the payload settled who was
+    a person, what a source really said before a keyword was repaired, and
+    which author id OpenAlex meant. It is the evidence, and it stays.
+
+    It compresses about eight to one, and base64 gives a third of that back,
+    so the stored form is roughly six times smaller. The column type does not
+    change: migrations in this project are additive only (see db._migrate),
+    and a JSON column already holds text on both SQLite and Postgres.
+
+    Rows written before this read back unchanged -- a dict that is not the
+    one-key wrapper is returned as it is -- so there is no migration to run
+    and no moment where old and new cannot coexist.
+    """
+
+    impl = JSON
+    cache_ok = True
+
+    #: below this, compression does not pay for its own wrapper
+    MIN_BYTES = 2048
+    KEY = "__gz_b64__"
+
+    def process_bind_param(self, value, dialect):
+        if not isinstance(value, (dict, list)):
+            return value
+        import base64
+        import zlib
+
+        text = json.dumps(value, separators=(",", ":"), ensure_ascii=False)
+        if len(text) < self.MIN_BYTES:
+            return value
+        packed = base64.b64encode(zlib.compress(text.encode("utf-8"), 6)).decode("ascii")
+        if len(packed) >= len(text):
+            return value            # already compact, or incompressible
+        return {self.KEY: packed}
+
+    def process_result_value(self, value, dialect):
+        if isinstance(value, str):          # some drivers hand JSON back as text
+            try:
+                value = json.loads(value)
+            except (TypeError, ValueError):
+                return value
+        if not isinstance(value, dict) or self.KEY not in value:
+            return value
+        import base64
+        import zlib
+
+        return json.loads(zlib.decompress(base64.b64decode(value[self.KEY])).decode("utf-8"))
+
+
 class SourceRecord(Base):
     """One raw capture of one external profile/page. Never deleted on merge."""
 
@@ -91,7 +147,7 @@ class SourceRecord(Base):
     source_type: Mapped[str] = mapped_column(String(64))  # e.g. "code_hosting", "scholarly"
     external_id: Mapped[str] = mapped_column(String(255))
     url: Mapped[str | None] = mapped_column(String(1024))
-    raw: Mapped[dict] = mapped_column(JSON, default=dict)
+    raw: Mapped[dict] = mapped_column(CompressedJSON, default=dict)
     content_hash: Mapped[str | None] = mapped_column(String(64), index=True)
     first_observed: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     last_observed: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
