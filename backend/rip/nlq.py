@@ -745,6 +745,29 @@ def _contained(phrase: str, skills: dict, aux: VocabAux) -> list[str]:
     "distributed system" and "distributed systems" both reach "Distributed
     Systems", and "wireless sensor network" reaches "Energy Efficient Wireless
     Sensor Networks". Before this, the singular forms found nothing at all.
+
+    A BROAD FILING CATEGORY answers only when the query names what it LEADS
+    with. OpenAlex files people under compound labels -- "Radiology, Nuclear
+    Medicine and Imaging", "Pharmacology, Toxicology and Pharmaceutics" -- and
+    those belong in the vocabulary, because "radiologists" should reach the
+    first of them. But plain containment let any word in the label answer, so
+    "toxicology" matched the second one and "Health, Toxicology and
+    Mutagenesis" and returned nine people, none of them toxicologists: nDCG
+    0.000, the worst query in the set.
+
+    The comma is what separates the two. A label that ENUMERATES subjects --
+    "Pharmacology, Toxicology and Pharmaceutics" -- is a shelf holding several
+    of them, and somebody on that shelf may be doing any one, so matching a
+    subject it merely lists tells you nothing. A label without a comma is one
+    subject with modifiers -- "Cellular and Molecular Neuroscience" -- and
+    everybody under it is doing that subject, so containment is right there.
+
+    For an enumerating label the query has to name what it LEADS with, which
+    is its principal subject: "radiologists" reaches "Radiology, Nuclear
+    Medicine and Imaging" and "toxicology" no longer reaches either shelf that
+    merely lists it. Two blunter rules were tried and measured first --
+    requiring the whole label cost "radiologists" 0.915 -> 0.000, and requiring
+    the front of EVERY field label cost "neuroscience" 0.498 -> 0.284.
     """
     pieces = stems(phrase)
     if not pieces:
@@ -765,6 +788,12 @@ def _contained(phrase: str, skills: dict, aux: VocabAux) -> list[str]:
             if any(aux.key_stems.get(k, ())[i:i + n] == tuple(pieces)
                    for i in range(len(aux.key_stems.get(k, ())) - n + 1))
         ]
+    if aux.field_only:
+        want = tuple(pieces)
+        hits = [k for k in hits
+                if k not in aux.field_only
+                or "," not in skills.get(k, "")
+                or aux.key_stems.get(k, ())[:len(want)] == want]
     hits.sort(key=lambda k: aux.ordinal.get(k, 0))
     return [skills[k] for k in hits]
 

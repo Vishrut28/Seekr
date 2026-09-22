@@ -654,6 +654,32 @@ not typos: mostly plurals (`technique`/`techniques`), some spelling variants
 which escaped being "corrected" into each other by a single holder. Exactly
 one is a typo. Telling those apart takes a dictionary, not a distance.
 
+### A filing category is a shelf, not a subject
+
+`toxicology` returned nine people and none of them were toxicologists —
+nDCG 0.000, the worst query in the set. OpenAlex files people under labels
+like *"Pharmacology, Toxicology and Pharmaceutics"*, those labels are in the
+search vocabulary so that `chemistry` reaches the people filed under
+Chemistry, and containment let **any word** in a label answer for it.
+
+**The comma separates a shelf from a subject.** A label that enumerates
+subjects holds people doing any one of them, so matching one it merely lists
+tells you nothing; a label without a comma — *"Cellular and Molecular
+Neuroscience"* — is one subject with modifiers, and everybody under it is
+doing that subject. For an enumerating label the query has to name what it
+**leads** with, which is its principal subject.
+
+Two blunter rules were tried and measured first, because both look obviously
+right: requiring the whole label cost `radiologists` **0.915 → 0.000**, and
+requiring the front of *every* field label cost `neuroscience`
+**0.498 → 0.284**. Both are pinned in `tests/test_field_labels.py`.
+
+Result: nDCG@10 0.838 → 0.840, precision 0.864 → 0.876, recall unchanged, no
+query worse, and `diabetes researchers` 0.863 → 1.000. `toxicology` now
+returns nothing rather than nine wrong answers, which the run reports as a
+zero-result query with relevant people — a coverage gap stated instead of
+disguised.
+
 ### And `related` is the same defect one level down
 
 `strong` says what the query is about; `related` is meant for subjects *next*
