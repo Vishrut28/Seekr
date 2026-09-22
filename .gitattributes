@@ -1,0 +1,24 @@
+# Line endings are declared here rather than left to each developer's
+# core.autocrlf. Without this, a file's endings depend on whose machine last
+# wrote it: rip/ingest.py ended up 594 CRLF lines and 8 LF, and rip/models.py
+# and .gitignore the same way. Nothing breaks at runtime — git stores LF in
+# the index either way — but a patch anchored on a few lines matches the
+# region it was copied from and not the one beside it, which cost three
+# editing cycles in a single day.
+* text=auto
+
+# Shells and the container read these; CRLF makes a shebang unrunnable.
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Never touched.
+*.db binary
+*.png binary
+*.jpg binary
+*.pdf binary
+*.gz binary
+*.ico binary
+*.woff binary
+*.woff2 binary
