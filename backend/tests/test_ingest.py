@@ -161,3 +161,84 @@ def test_the_same_subject_in_two_casings_is_one_interest(session):
     assert {r.value for r in rows} == {"Artificial Intelligence"}
     # and the second source now confirms the first rather than sitting beside it
     assert {r.verification_state for r in rows} == {"corroborated"}
+
+
+def _typed(value):
+    from rip.normalize import EvidenceItem
+    from tests.test_resolution import make_profile
+    return make_profile(
+        external_id="rl", url="https://orcid.org/rl", raw={"id": "rl"},
+        name="Hernando Example", usernames=["orcid:rl"],
+        evidence=[EvidenceItem(attribute_type="research_interest", value=value)])
+
+
+def test_a_misspelled_keyword_is_stored_as_the_word_it_meant(session):
+    """A keyword is what a person typed about themselves, and ORCID keeps the
+    slip. Four profiles say "Reinforcment Learning", which made those four
+    unfindable under the right spelling -- and made the misspelling a
+    vocabulary term in its own right, so a query repeating the typo matched it
+    exactly and never reached the people who do the subject."""
+    from rip.ingest import ingest_profile
+
+    ingest_profile(session, _typed("Reinforcment Learning"))
+    session.commit()
+    row = session.query(Evidence).filter(
+        Evidence.attribute_type == "research_interest").one()
+    assert row.value == "Reinforcement Learning"
+    # what the source said is not lost, and the payload still has it verbatim
+    assert "'Reinforcment Learning'" in row.extracted_info
+
+
+def test_the_repair_survives_the_next_refresh_of_that_record(session):
+    """The reason this lives in ingest and not in a one-off UPDATE.
+
+    _retract_evidence deletes any row its source record no longer asserts. A
+    corrected row is exactly that: ORCID keeps sending the typo, so the next
+    refresh used to delete the correction and put the misspelling back -- a
+    fix that works the day it is made and quietly expires.
+    """
+    from rip.ingest import ingest_profile
+
+    ingest_profile(session, _typed("Reinforcment Learning"))
+    session.commit()
+    first = session.query(Evidence).filter(
+        Evidence.attribute_type == "research_interest").one()
+    before = first.id
+
+    ingest_profile(session, _typed("Reinforcment Learning"))   # ORCID, unchanged
+    session.commit()
+    rows = session.query(Evidence).filter(
+        Evidence.attribute_type == "research_interest").all()
+    assert [r.value for r in rows] == ["Reinforcement Learning"]
+    assert rows[0].id == before      # not deleted and re-added, just kept
+
+
+def test_only_known_misspellings_and_only_whole_words_are_touched():
+    """The corpus cannot tell a typo from a plural: of 75 word pairs one edit
+    apart in these keywords, 74 are plurals, spelling variants or different
+    words (generics/genetics, material/maternal). So this is a named list."""
+    from rip.ingest import correct_spelling
+
+    assert correct_spelling("Reinforcment Learning")[0] == "Reinforcement Learning"
+    assert correct_spelling("Deep reinforcment learning")[0] == "Deep reinforcement learning"
+    assert correct_spelling("REINFORCMENT LEARNING")[0] == "REINFORCEMENT LEARNING"
+    for left_alone in ("Reinforcement Learning in Robotics", "Techniques",
+                       "reinforcmental", "Material Science", "Modelling"):
+        assert correct_spelling(left_alone) == (left_alone, None)
+
+
+def test_a_misspelling_inside_a_sentence_is_left_alone(session):
+    """Only self-typed keyword attributes are repaired. A bio is prose, not a
+    subject heading, and rewriting someone's sentences is not the job."""
+    from rip.ingest import ingest_profile
+    from rip.normalize import EvidenceItem
+    from tests.test_resolution import make_profile
+
+    said = "I work on reinforcment learning"
+    ingest_profile(session, make_profile(
+        external_id="bio", url="https://orcid.org/bio", raw={"id": "bio"},
+        name="Prose Person", usernames=["orcid:bio"],
+        evidence=[EvidenceItem(attribute_type="bio", value=said)]))
+    session.commit()
+    assert session.query(Evidence).filter(
+        Evidence.attribute_type == "bio").one().value == said

@@ -487,9 +487,9 @@ reindexes. On the 709-person corpus, after the criteria review below:
 |---|---|---|---|
 | tuned (topic, concept, agent, constrained, soft, typo, name, protected) | 52 | 0.86 | 0.70 |
 | `holdout`: written mid-way, partly tuned after | 16 | 0.74 | 0.49 |
-| `holdout2`: written last, criteria fixed before the first run | 20 | 0.76 | 0.49 |
+| `holdout2`: written last, criteria fixed before the first run | 20 | 0.81 | 0.51 |
 
-Overall: nDCG@10 0.82, P@10 0.68, recall@50 0.61. **Read recall@50 against its
+Overall: nDCG@10 0.83, P@10 0.69, recall@50 0.62. **Read recall@50 against its
 ceiling, which is 0.96, not against 1.0**: ten queries have more than fifty
 relevant people, so no ranker can retrieve them all in fifty results.
 `machine learning engineers` has 126, capping it at 0.40.
@@ -576,6 +576,36 @@ topic strings, and new people arrive under topic names the criteria never
 enumerated — Fiji and QuPath authors rank for "computer vision researchers"
 and grade 0. Numbers from two different corpora are not comparable, and the
 judgments need review before they are.
+
+### A corpus typo defeats the typo tolerance
+
+`reinforcment learning` scored **0.000** while `reinforcement learning
+researchers` scored 1.000. Four ORCID profiles have the keyword misspelled —
+what those four people typed about themselves, and ORCID keeps it as typed.
+That made them invisible under the right spelling, which is the obvious half.
+The other half is worse: the misspelling *was* a vocabulary term, held by real
+people, so a query repeating the typo matched it **exactly**, the
+typo-correction pass never ran, and the query answered with those four instead
+of the sixty who do reinforcement learning.
+
+The repair runs at ingest (`rip.ingest.correct_spelling`), not as a one-off
+UPDATE, because `_retract_evidence` deletes any row its source record no
+longer asserts: correcting the stored value works the day you do it and is
+deleted by that profile's next refresh. `scripts/fix_spellings.py` fixes rows
+already stored. The row records what the source said and the payload keeps it
+verbatim, so nothing is rewritten out of existence.
+
+It is a **named list**, not an edit-distance rule, and the corpus is the
+argument. Of the 75 pairs of words one edit apart in these keywords, 74 are
+not typos: mostly plurals (`technique`/`techniques`), some spelling variants
+(`modelling`/`modeling`), and several different words — `generics`/`genetics`,
+`ischemia`/`ischemic`, `microscope`/`microscopy`, and `material`/`maternal`,
+which escaped being "corrected" into each other by a single holder. Exactly
+one is a typo. Telling those apart takes a dictionary, not a distance.
+
+With the four rows repaired, `reinforcment learning` scores 1.000 and
+`holdout2` — which nobody tuned for, and whose two reinforcement-learning
+criteria were never touched — went from 0.76 to 0.81. No query got worse.
 
 `scripts/verify_postgres.py` runs the engine-specific query paths (exclusions,
 "both", count thresholds, the v9 migration) against a real Postgres and

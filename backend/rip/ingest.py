@@ -8,6 +8,7 @@ Source -> Connector -> NormalizedProfile -> [this module]:
 """
 
 import hashlib
+import re
 import json
 from datetime import datetime, timezone
 
@@ -168,6 +169,60 @@ logger = logging.getLogger("rip.ingest")
 FREE_TEXT_ATTRS = frozenset({"bio", "summary", "role", "award", "location", "headline"})
 
 
+# Keywords a person typed about themselves, where their slip stays on the
+# record. Not "bio": a misspelling inside a sentence is not a subject heading.
+SELF_TYPED_ATTRS = frozenset({"skill", "research_interest", "specialization"})
+
+# Misspelled subject words, and what they were meant to be.
+#
+# A LIST, not a rule, and the corpus is why. Four ORCID profiles say
+# "Reinforcment Learning". The tempting fix is a distance rule -- a word one
+# edit from a far commoner word is a misspelling of it -- and it does not
+# survive contact with the data: of the 75 pairs of words one edit apart in
+# these keywords, 74 are not typos. Most are plurals (technique/techniques,
+# disorder/disorders), some are spelling variants (modelling/modeling), and
+# several are different words entirely -- generics/genetics,
+# ischemia/ischemic, microscope/microscopy, and material/maternal, which
+# missed being "corrected" by a single holder. Exactly one is a typo. Knowing
+# that "reinforcment" is a misspelling and "techniques" is a plural takes a
+# dictionary, not an edit distance, so the entries are named here and the
+# rule stays out of it.
+MISSPELLINGS = {"reinforcment": "reinforcement"}
+
+_WORD = re.compile(r"[A-Za-z']+")
+
+
+def correct_spelling(value: str) -> tuple[str, str | None]:
+    """VALUE with its misspelled subject words repaired, and what was typed.
+
+    One missing letter did two kinds of damage here. The four people who
+    typed it were invisible to a search for reinforcement learning. And the
+    misspelling WAS a vocabulary term, held by real people, so a query
+    repeating the typo matched it exactly, the typo-correction pass never
+    ran, and "reinforcment learning" answered with those four rather than the
+    sixty who do it -- a corpus typo defeating the typo tolerance built to
+    survive one.
+
+    This runs at ingest because nowhere else holds. Correcting the stored
+    rows works today and expires: _retract_evidence deletes any row its
+    source record no longer asserts, so the next refresh of that ORCID
+    profile drops the correction and puts the typo back. Here, every refresh
+    re-applies it. Nothing is lost either way -- the source record still
+    holds the payload as it arrived, and the row records what was typed.
+    """
+    def repair(match: re.Match) -> str:
+        word = match.group()
+        fixed = MISSPELLINGS.get(word.casefold())
+        if fixed is None:
+            return word
+        if word.isupper():
+            return fixed.upper()
+        return fixed.capitalize() if word[:1].isupper() else fixed
+
+    corrected = _WORD.sub(repair, value)
+    return (corrected, value) if corrected != value else (value, None)
+
+
 class SplitRecordError(Exception):
     """Raised instead of re-merging people somebody separated by hand.
 
@@ -200,6 +255,12 @@ def _add_evidence(
                 "redacted %s from %s evidence for %s",
                 ", ".join(removed), attribute_type, person.id,
             )
+    if attribute_type in SELF_TYPED_ATTRS:
+        value, mistyped = correct_spelling(value)
+        if mistyped:
+            said = f"spelled {mistyped!r} by the source"
+            extracted_info = f"{extracted_info}; {said}" if extracted_info else said
+            logger.info("read %r as %r for %s", mistyped, value, person.id)
     # Everything this person is already on record as claiming under this
     # attribute, matched WITHOUT regard to case. Sources disagree about it —
     # Europe PMC's MeSH terms arrive as both "Artificial Intelligence" and
