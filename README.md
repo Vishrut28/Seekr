@@ -1111,6 +1111,25 @@ write: with no token set, only this machine's queries persist. Everyone else
 gets the search, the suggestions, and `"persisted": false`, and the corpus is
 unchanged. A read-only snapshot is then really read-only.
 
+**What a live search may cost.** `RIP_LIVE_SEARCH_SECONDS` (8) bounds the
+search half, as `RIP_LIVE_BUDGET_SECONDS` (30) bounds the fetches. Nothing
+bounded the searches before, so one provider having a bad day set the latency
+of the whole query — wikidata failing after 5.2s with OpenAlex already
+answered at 2.3s, and on another run OpenAlex itself taking **70 seconds**
+while the sequential phase queued behind it. Sources still running when the
+budget expires are abandoned and reported as `timed out`; the sequential phase
+stops starting new ones. A call already in flight cannot be interrupted —
+`BaseConnector.request_timeout` (30s) is the only cap on that one.
+
+A query that names nothing is not searched at all: `!!! ??? ***` and `the and
+of in` parse to no terms and used to reach eight providers to be told nothing.
+Gibberish still is searched, deliberately — `zqxjv plormbat` and `photonic
+metasurface` are the same shape to a parser, and refusing the second is a
+worse failure than paying for the first.
+
+Note that with `OPENALEX_MAILTO` unset you are in OpenAlex's common pool
+rather than its polite one, and live latency is then at their discretion.
+
 The UI follows the same switch rather than deciding for itself: it asks
 `GET /v1/auth`, which the bearer middleware refuses when a token is set, and
 shows its sign-in screen only then. With the token unset — the usual state in
@@ -1236,6 +1255,7 @@ you run several workers at once.
 | `RIP_DATABASE_URL` | defaults to `sqlite:///rip.db` |
 | `RIP_API_TOKEN` | set on the *serving* side; makes `/v1` require a bearer token |
 | `RIP_RATE_LIMIT` | requests a minute from one address before `/v1` answers 429 (default 120, 0 = off) |
+| `RIP_LIVE_SEARCH_SECONDS` | how long live *searches* may take before stragglers are abandoned (default 8) |
 
 `rip.cli check-db` prints which of these are set, along with engine, journal
 mode, and queue depths — run it first when something looks wrong.

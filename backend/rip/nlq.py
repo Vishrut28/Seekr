@@ -3914,6 +3914,28 @@ def persist_suggestions(session: Session, suggestions: list[dict]) -> int:
 # started when it runs out is skipped and reported on its item, so one slow or
 # hanging source cannot hold a search open indefinitely.
 LIVE_BUDGET_SECONDS = float(os.environ.get("RIP_LIVE_BUDGET_SECONDS", "30"))
+# How long the SEARCH half may take. LIVE_BUDGET_SECONDS above bounds the
+# fetches; nothing bounded the searches, so one provider having a bad day set
+# the latency of the whole query -- measured: wikidata failing after 5.2s while
+# openalex had answered at 2.3s and europepmc was already done. Sources still
+# running when this expires are abandoned and reported as timed out; their
+# threads touch no session, so letting them finish into nothing is safe.
+LIVE_SEARCH_SECONDS = float(os.environ.get("RIP_LIVE_SEARCH_SECONDS", "8"))
+
+
+def worth_searching_live(terms: list[str]) -> str:
+    """Why a live search would be wasted on TERMS, or "" to go ahead.
+
+    Only reasons that are certain. Gibberish is NOT one of them: "zqxjv
+    plormbat" and "photonic metasurface" are the same shape to a parser, and
+    the second is exactly the query live discovery exists for. Guessing which
+    is which would refuse the novel subjects this feature is for.
+    """
+    if not terms:
+        return "the query named nothing to search for"
+    if not any(ch.isalpha() for ch in " ".join(terms)):
+        return "no letter in the query: not a name or a subject"
+    return ""
 # Upper bound on concurrent fetches across ALL sources. Politeness toward any
 # one source is enforced by its shared connector's request spacing, not here.
 MAX_FETCH_WORKERS = 16
@@ -4098,6 +4120,13 @@ def discovery_suggestions(
     terms = parsed.unmatched_terms + parsed.name_terms
     if not terms:
         terms = parsed.skills[:1]
+    skip = worth_searching_live(terms)
+    if skip:
+        # "!!! ??? ***" and "the and of in" reached eight providers and cost
+        # 1.5-2 seconds each to be told nothing, every time they were asked.
+        logger.info("no live search: %s", skip)
+        report("live", "skipped", reason=skip)
+        return []
     query = " ".join(terms).strip()
     # stable across vocabulary changes, unlike the derived `query`
     cache_key = (parsed.raw or query).strip()
@@ -4239,6 +4268,14 @@ def discovery_suggestions(
 
     def run_sequential_phase(phase) -> None:
         for source, searcher, uses_full_query in phase:
+            # These run one after another, so a slow one spends the budget of
+            # everyone behind it. Measured: OpenAlex took 70 seconds for a
+            # single search while the rest of the phase waited its turn. The
+            # call already running cannot be interrupted -- BaseConnector caps
+            # that at request_timeout -- but nothing after it needs to start.
+            if _time.monotonic() > search_deadline:
+                report(source, "skipped", reason="live search budget spent")
+                continue
             if check_cache_or_skip(source) is None:
                 continue
             search_for, found, exc = run_search(source, searcher, uses_full_query)
@@ -4247,6 +4284,7 @@ def discovery_suggestions(
     import time as _time
 
     deadline = _time.monotonic() + LIVE_BUDGET_SECONDS
+    search_deadline = _time.monotonic() + LIVE_SEARCH_SECONDS
 
     # Phase B's searches never depended on phase A — every one of them always
     # runs — so they start NOW, in the background, and are answered while
@@ -4282,8 +4320,22 @@ def discovery_suggestions(
             fetched = _fetch_profiles(to_fetch, deadline)
             return source, plan, dict(zip(map(id, to_fetch), fetched))
 
-        with ThreadPoolExecutor(max_workers=max(1, len(runnable))) as pool:
-            done = list(pool.map(lambda args: pipeline(*args), runnable))
+        from concurrent.futures import wait as _wait
+
+        pool = ThreadPoolExecutor(max_workers=max(1, len(runnable)))
+        try:
+            futures = {pool.submit(pipeline, *args): args[0] for args in runnable}
+            finished, running = _wait(futures, timeout=LIVE_SEARCH_SECONDS)
+            for late_future in running:
+                report(futures[late_future], "timed out")
+            # in the order they were declared, so results stay stable
+            by_source = {futures[fut]: fut for fut in finished}
+            done = [by_source[s].result() for s, _fn, _full in runnable
+                    if s in by_source]
+        finally:
+            # abandoned pipelines touch no session; letting them finish into
+            # nothing costs less than blocking the answer on them
+            pool.shutdown(wait=False)
         plans = {source: plan for source, plan, _ in done}
         results: dict = {}
         for _source, _plan, fetched in done:
@@ -4306,6 +4358,8 @@ def discovery_suggestions(
             planned_before = 0      # fetchable candidates from earlier sources
             late: list[dict] = []
             for s in b_order:
+                if s not in plans:
+                    continue        # abandoned at LIVE_SEARCH_SECONDS
                 exc, keep, raw_items, to_fetch = plans[s]
                 if exc is not None:
                     failed(s, exc)
