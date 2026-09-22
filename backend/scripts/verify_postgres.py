@@ -2,9 +2,11 @@
 
 SQLite forgives things Postgres does not, and the search index writes SQL by
 hand: correlated EXISTS per constraint, negated EXISTS for exclusions, a
-totals lookup for count filters, and additive column/index migrations. This
-builds a small corpus in a Postgres database, asks the same questions, and
-checks the answers match what the same data gives on SQLite.
+totals lookup for count filters, and additive column/index migrations. It
+also checks that a compressed source payload round trips, because SQLite
+stores JSON as text and hands back what was put in while Postgres parses it
+into jsonb. This builds a small corpus in a Postgres database, asks the same
+questions, and checks the answers match what the same data gives on SQLite.
 
     createdb seekr_verify                      # or: psql -c "CREATE DATABASE seekr_verify"
     export RIP_TEST_POSTGRES_URL=postgresql+psycopg://user:pass@127.0.0.1:5432/seekr_verify
@@ -149,6 +151,56 @@ def check_migration(url: str) -> int:
     return failures
 
 
+def check_payloads(session) -> int:
+    """A compressed source payload survives a round trip on this engine.
+
+    models.CompressedJSON writes a wrapper dict into a JSON column and reads
+    it back inflated. SQLite stores JSON as text and hands back whatever was
+    put in; Postgres parses it into jsonb and may not, which is the whole
+    reason this script exists. Worth checking because the payload is the
+    provenance store -- if it does not round trip, the evidence is gone and
+    nothing else here would notice.
+    """
+    from sqlalchemy import select
+
+    from rip.models import CompressedJSON, SourceRecord
+
+    big = {"works": [{"id": f"W{i}", "title": f"A study of things, number {i}",
+                      "authorships": [{"author": {"id": "A1"}}]} for i in range(200)]}
+    small = {"id": "A1", "display_name": "Ada Lovelace"}
+    failures = 0
+    for label, payload in (("large (compressed)", big), ("small (stored as is)", small)):
+        record = SourceRecord(source="openalex", source_type="scholarly",
+                              external_id=f"payload-{label[:5]}", url="https://x",
+                              raw=payload)
+        session.add(record)
+        session.commit()
+        session.expunge_all()
+        back = session.execute(select(SourceRecord).where(
+            SourceRecord.external_id == record.external_id)).scalar_one()
+        ok = back.raw == payload
+        failures += not ok
+        print(f"  {'ok  ' if ok else 'FAIL'} payload {label:22s} round trips")
+        if not ok:
+            print(f"       got {type(back.raw).__name__}: {str(back.raw)[:120]}")
+        # And the large one really is stored compressed, not merely correct.
+        # This has to go through the DRIVER: a column-level select is still
+        # processed by the type, so it hands back the inflated dict and the
+        # check passes for the wrong reason. It did, on the first run.
+        if payload is big:
+            stored = session.connection().exec_driver_sql(
+                "select raw from source_record where external_id = %(x)s"
+                if session.bind.dialect.paramstyle == "pyformat"
+                else "select raw from source_record where external_id = ?",
+                {"x": record.external_id}
+                if session.bind.dialect.paramstyle == "pyformat"
+                else (record.external_id,)).scalar()
+            packed = CompressedJSON.KEY in str(stored)
+            failures += not packed
+            print(f"  {'ok  ' if packed else 'FAIL'} ...and is stored compressed")
+    return failures
+
+
 def run(url: str, keep: bool) -> int:
     os.environ["RIP_DATABASE_URL"] = url
     for module in [m for m in list(sys.modules) if m.startswith("rip")]:
@@ -169,8 +221,9 @@ def run(url: str, keep: bool) -> int:
         got = answers(session)
         legacy = answers(session, indexed=False)
         facet_failures = check_facets(session)
+        payload_failures = check_payloads(session)
 
-    failures = facet_failures
+    failures = facet_failures + payload_failures
     for query, expected in CASES:
         names, total = got[query]
         ok = names == expected and total == len(expected)

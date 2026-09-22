@@ -783,9 +783,11 @@ With the four rows repaired, `reinforcment learning` scores 1.000 and
 criteria were never touched — went from 0.76 to 0.81. No query got worse.
 
 `scripts/verify_postgres.py` runs the engine-specific query paths (exclusions,
-"both", count thresholds, the v9 migration) against a real Postgres and
-compares the answers with SQLite's; point `RIP_TEST_POSTGRES_URL` at a
-database it may create and drop tables in.
+"both", count thresholds, the v9 migration, and the compressed-payload round
+trip) against a real Postgres and compares the answers with SQLite's; point
+`RIP_TEST_POSTGRES_URL` at a database it may create and drop tables in. Run
+against PostgreSQL 18.3: **all query paths agree with SQLite**, which until
+now was a claim nobody had checked in a while.
 
 The eval corpus is small, so a single query moves a set's score by several
 points, and the judgments remain drafts: the audit above found six bad
