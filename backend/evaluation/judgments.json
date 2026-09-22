@@ -46,9 +46,9 @@
     "collaborative filtering"
    ],
    "related": [
-    "information retrieval",
-    "topic modeling"
-   ]
+    "information retrieval"
+   ],
+   "tuned": "topic modelling is a text-analysis technique, not a recommender-systems subject, and it admitted 14 of 25. It stays on h-ir, where it belongs. Edited 2026-09-22 after seeing results: a `related` subject is one NEXT to the query, worth partial credit. A parent category is not that -- it admits every sibling."
   },
   {
    "id": "t-airquality",
@@ -128,8 +128,11 @@
     "biodiversity"
    ],
    "related": [
-    "ecology"
-   ]
+    "habitat",
+    "endangered species",
+    "protected area"
+   ],
+   "tuned": "'ecology' is the parent field: insect, polar and marine ecologists, and a heterocycle chemist with one ecology paper, were all partially relevant to wildlife conservation -- 10 of 20. Edited 2026-09-22 after seeing results: a `related` subject is one NEXT to the query, worth partial credit. A parent category is not that -- it admits every sibling."
   },
   {
    "id": "t-tb",
@@ -139,9 +142,9 @@
     "tuberculosis"
    ],
    "related": [
-    "epidemiology",
     "infectious disease"
-   ]
+   ],
+   "tuned": "'epidemiology' made every epidemiologist partially relevant to tuberculosis, 21 of 35. 'infectious disease' stays: it is one step up, not a different question. Edited 2026-09-22 after seeing results: a `related` subject is one NEXT to the query, worth partial credit. A parent category is not that -- it admits every sibling."
   },
   {
    "id": "t-dementia",
@@ -208,8 +211,11 @@
     "child nutrition"
    ],
    "related": [
-    "public health"
-   ]
+    "neonatal",
+    "breastfeeding",
+    "immunization"
+   ],
+   "tuned": "'public health' is the parent field and admitted 9 of 17. Edited 2026-09-22 after seeing results: a `related` subject is one NEXT to the query, worth partial credit. A parent category is not that -- it admits every sibling."
   },
   {
    "id": "t-netsec",
@@ -339,9 +345,9 @@
     "health informatics"
    ],
    "related": [
-    "machine learning",
     "deep learning"
-   ]
+   ],
+   "tuned": "'machine learning' is a parent on the wrong axis: this query is about the application, and an ML researcher who has never touched healthcare arrived at grade 1, 33 of 60. 'deep learning' stays, at 7%. Edited 2026-09-22 after seeing results: a `related` subject is one NEXT to the query, worth partial credit. A parent category is not that -- it admits every sibling."
   },
   {
    "id": "c-webdev",
@@ -769,9 +775,13 @@
     "fungal"
    ],
    "related": [
-    "infectious disease"
+    "mycology",
+    "candida",
+    "aspergillus",
+    "cryptococcus"
    ],
-   "kind": "holdout"
+   "kind": "holdout",
+   "tuned": "'infectious disease' is the PARENT of fungal infection, so it admitted every tuberculosis, Ebola and leprosy researcher at grade 1 -- 11 of the 15 people this query counted. Edited 2026-09-22 after seeing results: a `related` subject is one NEXT to the query, worth partial credit. A parent category is not that -- it admits every sibling. This was a holdout criterion; its number can no longer be read as an untouched one."
   },
   {
    "id": "h-airpollution",
@@ -868,9 +878,11 @@
     "heavy metal exposure"
    ],
    "related": [
-    "pharmacology"
+    "poisoning",
+    "pesticide exposure"
    ],
-   "kind": "holdout"
+   "kind": "holdout",
+   "tuned": "'pharmacology' is a neighbouring FIELD, not a neighbouring subject: 4 of the 6 people this query counted arrived through it. Edited 2026-09-22 after seeing results: a `related` subject is one NEXT to the query, worth partial credit. A parent category is not that -- it admits every sibling. This was a holdout criterion; its number can no longer be read as an untouched one."
   },
   {
    "id": "h-tb-india",
@@ -1028,10 +1040,10 @@
     "reinforcement learning"
    ],
    "related": [
-    "robotics",
-    "machine learning"
+    "robotics"
    ],
-   "kind": "holdout2"
+   "kind": "holdout2",
+   "tuned": "'machine learning' is the parent, so computer-vision and NLP researchers were partially relevant to reinforcement learning -- 45 of 70. 'robotics' stays, which is adjacency rather than ancestry. Edited 2026-09-22 after seeing results: a `related` subject is one NEXT to the query, worth partial credit. A parent category is not that -- it admits every sibling. This was a holdout criterion; its number can no longer be read as an untouched one."
   },
   {
    "id": "h2-gnn",
@@ -1040,10 +1052,10 @@
     "graph neural network"
    ],
    "related": [
-    "neural network",
     "graph"
    ],
-   "kind": "holdout2"
+   "kind": "holdout2",
+   "tuned": "a graph neural network IS a neural network, so the parent admitted every neural-network researcher -- 24 of 47. 'graph' stays. Edited 2026-09-22 after seeing results: a `related` subject is one NEXT to the query, worth partial credit. A parent category is not that -- it admits every sibling. This was a holdout criterion; its number can no longer be read as an untouched one."
   },
   {
    "id": "h2-pathology",
@@ -1148,11 +1160,10 @@
     "solar thermal"
    ],
    "related": [
-    "energy",
     "battery"
    ],
    "kind": "holdout2",
-   "tuned": "2026-09-22: \"solar\" dropped. It graded solar-PLASMA physicists as renewable energy researchers. Edited after results were seen: no longer an untouched holdout."
+   "tuned": "2026-09-22: \"solar\" dropped. It graded solar-PLASMA physicists as renewable energy researchers. Edited after results were seen: no longer an untouched holdout. || bare 'energy' admitted 19 of 31 -- plasma energy, energy metabolism, anything with the word. 'battery' stays. Edited 2026-09-22 after seeing results: a `related` subject is one NEXT to the query, worth partial credit. A parent category is not that -- it admits every sibling. This was a holdout criterion; its number can no longer be read as an untouched one."
   },
   {
    "id": "h2-cardio",
@@ -1243,10 +1254,9 @@
    "strong": [
     "reinforcement learning"
    ],
-   "related": [
-    "machine learning"
-   ],
-   "kind": "holdout2"
+   "related": [],
+   "kind": "holdout2",
+   "tuned": "same as h2-rl, whose criteria this mirrors: 45 of 68. Edited 2026-09-22 after seeing results: a `related` subject is one NEXT to the query, worth partial credit. A parent category is not that -- it admits every sibling. This was a holdout criterion; its number can no longer be read as an untouched one."
   },
   {
    "id": "h2-microsoft",

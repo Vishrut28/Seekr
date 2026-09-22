@@ -201,3 +201,48 @@ def test_a_query_the_corpus_cannot_answer_is_named_not_averaged_away():
             score_case(case(id="ok", strong=["cosmology"]), ["a"], profiles)]
     assert rows[0]["relevant_in_corpus"] == 0 and rows[0]["ndcg_at_10"] is None
     assert summarize(rows)["grading_nobody"] == ["x"]
+
+
+# `related` is the same defect one level down. A related subject is one NEXT
+# to the query, worth partial credit; a PARENT CATEGORY is not, because it
+# admits every sibling. Measured across the set, eleven queries had a single
+# related term admitting half or more of everyone they counted.
+
+def test_a_neighbouring_field_is_not_a_neighbouring_subject():
+    cases = real_cases()
+    tb = person(topics=["Infectious disease and tuberculosis"])
+    ebola = person(topics=["Ebola virus", "Global health"])
+    # fungal infection is ONE KIND of infectious disease, so the parent
+    # admitted every tuberculosis, Ebola and leprosy researcher: 11 of 15
+    assert grade(cases["h-fungal"], tb) == 0
+    assert grade(cases["h-fungal"], ebola) == 0
+    assert grade(cases["h-fungal"], person(topics=["Aspergillus"])) > 0
+
+
+def test_a_parent_category_does_not_admit_every_sibling():
+    cases = real_cases()
+    # "machine learning" made computer-vision and NLP people partially
+    # relevant to reinforcement learning -- 45 of the 70 it counted
+    ml = person(topics=["Machine learning and data classification"])
+    assert grade(cases["h2-rl"], ml) == 0
+    assert grade(cases["h2-typo-rl"], ml) == 0
+    assert grade(cases["h2-rl"], person(topics=["Reinforcement learning in robotics"])) == 2
+    # a graph neural network IS a neural network, and the parent admitted all
+    # of them: 24 of 47
+    assert grade(cases["h2-gnn"], person(topics=["Advanced neural network application"])) == 0
+    # ecology is the parent field of wildlife conservation: 10 of 20, including
+    # insect, polar and marine ecologists
+    assert grade(cases["t-wildlife"], person(topics=["Echinoderm biology and ecology"])) == 0
+    # and epidemiology made every epidemiologist relevant to tuberculosis
+    assert grade(cases["t-tb"], person(topics=["Clinical epidemiology"])) == 0
+
+
+def test_adjacency_that_is_real_is_kept():
+    """The rule is not "drop every related term". Topic modelling is a core
+    information-retrieval technique; cosmology and particle physics genuinely
+    overlap; robotics is where reinforcement learning is applied."""
+    cases = real_cases()
+    assert grade(cases["h-ir"], person(topics=["Topic modeling"])) == 1
+    assert grade(cases["t-cosmology"],
+                 person(topics=["Particle physics theoretical study"])) == 1
+    assert grade(cases["h2-rl"], person(topics=["Robotics"])) == 1

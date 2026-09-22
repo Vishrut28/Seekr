@@ -46,6 +46,8 @@ def parse_args(argv=None):
     parser.add_argument("--db", default=os.environ.get("RIP_DATABASE_URL"))
     parser.add_argument("--terms", action="store_true",
                         help="what each one-word strong term brings in on its own")
+    parser.add_argument("--related", action="store_true",
+                        help="what each `related` term admits at grade 1 on its own")
     parser.add_argument("--case", help="one case id, in full")
     parser.add_argument("--at", type=int, default=50, help="k for the recall ceiling")
     return parser.parse_args(argv)
@@ -97,6 +99,45 @@ def term_report(cases, profiles, only=None):
     return reported
 
 
+def related_report(cases, profiles, only=None):
+    """Who a `related` term lets in at grade 1 that nothing else would.
+
+    `related` is for subjects NEXT to the one asked about, worth partial
+    credit. A PARENT CATEGORY is not that: it admits every sibling. Measured,
+    `related: ["infectious disease"]` on "fungal infection researchers" graded
+    every tuberculosis, Ebola and leprosy researcher partially relevant -- 12
+    of the 15 the query counted -- and `related: ["ecology"]` did the same for
+    "wildlife conservation" with insect, polar and marine ecologists.
+
+    The number to read is the share: a related term responsible for most of a
+    query's relevant set is not adding nuance, it is redefining the query.
+    """
+    for case in cases:
+        if only and case.id != only:
+            continue
+        if not case.related:
+            continue
+        relevant = [p for p in profiles.values() if grade(case, p) > 0]
+        if not relevant:
+            continue
+        for phrase in case.related:
+            others = [r for r in case.related if r != phrase]
+            alone = [p for p in relevant
+                     if grade(case, p) == 1
+                     and _mentions(p.topics, [phrase])
+                     and not _mentions(p.topics, others)
+                     and not _mentions(p.topics, case.strong)]
+            if not alone:
+                continue
+            share = 100 * len(alone) / len(relevant)
+            flag = "  <-- most of the query" if share >= 50 else ""
+            print(f"{case.id:<18}{case.query[:30]:<32}'{' '.join(phrase)}' alone "
+                  f"admits {len(alone)} of {len(relevant)} ({share:.0f}%){flag}")
+            for person in alone[:5]:
+                said = [" ".join(t) for t in person.topics]
+                print(f"      {person.name[:24]:<26}{said[:2]}")
+
+
 def main(argv=None) -> None:
     import io
 
@@ -113,6 +154,9 @@ def main(argv=None) -> None:
     if not total:
         sys.exit("no living people in this database: nothing to audit")
 
+    if args.related:
+        related_report(cases, profiles, args.case)
+        return
     if args.terms or args.case:
         term_report(cases, profiles, args.case)
         if args.case:

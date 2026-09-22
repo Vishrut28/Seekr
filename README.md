@@ -654,6 +654,40 @@ not typos: mostly plurals (`technique`/`techniques`), some spelling variants
 which escaped being "corrected" into each other by a single holder. Exactly
 one is a typo. Telling those apart takes a dictionary, not a distance.
 
+### And `related` is the same defect one level down
+
+`strong` says what the query is about; `related` is meant for subjects *next*
+to it, worth partial credit. A **parent category** is not that, because it
+admits every sibling. `scripts/audit_judgments.py --related` prints, for each
+related term, how much of a query's relevant set it admits on its own, and
+eleven queries had one term admitting half or more:
+
+| query | related term | admitted |
+|---|---|---|
+| `fungal infection researchers` | `infectious disease` | **73%** — tuberculosis, Ebola, leprosy |
+| `toxicology` | `pharmacology` | **67%** |
+| `reinforcment learning` | `machine learning` | **66%** |
+| `reinforcement learning researchers` | `machine learning` | **64%** — computer vision, NLP |
+| `renewable energy researchers` | `energy` | **61%** — plasma energy, energy metabolism |
+| `tuberculosis` | `epidemiology` | **60%** — every epidemiologist |
+| `recommender systems` | `topic modeling` | **56%** |
+| `AI in healthcare` | `machine learning` | **55%** |
+| `maternal and child health` | `public health` | **53%** |
+| `wildlife conservation` | `ecology` | **50%** — insect, polar and marine ecologists |
+| `graph neural networks` | `neural network` | **51%** |
+
+All eleven corrected, each carrying a `tuned` note. The rule is not "drop
+every related term": topic modelling really is an information-retrieval
+technique, cosmology and particle physics really do overlap, and robotics is
+where reinforcement learning is applied — those stay, and a test says so.
+
+The effect is almost entirely on **recall**, which is the tell. nDCG@10 barely
+moved (0.839 → 0.838) because the ranker was not returning those people
+anyway; recall@50 went **0.628 → 0.659** overall, and `holdout2` 0.566 →
+0.634, because the denominator stopped containing people the query was never
+about. `reinforcement learning researchers` counted 66 relevant people and now
+counts 25.
+
 With the four rows repaired, `reinforcment learning` scores 1.000 and
 `holdout2` — which nobody tuned for, and whose two reinforcement-learning
 criteria were never touched — went from 0.76 to 0.81. No query got worse.
