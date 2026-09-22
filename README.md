@@ -1079,9 +1079,18 @@ docker run -d --name seekr -p 8000:8000 \
 
 The UI is then at `http://localhost:8000/ui`.
 
-**Set `RIP_API_TOKEN`.** Without it every `/v1` route is open, and these
+**Set `RIP_API_TOKEN`.** Without it every `/v1` *read* is open, and these
 routes return personal data about real people. The container starts either
 way and says which mode it is in on the first line of its log — read it.
+
+Writes are the exception, and they are closed by default: with no token set,
+`POST`, `PUT`, `PATCH` and `DELETE` on `/v1` are answered only for requests
+from the machine itself. Serving reads to the world is a deployment this
+project supports; serving writes to it is not something anybody chooses on
+purpose, and the shipped `.env` has the token empty. **Behind a reverse proxy
+this protection does not apply** — the socket peer is then the proxy, so every
+forwarded request looks local. `X-Forwarded-For` is deliberately not trusted
+(anybody can send one), so a deployment behind a proxy must set the token.
 
 The UI follows the same switch rather than deciding for itself: it asks
 `GET /v1/auth`, which the bearer middleware refuses when a token is set, and

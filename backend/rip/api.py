@@ -66,18 +66,54 @@ app = FastAPI(
 )
 
 
+WRITE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+LOOPBACK = frozenset({"127.0.0.1", "::1", "localhost", "testclient"})
+
+
+def _is_loopback(request) -> bool:
+    """Whether this request came from this machine.
+
+    request.client is the SOCKET peer. Behind a reverse proxy that is the
+    proxy, so every forwarded request looks local -- which is exactly why a
+    deployment behind one must set RIP_API_TOKEN. X-Forwarded-For is NOT
+    consulted: it is a header, anybody can send it, and trusting it here would
+    hand the write endpoints to whoever asks.
+    """
+    client = getattr(request, "client", None)
+    return bool(client) and (client.host or "") in LOOPBACK
+
+
 @app.middleware("http")
 async def bearer_auth(request, call_next):
-    """If RIP_API_TOKEN is set, every /v1 route requires it as a Bearer token."""
+    """Who may call /v1, and what they may do without a token.
+
+    RIP_API_TOKEN set: everything needs it, as before.
+
+    Unset, reads stay open -- serving a public read-only snapshot is a
+    deployment this project supports, and demanding a token to read would
+    break it. Writes do not. An open write endpoint is never what anybody
+    meant: with the token unset (the default, and what .env ships with) a
+    plain POST created a shortlist as "anonymous" from anywhere that could
+    reach the port. So without a token, mutating methods are answered only
+    for this machine, which leaves local development exactly as it was and
+    closes the hole everywhere else.
+    """
     import os
 
     from starlette.responses import JSONResponse
 
-    token = os.environ.get("RIP_API_TOKEN")
-    if token and request.url.path.startswith("/v1"):
-        supplied = request.headers.get("authorization", "")
-        if supplied != f"Bearer {token}":
-            return JSONResponse({"detail": "invalid or missing bearer token"}, status_code=401)
+    if request.url.path.startswith("/v1"):
+        token = os.environ.get("RIP_API_TOKEN")
+        if token:
+            if request.headers.get("authorization", "") != f"Bearer {token}":
+                return JSONResponse({"detail": "invalid or missing bearer token"},
+                                    status_code=401)
+        elif request.method in WRITE_METHODS and not _is_loopback(request):
+            return JSONResponse(
+                {"detail": "this deployment has no RIP_API_TOKEN set, so it accepts "
+                           "writes only from localhost. Set RIP_API_TOKEN to write "
+                           "over the network."},
+                status_code=401)
     return await call_next(request)
 
 
@@ -94,6 +130,14 @@ def auth_required() -> dict:
 
 @app.on_event("startup")
 def _startup() -> None:
+    import logging
+    import os
+
+    if not os.environ.get("RIP_API_TOKEN"):
+        logging.getLogger("rip").warning(
+            "RIP_API_TOKEN is not set: reads are open and writes are accepted only "
+            "from localhost. Behind a reverse proxy every request looks local, so "
+            "set RIP_API_TOKEN before deploying behind one.")
     try:
         init_db()
     except Exception:
