@@ -1130,6 +1130,42 @@ worse failure than paying for the first.
 Note that with `OPENALEX_MAILTO` unset you are in OpenAlex's common pool
 rather than its polite one, and live latency is then at their discretion.
 
+### The vocabulary is rebuilt when it changes, not on a timer
+
+Parsing needs every topic, organization and location the corpus knows, and
+building that index is not cheap and does not stay cheap. Measured on a
+synthetic corpus:
+
+| distinct terms | `_build_vocab` | `_build_aux` | total |
+|---:|---:|---:|---:|
+| 2,726 (this corpus) | 188 ms | 329 ms | 0.5 s |
+| 24,898 | 398 ms | 692 ms | 1.1 s |
+| 99,897 | 1,369 ms | 5,158 ms | 6.5 s |
+| 299,894 | 5,998 ms | 19,193 ms | **25 s** |
+
+It used to be rebuilt every 60 seconds whether or not anything had changed.
+At roughly 3.5 distinct terms per person that is 85,000 people spending 25
+seconds out of every 60 rebuilding an unchanged vocabulary — per worker
+process — and past about 285,000 people the rebuild outlasts its own window,
+so the cache can never be warm at all.
+
+Two cheap questions replace the timer. **The largest id in each table it
+reads** says nothing was added: 0.4 ms at half a million evidence rows, where
+`COUNT(*)` is 32 ms and `MAX(updated_at)` is 13 ms. **A count**, asked only
+when `RIP_VOCAB_TTL` expires, says nothing was deleted — a maximum id cannot
+fall. So a corpus nobody is writing to is never rebuilt, and an addition is
+picked up on the next query instead of up to a minute later.
+
+Measured on the 300,000-term corpus: a stale cache with nothing changed went
+from a **20,167 ms** rebuild to a **28 ms** check, and repeat calls cost
+0.23 ms each.
+
+Two limits, both deliberate. `Person` contributes locations and has no integer
+key, so a lone location edit from another process waits for the timer — a
+person arriving essentially always brings evidence with them, which is what is
+fingerprinted. And `RIP_VOCAB_MIN_INTERVAL` stops a bulk ingest in another
+process buying a rebuild for every query while it runs.
+
 The UI follows the same switch rather than deciding for itself: it asks
 `GET /v1/auth`, which the bearer middleware refuses when a token is set, and
 shows its sign-in screen only then. With the token unset — the usual state in
@@ -1256,6 +1292,8 @@ you run several workers at once.
 | `RIP_API_TOKEN` | set on the *serving* side; makes `/v1` require a bearer token |
 | `RIP_RATE_LIMIT` | requests a minute from one address before `/v1` answers 429 (default 120, 0 = off) |
 | `RIP_LIVE_SEARCH_SECONDS` | how long live *searches* may take before stragglers are abandoned (default 8) |
+| `RIP_VOCAB_TTL` | how often to check for DELETED terms with a count (default 600s; additions are noticed at once) |
+| `RIP_VOCAB_MIN_INTERVAL` | floor between vocabulary rebuilds while a writer is busy (default 5s) |
 
 `rip.cli check-db` prints which of these are set, along with engine, journal
 mode, and queue depths — run it first when something looks wrong.

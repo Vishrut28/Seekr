@@ -636,7 +636,38 @@ def _is_generic(term: str, df: dict, vocab_size: int) -> bool:
 # cached and rebuilt only when the corpus actually changed. Ingest runs in a
 # separate process, so a short TTL covers writes we never hear about; anything
 # that adds people inside this process calls invalidate_vocab() directly.
-VOCAB_TTL_SECONDS = float(os.environ.get("RIP_VOCAB_TTL", "60"))
+# The cache used to expire on a timer alone, and rebuilt whether or not
+# anything had changed. Measured on a synthetic corpus, the rebuild is not
+# cheap and does not stay cheap:
+#
+#     distinct terms   _build_vocab   _build_aux     total
+#          2,726          188 ms        329 ms       0.5 s
+#         24,898          398 ms        692 ms       1.1 s
+#         99,897        1,369 ms      5,158 ms       6.5 s
+#        299,894        5,998 ms     19,193 ms      25.0 s
+#
+# At roughly 3.5 distinct terms per person that is 85,000 people spending 25
+# seconds out of every 60 rebuilding a vocabulary nobody changed -- per worker
+# process -- and past about 285,000 people the rebuild takes longer than the
+# window, so the cache can never be warm at all.
+#
+# So the timer is no longer what decides. A fingerprint does: the largest id
+# in each table the vocabulary reads, which is 0.4 ms at half a million
+# evidence rows where COUNT(*) is 32 ms. Unchanged means nothing was ADDED and
+# the cache stands however old it is. Changed means rebuild now rather than up
+# to a minute later, which is also more correct than before.
+#
+# A maximum id cannot see the one thing left: a DELETED row taking the last
+# use of a term with it. So the timer stays, but what it triggers is a COUNT,
+# not a rebuild -- 32 ms against 25 seconds, and affordable once every ten
+# minutes where it is not affordable per query. A corpus nobody is writing to
+# rebuilds NEVER now, which is the whole point; a term that briefly outlives
+# its last holder matches nobody and costs no wrong answers.
+VOCAB_TTL_SECONDS = float(os.environ.get("RIP_VOCAB_TTL", "600"))
+# Never rebuild more often than this, however busy a writer is. Bulk ingest
+# changes evidence constantly, and without a floor every query during one
+# would pay for its own rebuild.
+VOCAB_MIN_INTERVAL = float(os.environ.get("RIP_VOCAB_MIN_INTERVAL", "5"))
 # Keyed by the engine the session is bound to, never process-global: one
 # process can legitimately talk to more than one database (the test suite
 # builds a fresh in-memory engine per test), and a shared entry would hand
@@ -1022,17 +1053,80 @@ def invalidate_vocab(session: Session | None = None) -> None:
         _vocab_cache.pop(si._bind_key(session), None)
 
 
+def _vocab_fingerprint(session: Session) -> tuple:
+    """Cheap proof that the vocabulary cannot have gained anything.
+
+    The largest id in each table it reads, plus this process's own index
+    generation. Primary keys are indexed, so each is a constant-time lookup --
+    0.4 ms at half a million evidence rows, against 32 ms for COUNT(*) and
+    13 ms for MAX(updated_at), neither of which is affordable per query.
+
+    Person contributes locations and has no integer key, so it is not
+    fingerprinted: a person arriving essentially always brings evidence with
+    them, and a lone location edit from another process waits for the backstop
+    timer. That is the honest limit of this being cheap.
+    """
+    from .models import Organization
+
+    # One statement per table: selecting both maxima together is a cartesian
+    # product between two tables with nothing to join on, which SQLAlchemy
+    # warns about and the database would have to plan around. Two indexed
+    # lookups are 0.4 ms each.
+    return (
+        session.execute(select(func.max(Evidence.id))).scalar(),
+        session.execute(select(func.max(Organization.id))).scalar(),
+        si.generation(session),
+    )
+
+
+def _vocab_census(session: Session) -> tuple:
+    """The count a maximum id cannot stand in for, because deletions lower it.
+
+    32 ms at half a million evidence rows -- too much per query, nothing at
+    all once every VOCAB_TTL_SECONDS.
+    """
+    from .models import Organization
+
+    return (
+        session.execute(select(func.count(Evidence.id))).scalar(),
+        session.execute(select(func.count(Organization.id))).scalar(),
+    )
+
+
 def _vocab(session: Session) -> tuple[dict, dict, dict]:
     """(skills, orgs, locations) lowercase -> canonical value, from live data."""
     import time
 
     key = si._bind_key(session)
     cached = _vocab_cache.get(key)
-    if cached is not None and (time.monotonic() - cached[0]) < VOCAB_TTL_SECONDS:
-        return cached[1]
+    now = time.monotonic()
+    if cached is not None:
+        stamp, built, _aux, fingerprint, census = cached
+        age = now - stamp
+        try:
+            grew = fingerprint != _vocab_fingerprint(session)
+        except Exception:      # a database that cannot answer the cheap
+            grew = True        # question is no reason to trust the cache
+        if grew:
+            if age < VOCAB_MIN_INTERVAL:
+                return built   # a writer is busy; do not rebuild per query
+        elif age < VOCAB_TTL_SECONDS:
+            return built
+        else:
+            # nothing was added, but something may have been deleted. Ask the
+            # question a maximum id cannot answer, and keep the cache if the
+            # answer is no.
+            try:
+                shrank = census != _vocab_census(session)
+            except Exception:
+                shrank = True
+            if not shrank:
+                _vocab_cache[key] = (now, built, _aux, fingerprint, census)
+                return built
     built = _build_vocab(session)
-    _vocab_cache[key] = (time.monotonic(), built,
-                         _build_aux(*built, field_only=_field_only_keys(session)))
+    _vocab_cache[key] = (now, built,
+                         _build_aux(*built, field_only=_field_only_keys(session)),
+                         _vocab_fingerprint(session), _vocab_census(session))
     return built
 
 
