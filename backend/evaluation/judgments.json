@@ -1,5 +1,5 @@
 {
- "about": "Criteria for what a relevant person is, per query. See grader.py for how they are applied: `strong` subjects in a person's stated topics grade 2; `strong` subjects only in their titles or bio, or `related` subjects in their topics, grade 1. `country` and `org` must hold unless `soft` is set, in which case a person meeting only the subject grades 1. `name` grades by name words. Kinds: topic (a subject the vocabulary holds), concept (needs related subjects understood), agent (a person noun: physicists), constrained, soft (constraints nobody may meet in full), typo, protected, name. Kind holdout: written after the concept work, criteria fixed before running, never tuned against — the check that improvements generalise. Kind holdout2: a second set written after every change listed so far, criteria fixed before its first run, scored once and never tuned against.",
+ "about": "Criteria for what a relevant person is, per query. See grader.py for how they are applied: `strong` subjects in a person's stated topics grade 2; `strong` subjects only in their titles or bio, or `related` subjects in their topics, grade 1. `country` and `org` must hold unless `soft` is set, in which case a person meeting only the subject grades 1. `name` grades by name words. Kinds: topic (a subject the vocabulary holds), concept (needs related subjects understood), agent (a person noun: physicists), constrained, soft (constraints nobody may meet in full), typo, protected, name. Kind holdout: written after the concept work, criteria fixed before running, never tuned against — the check that improvements generalise. Kind holdout2: a second set written after every change listed so far, criteria fixed before its first run, scored once and never tuned against. Kind holdout/holdout2 means criteria fixed before the first run -- EXCEPT where a case carries a `tuned` field, which records that the criterion was edited after results were seen, and why. Such a case is no longer an untouched holdout and its number cannot be read as one.",
  "cases": [
   {
    "id": "t-particle",
@@ -384,16 +384,21 @@
    "query": "neuroscience",
    "strong": [
     "neuroscience",
-    "brain",
     "neuron",
     "dementia",
     "alzheimer",
     "neurodegenerative",
-    "cognitive impairment"
+    "cognitive impairment",
+    "brain function",
+    "brain imaging",
+    "brain activity",
+    "brain computer",
+    "brain development"
    ],
    "related": [
     "psychology"
-   ]
+   ],
+   "tuned": "2026-09-22: \"brain\" dropped -- it graded brain-metastasis oncologists as neuroscientists, and like h2-neuro-agent this query scored 1.000 because the ranker shared the error."
   },
   {
    "id": "c-materials",
@@ -805,14 +810,20 @@
    "query": "chemists",
    "strong": [
     "chemistry",
-    "synthesis",
     "catalysis",
-    "photocatalysis"
+    "photocatalysis",
+    "synthesis of",
+    "chemical synthesis",
+    "organic synthesis",
+    "material synthesis",
+    "chemical physic",
+    "metal organic framework"
    ],
    "related": [
     "materials chemistry"
    ],
-   "kind": "holdout"
+   "kind": "holdout",
+   "tuned": "2026-09-22: \"synthesis\" dropped. It graded image, speech and protein synthesis researchers as chemists -- Hinton, Graves, Sutskever, Rabiner, 19 of 34. Edited after results were seen: this is no longer an untouched holdout."
   },
   {
    "id": "h-roboticists",
@@ -1043,43 +1054,63 @@
    "id": "h2-pathology",
    "query": "computational pathology",
    "strong": [
-    "pathology",
     "histopathology",
-    "digital pathology"
+    "digital pathology",
+    "computational pathology",
+    "pathology image",
+    "whole slide"
    ],
    "related": [
     "medical imaging",
-    "medical image"
+    "medical image",
+    "pathology"
    ],
-   "kind": "holdout2"
+   "kind": "holdout2",
+   "tuned": "2026-09-22: bare \"pathology\" demoted to related. In medicine it means the disease process, so it graded pancreatitis, GI and disc clinicians as computational pathologists, 7 of 11. Edited after results were seen: no longer an untouched holdout."
   },
   {
    "id": "h2-neuro-agent",
    "query": "neuroscientists",
    "strong": [
     "neuroscience",
-    "neural",
-    "brain"
+    "neural circuit",
+    "neural coding",
+    "neuronal",
+    "neurophysiology",
+    "neuroimaging",
+    "neural dynamic",
+    "brain function",
+    "brain imaging",
+    "brain activity",
+    "brain computer",
+    "brain development"
    ],
    "related": [
     "cognitive",
     "neurology"
    ],
-   "kind": "holdout2"
+   "kind": "holdout2",
+   "tuned": "2026-09-22: \"neural\" and \"brain\" dropped. \"neural\" graded neural-NETWORK researchers as neuroscientists (28 of 50) and \"brain\" graded brain-metastasis oncologists. The query scored a perfect 1.000 because the ranker made the same mistake; corrected it scores 0.52. Edited after results were seen: no longer an untouched holdout."
   },
   {
    "id": "h2-statisticians",
    "query": "statisticians",
    "strong": [
     "statistics",
-    "statistical",
-    "bayesian"
+    "bayesian",
+    "statistical method",
+    "statistical inference",
+    "statistical model",
+    "statistical modeling",
+    "statistical analysis",
+    "statistical learning"
    ],
    "related": [
     "econometrics",
     "biostatistics"
    ],
-   "kind": "holdout2"
+   "kind": "holdout2",
+   "tuned": "2026-09-22: \"statistical\" dropped. It graded statistical MECHANICS and the Diagnostic and Statistical Manual as statistics. Edited after results were seen: no longer an untouched holdout."
   },
   {
    "id": "h2-dev-databases",
@@ -1113,15 +1144,20 @@
    "query": "renewable energy researchers",
    "strong": [
     "renewable energy",
-    "solar",
     "wind energy",
-    "photovoltaic"
+    "photovoltaic",
+    "solar cell",
+    "solar energy",
+    "solar power",
+    "solar panel",
+    "solar thermal"
    ],
    "related": [
     "energy",
     "battery"
    ],
-   "kind": "holdout2"
+   "kind": "holdout2",
+   "tuned": "2026-09-22: \"solar\" dropped. It graded solar-PLASMA physicists as renewable energy researchers. Edited after results were seen: no longer an untouched holdout."
   },
   {
    "id": "h2-cardio",

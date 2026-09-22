@@ -481,15 +481,52 @@ python scripts/eval_ranking.py --audit t-tb    # everyone the criteria call rele
 ```
 
 Always run it against a copy of the database, because it initializes and
-reindexes. On the 446-person development corpus:
+reindexes. On the 709-person corpus, after the criteria review below:
 
 | Set | Queries | nDCG@10 | recall@50 |
 |---|---|---|---|
-| tuned (topic, concept, agent, constrained, soft, typo, name, protected) | 53 | 0.94 | 0.71 |
-| `holdout`: written mid-way, partly tuned after | 16 | 0.83 | 0.69 |
-| `holdout2`: written last, criteria fixed before the first run | 20 | 0.65 on the first run; 0.69 after one general bug fix ("in the US") | 0.42 |
+| tuned (topic, concept, agent, constrained, soft, typo, name, protected) | 53 | 0.86 | 0.67 |
+| `holdout`: written mid-way, partly tuned after | 16 | 0.74 | 0.49 |
+| `holdout2`: written last, criteria fixed before the first run | 20 | 0.73 | 0.46 |
 
-The last row is the number to believe for queries nobody has tuned for. Its
+Overall: nDCG@10 0.81, P@10 0.68, recall@50 0.59. **Read recall@50 against its
+ceiling, which is 0.95, not against 1.0**: twelve queries have more than fifty
+relevant people, so no ranker can retrieve them all in fifty results.
+`machine learning engineers` has 126, capping it at 0.40.
+
+### The criteria are drafts, and five of them were wrong
+
+Every criterion here was written by the machine that also built the ranker,
+which is the standing risk: when both make the same mistake, the benchmark
+certifies it. On 2026-09-22 all 89 were audited against the corpus they grade,
+and six graded the wrong field, all through a one-word `strong` term that means
+different things in different places:
+
+| query | term | wrongly graded 2 |
+|---|---|---|
+| `neuroscientists` | `neural` | 28 of 50 — neural *networks* |
+| `chemists` | `synthesis` | 19 of 34 — image, speech and protein synthesis |
+| `computational pathology` | `pathology` | 7 of 11 — pathology as *disease process* |
+| `neuroscience` | `brain` | 13 of 25 — brain *metastases*, so oncologists |
+| `statisticians` | `statistical` | 4 of 16 — statistical *mechanics*, and the DSM |
+| `renewable energy researchers` | `solar` | 3 of 12 — solar *plasma physics* |
+
+Geoffrey Hinton graded 2 — fully relevant — as a chemist and as a
+neuroscientist. `neuroscientists` and `neuroscience` both scored a perfect
+**1.000**, and corrected they score **0.52** and **0.50**: the ranker matched
+those queries on "neural" and "brain" too, so the criterion and the ranker
+agreed on the same error and the benchmark called it perfect. The loose
+criteria were not noise; they were concealing a real search defect.
+
+Fixing them cost 0.01 nDCG overall, so the headline claim survives — but four
+of the six are `holdout` or `holdout2`, whose whole value was that nobody had
+touched them after seeing results. They have been touched. Each now carries a
+`tuned` field saying so, and **their numbers can no longer be read as
+untouched-holdout numbers.** The 31 holdout queries without a `tuned` field
+still can. `tests/test_evaluation.py` pins each confusion so it cannot return.
+
+The last row of the table is the number to believe for queries nobody has
+tuned for. Its
 misses were mostly subjects the corpus had no people for — a coverage problem,
 not a parsing one. `scripts/ingest_topics.py` fills those from the free
 topical sources:
@@ -511,10 +548,11 @@ judgments need review before they are.
 `scripts/verify_postgres.py` runs the engine-specific query paths (exclusions,
 "both", count thresholds, the v9 migration) against a real Postgres and
 compares the answers with SQLite's; point `RIP_TEST_POSTGRES_URL` at a
-database it may create and drop tables in. One of its
-criteria is also too loose: "pathology" credits spine and GI pathology. The
-judgments are drafts and should be reviewed. The eval corpus is small, so a
-single query moves a set's score by several points.
+database it may create and drop tables in.
+
+The eval corpus is small, so a single query moves a set's score by several
+points, and the judgments remain drafts: the audit above found six bad
+criteria and there is no reason to think it found the last one.
 
 ## Search filters
 
@@ -1131,6 +1169,7 @@ Still open:
 - Negation, "both" and count thresholds are pattern-based. "not" inside a
   longer clause ("researchers who are not only…") is handled for the common
   forms, not for every English construction.
-- Search quality on queries nobody tuned for (`holdout2`, nDCG@10 0.69) is
-  well below the tuned sets (0.94) — see *Measuring search quality*.
+- Search quality on queries nobody tuned for (`holdout2`, nDCG@10 0.73) is
+  below the tuned sets (0.86), and five of those criteria have now been
+  edited after seeing results — see *Measuring search quality*.
 - Bulk ingest is single-threaded; throughput is bounded by resolution, not IO.
