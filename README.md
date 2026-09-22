@@ -485,11 +485,11 @@ reindexes. On the 709-person corpus, after the criteria review below:
 
 | Set | Queries | nDCG@10 | recall@50 |
 |---|---|---|---|
-| tuned (topic, concept, agent, constrained, soft, typo, name, protected) | 52 | 0.88 | 0.74 |
+| tuned (topic, concept, agent, constrained, soft, typo, name, protected) | 52 | 0.89 | 0.74 |
 | `holdout`: written mid-way, partly tuned after | 16 | 0.86 | 0.65 |
 | `holdout2`: written last, criteria fixed before the first run | 20 | 0.88 | 0.63 |
 
-Overall: nDCG@10 0.87, P@10 0.73, recall@50 0.69. **Read recall@50 against its
+Overall: nDCG@10 0.88, P@10 0.74, recall@50 0.69. **Read recall@50 against its
 ceiling, which is 0.96, not against 1.0**: ten queries have more than fifty
 relevant people, so no ranker can retrieve them all in fifty results.
 `machine learning engineers` has 126, capping it at 0.40.

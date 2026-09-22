@@ -149,3 +149,20 @@ def test_someone_who_states_the_subject_outranks_someone_with_a_related_one(sess
     person(session, "d", "Dee Stated", "Deep Learning")
     ranked = [p.canonical_name for p in execute(session, parse(session, "deep learning"))]
     assert ranked == ["Dee Stated", "Nia Related"]
+
+
+def test_a_subject_with_the_word_in_it_is_not_the_subject():
+    """"web services" and "semantic web" were listed as related to web
+    development. Both have the word in them and neither is it: the first
+    reaches "Service-Oriented Architecture and Web Services" and the second
+    "Semantic Web and Ontologies", academic subjects whose people carry the
+    citation counts of a career. They took the first NINE places for "web
+    developers" -- database and software-engineering professors, every one
+    graded 0 -- and pushed the people whose topics are css, angular and jquery
+    to tenth. nDCG 0.199, now 0.943."""
+    related = related_subjects("web development")
+    assert "web services" not in related
+    assert "semantic web" not in related
+    for real in ("html", "css", "javascript", "jquery", "php"):
+        assert real in related
+    assert related_subjects("web") == related      # the alias goes to the same place

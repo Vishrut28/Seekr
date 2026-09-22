@@ -114,8 +114,16 @@ _CONCEPTS: dict[str, list[str]] = {
                       "privacy preserving", "digital forensics", "cybercrime", "vulnerability",
                       "cyber forensics", "information security", "spam and phishing"],
     "information security": ["network security", "cryptography", "malware", "intrusion detection"],
+    # "web services" and "semantic web" are NOT here. They have the word in
+    # them and neither is web development: the first reaches "Service-Oriented
+    # Architecture and Web Services" and the second "Semantic Web and
+    # Ontologies", both academic subjects whose people carry the citation
+    # counts of a career. They took the first nine places for "web
+    # developers" -- database and software-engineering professors, every one
+    # graded 0 -- and pushed the people whose topics are css, angular and
+    # jquery to tenth. nDCG 0.199.
     "web development": ["html", "css", "javascript", "typescript", "reactjs", "angular", "vue.js",
-                        "jquery", "node.js", "php", "web services", "semantic web"],
+                        "jquery", "node.js", "php"],
     "frontend": ["html", "css", "javascript", "typescript", "reactjs", "angular", "vue.js"],
     "backend": ["node.js", "django", "flask", "spring", "microservices", "postgresql", "mysql",
                 "rest api"],
