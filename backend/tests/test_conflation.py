@@ -5,10 +5,11 @@ everybody. A productive researcher collaborates with different groups on
 different subjects, and that must not read as two people.
 """
 
-from rip import conflation
 from rip.ingest import ingest_profile
 from rip.normalize import PublicationData
 from tests.test_resolution import make_profile
+
+from rip import conflation
 
 
 def researcher(session, tag, name, papers):
@@ -106,7 +107,6 @@ def test_the_report_carries_what_a_reader_needs_to_judge(session):
 def openalex_person(session, tag, name, works):
     """A person as OpenAlex hands them over: each work carrying the
     institutions THIS author put on it. works: [(title, topics, coauthors, institutions)]"""
-    from rip.ingest import ingest_profile
     from rip.models import IdentityLink, SourceRecord
     from sqlalchemy import select
 

@@ -62,7 +62,8 @@ def test_technology_facet_counts_distinct_people_not_raw_projects(session):
     # the SAME person contributing to a SECOND Rust project must not
     # inflate the count to 3 — it is still 2 distinct people
     from rip.ingest import ingest_profile as _ingest
-    from rip.normalize import NormalizedProfile, ProjectData as _PD
+    from rip.normalize import NormalizedProfile
+    from rip.normalize import ProjectData as _PD
 
     # reuse p1's identity via a matching username so this attaches to the
     # SAME person rather than creating a third one

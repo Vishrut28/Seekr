@@ -28,13 +28,13 @@ from collections import Counter
 from rapidfuzz import fuzz
 
 from .. import geo
-from ..textnorm import fold
 from ..normalize import (
     EvidenceItem,
     NormalizedProfile,
     OrgAffiliation,
     PublicationData,
 )
+from ..textnorm import fold
 from .base import BaseConnector
 
 API = "https://www.ebi.ac.uk/europepmc/webservices/rest"

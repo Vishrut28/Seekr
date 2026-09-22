@@ -21,10 +21,10 @@ the timer expires. A corpus nobody writes to is never rebuilt.
 import time
 
 import pytest
+from rip.models import Evidence, Person
 from sqlalchemy import select
 
 from rip import nlq
-from rip.models import Evidence, Person
 
 
 @pytest.fixture

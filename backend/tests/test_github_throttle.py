@@ -78,11 +78,10 @@ def _write_throttle_in_subprocess(db_path: str, seconds: float) -> None:
     file's own module-level imports get re-executed from scratch here, so
     anything relying on a global set only in the parent process cannot
     possibly be visible in this process."""
-    from sqlalchemy import create_engine
-    from sqlalchemy.orm import sessionmaker
-
     from rip.db import Base
     from rip.nlq import _note_source_throttled
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
 
     engine = create_engine(f"sqlite:///{db_path}")
     try:
@@ -141,10 +140,9 @@ def test_throttle_state_survives_a_separate_os_process():
 
         # a THIRD, separate connection, in THIS (the original test) process,
         # against the same file the subprocess wrote to
+        from rip.db import Base
         from sqlalchemy import create_engine
         from sqlalchemy.orm import sessionmaker
-
-        from rip.db import Base
 
         engine = create_engine(f"sqlite:///{db_path}")
         try:

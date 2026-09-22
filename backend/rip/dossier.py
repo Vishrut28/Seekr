@@ -18,9 +18,17 @@ from pathlib import Path
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from .models import (Affiliation, Authorship, Evidence, IdentityLink,
-                     Organization, Person, PersonKey, Publication,
-                     SourceRecord)
+from .models import (
+    Affiliation,
+    Authorship,
+    Evidence,
+    IdentityLink,
+    Organization,
+    Person,
+    PersonKey,
+    Publication,
+    SourceRecord,
+)
 
 MARK = re.search(
     r'd="([^"]+)"',
@@ -30,6 +38,21 @@ MARK = re.search(
 
 def _esc(v) -> str:
     return html.escape(str(v)) if v is not None else ""
+
+
+TAG_CORROBORATED = "<span class='tag'>corroborated</span>"
+
+
+def _link(url: str | None, text: str) -> str:
+    """An anchor, or the plain text when there is nowhere to go.
+
+    This existed as an escaped conditional inside an f-string, which needs
+    Python 3.12 -- backslashes in f-strings are a syntax error before that,
+    and pyproject says this project supports 3.10. The module did not import
+    at all on the version it claims to run on; nothing noticed because nobody
+    runs 3.10 here, and a linter found it in its first pass.
+    """
+    return f"<a href='{_esc(url)}'>{text}</a>" if url else text
 
 
 def collect(session: Session, person: Person) -> dict:
@@ -281,8 +304,8 @@ def render_html(data: dict) -> str:
     strongest = "".join(
         f"<tr><td>{_esc(e.value)}</td><td>{_esc(e.attribute_type.replace('_',' '))}</td>"
         f"<td>{_esc(e.source)}</td>"
-        f"<td>{'<span class=\'tag\'>corroborated</span>' if e.verification_state=='corroborated' else ''}</td>"
-        f"<td class='n'>{'<a href=\'' + _esc(e.url) + '\'>source</a>' if e.url else ''}</td></tr>"
+        f"<td>{TAG_CORROBORATED if e.verification_state == 'corroborated' else ''}</td>"
+        f"<td class='n'>{_link(e.url, 'source') if e.url else ''}</td></tr>"
         for e in data["strongest"]
     )
     rubric = "".join(
@@ -297,14 +320,14 @@ def render_html(data: dict) -> str:
         for o, role, rel, sd, ed in data["affiliations"][:8]
     )
     works = "".join(
-        f"<tr><td>{'<a href=\'' + _esc(u) + '\'>' + _esc(t) + '</a>' if u else _esc(t)}</td>"
+        f"<tr><td>{_link(u, _esc(t))}</td>"
         f"<td>{_esc(v or '')}</td><td class='n'>{_esc(str(d)[:4] if d else '')}</td>"
         f"<td class='n'>{_esc(c if c is not None else '')}</td></tr>"
         for t, v, d, c, u in data["works"]
     )
     records = "".join(
         f"<tr><td>{_esc(src)}</td>"
-        f"<td>{'<a href=\'' + _esc(u) + '\'>' + _esc(u)[:74] + '</a>' if u else ''}</td>"
+        f"<td>{_link(u, _esc(u)[:74]) if u else ''}</td>"
         f"<td class='n'>{_esc(str(seen)[:10] if seen else '')}</td></tr>"
         for src, u, seen in data["records"][:14]
     )

@@ -6,7 +6,6 @@ matched the University of Karachi by acronym.
 """
 
 import pytest
-
 from rip.ingest import ingest_profile
 from rip.nlq import parse
 from rip.normalize import EvidenceItem, OrgAffiliation

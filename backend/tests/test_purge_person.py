@@ -12,12 +12,20 @@ id that is gone.
 """
 
 import pytest
-from sqlalchemy import func, select
-
-from rip.models import (Authorship, ChangeLog, Evidence, IdentityLink, Person,
-                        PersonKey, PersonNameToken, Publication, SourceRecord)
+from rip.models import (
+    Authorship,
+    ChangeLog,
+    Evidence,
+    IdentityLink,
+    Person,
+    PersonKey,
+    PersonNameToken,
+    Publication,
+    SourceRecord,
+)
 from rip.search_index import SearchTerm
 from scripts.purge_person import plan, purge, referencing_columns
+from sqlalchemy import func, select
 
 
 def publisher(session, name="Verlag Hans Huber", external_id="A5081967324"):
@@ -202,10 +210,9 @@ def run_script(tmp_path, *args, seed=None):
     import sys
     from pathlib import Path
 
+    from rip.db import Base
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
-
-    from rip.db import Base
 
     backend = Path(__file__).resolve().parents[1]
     db = tmp_path / "rip.db"

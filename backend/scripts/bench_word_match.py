@@ -4,7 +4,6 @@ used by every location-filtered /v1/query. Run with SEEKR_BASE set.
 """
 import os
 import statistics
-import sys
 import time
 import urllib.parse
 import urllib.request

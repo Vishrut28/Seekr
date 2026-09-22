@@ -8,8 +8,8 @@ test here exists because some pair in the real queue looked like one of those
 and was not.
 """
 
-from scripts.adjudicate_duplicates import adjudicate, propagate, still_open
 from rip.models import Authorship, MergeCandidate, Person, PersonKey, Publication
+from scripts.adjudicate_duplicates import adjudicate, propagate, still_open
 
 
 def person(session, name, orcid=None, as_url=False):

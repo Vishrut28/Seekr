@@ -10,7 +10,6 @@ when generating the fake data, which validates nothing about real user
 judgement. These tests validate the arithmetic is correct; they say nothing
 about what any real fit would mean, because they were never meant to.
 """
-import math
 
 from rip.weight_fitting import (
     coefficients_to_weights,

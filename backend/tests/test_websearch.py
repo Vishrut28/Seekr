@@ -1,9 +1,9 @@
 """Web-search backends and the render-fallback chain (no network)."""
 
 import pytest
+from rip.connectors.web import WebConnector
 
 from rip import websearch
-from rip.connectors.web import WebConnector
 
 
 def test_no_keys_means_no_calls(monkeypatch):

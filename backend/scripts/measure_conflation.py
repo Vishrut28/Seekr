@@ -121,10 +121,11 @@ def main() -> None:
     parser.add_argument("--cover", nargs="*", type=float, default=[0.0, 0.4, 0.6])
     args = parser.parse_args()
 
-    from rip import conflation
     from rip.db import SessionLocal, init_db
     from rip.models import ChangeLog, ConflationReview, Person, PersonSplit
     from sqlalchemy import select
+
+    from rip import conflation
 
     raw = json.load(open(LABELS, encoding="utf-8"))
     arms = raw.get("arms", {})
@@ -132,8 +133,8 @@ def main() -> None:
     # safe direction: it under-counts positives rather than scoring a record
     # whose label may predate the work done to it.
     labelled_at = datetime.fromisoformat(raw.get("labelled_at") or "1970-01-01")
-    wanted = {short: 1 for short in raw["conflated"]}
-    wanted |= {short: 0 for short in raw["one_person"]}
+    wanted = dict.fromkeys(raw["conflated"], 1)
+    wanted |= dict.fromkeys(raw["one_person"], 0)
 
     init_db()
     rows, missing, repaired, disputed = [], [], [], []

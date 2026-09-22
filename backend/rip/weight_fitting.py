@@ -82,5 +82,5 @@ def coefficients_to_weights(names: list, coefs: list) -> tuple:
     positive = {n: max(0.0, c) for n, c in zip(names, coefs)}
     total = sum(positive.values())
     if total <= 0:
-        return {n: 0.0 for n in names}, negative
+        return dict.fromkeys(names, 0.0), negative
     return {n: round(v / total, 4) for n, v in positive.items()}, negative

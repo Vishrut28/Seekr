@@ -35,17 +35,18 @@ def main() -> None:
     parser.add_argument("--limit", type=int, default=0, help="stop after N records")
     args = parser.parse_args()
 
-    from rip import conflation, conflation_judge
     from rip.db import SessionLocal, init_db
     from rip.models import Person
     from sqlalchemy import select
+
+    from rip import conflation, conflation_judge
 
     init_db()
     truth: dict[str, int] = {}
     with SessionLocal() as session:
         if args.benchmark:
             raw = json.load(open(LABELS, encoding="utf-8"))
-            wanted = {p: 1 for p in raw["conflated"]} | {p: 0 for p in raw["one_person"]}
+            wanted = dict.fromkeys(raw["conflated"], 1) | dict.fromkeys(raw["one_person"], 0)
             splits = []
             for short, label in wanted.items():
                 person = session.execute(

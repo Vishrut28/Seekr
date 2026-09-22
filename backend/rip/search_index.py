@@ -44,18 +44,38 @@ import os
 import time
 import weakref
 from collections import defaultdict
+from dataclasses import dataclass
+from dataclasses import field as dc_field
 from datetime import datetime, timezone
-from dataclasses import dataclass, field as dc_field
 
 from sqlalchemy import (
-    Float, ForeignKey, Integer, String, and_, delete, desc, event, exists,
-    func, insert, inspect, literal, or_, select,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    and_,
+    delete,
+    desc,
+    event,
+    exists,
+    func,
+    insert,
+    inspect,
+    literal,
+    or_,
+    select,
 )
 from sqlalchemy.orm import Mapped, Session, aliased, mapped_column
 
 from .db import Base
-from .textnorm import (org_key, phrase_terms, stem_phrase_terms, stem_text_terms,
-                       text_terms, value_key)
+from .textnorm import (
+    org_key,
+    phrase_terms,
+    stem_phrase_terms,
+    stem_text_terms,
+    text_terms,
+    value_key,
+)
 
 logger = logging.getLogger("rip.search_index")
 
@@ -209,8 +229,18 @@ TOTALS_SOURCES = ("openalex", "semanticscholar", "dblp")
 def _postings_for(session: Session, person_ids: list[str]) -> tuple[list[dict], list[dict]]:
     """(search_term rows, search_doc rows) for these people, from the tables."""
     from .geo import city_country, country_in_text
-    from .models import (Affiliation, Authorship, Contribution, Evidence, IdentityLink,
-                         Organization, Person, Project, Publication, SourceRecord)
+    from .models import (
+        Affiliation,
+        Authorship,
+        Contribution,
+        Evidence,
+        IdentityLink,
+        Organization,
+        Person,
+        Project,
+        Publication,
+        SourceRecord,
+    )
 
     persons = session.execute(
         select(Person.id, Person.canonical_name, Person.aliases, Person.location,
@@ -396,7 +426,7 @@ def index_people(session: Session, person_ids) -> int:
 
 # Bumped whenever this process re-indexes anyone: corpus-level caches (facet
 # counts) key on it, so a write made here is visible on the very next read.
-_generation: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary()
+_generation: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
 
 
 def generation(session: Session) -> int:
@@ -448,7 +478,6 @@ def _set_version(session: Session) -> None:
 
 
 def needs_rebuild(session: Session) -> bool:
-    from .models import Person
 
     if not _has_tables(session):
         return False
@@ -529,8 +558,8 @@ def _after_rollback(session: Session) -> None:
     session.info.pop(_MEMO, None)
 
 
-_tables_cache: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary()
-_ready_cache: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary()
+_tables_cache: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
+_ready_cache: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
 READY_TTL_SECONDS = 30.0
 
 
@@ -550,7 +579,6 @@ def is_ready(session: Session) -> bool:
     True when it was built by the current INDEX_VERSION, or when the corpus
     is empty (then everything written from here on is indexed as it lands).
     """
-    from .models import Person
 
     key = _bind_key(session)
     cached = _ready_cache.get(key)
@@ -604,7 +632,7 @@ def exact_alt(fld: str, key: str | None) -> Alt | None:
     return Alt(fld, (key,)) if key else None
 
 
-_df_cache: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary()
+_df_cache: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
 DF_TTL_SECONDS = float(os.environ.get("RIP_VOCAB_TTL", "60"))
 
 
@@ -700,7 +728,7 @@ class Restrict:
         return bool(self.exclude) or self.thresholds()
 
 
-def _restrict_conds(restrict: "Restrict | None", pid_col, counts) -> list:
+def _restrict_conds(restrict: Restrict | None, pid_col, counts) -> list:
     if not restrict:
         return []
     conds = [~_constraint_check(c, pid_col, counts) for c in restrict.exclude]
@@ -715,7 +743,7 @@ def _restrict_conds(restrict: "Restrict | None", pid_col, counts) -> list:
     return conds
 
 
-def _match_stmt(constraints: list[Constraint], counts, restrict: "Restrict | None" = None):
+def _match_stmt(constraints: list[Constraint], counts, restrict: Restrict | None = None):
     """SELECT DISTINCT person_id for people satisfying every constraint.
 
     Driven by the rarest constraint: its postings are range-scanned and every
@@ -743,7 +771,7 @@ def _match_stmt(constraints: list[Constraint], counts, restrict: "Restrict | Non
 
 
 def _prepare(session: Session, constraints: list[Constraint],
-             restrict: "Restrict | None" = None):
+             restrict: Restrict | None = None):
     """(counts, possible) — False when some constraint provably matches nobody."""
     every = [*constraints, *(restrict.exclude if restrict else [])]
     pairs = [(a.field, t) for c in every for a in c.alts for t in a.terms]
@@ -755,7 +783,7 @@ def _prepare(session: Session, constraints: list[Constraint],
 
 
 def match_select(session: Session, constraints: list[Constraint],
-                 restrict: "Restrict | None" = None):
+                 restrict: Restrict | None = None):
     """A SELECT of person_id for everyone satisfying CONSTRAINTS, for use as
     `Person.id.in_(...)` alongside other SQL — or None when some constraint
     provably matches nobody (the caller can return empty without querying)."""
@@ -767,7 +795,7 @@ def match_select(session: Session, constraints: list[Constraint],
 
 
 def count(session: Session, constraints: list[Constraint],
-          restrict: "Restrict | None" = None) -> int:
+          restrict: Restrict | None = None) -> int:
     key = ("count", tuple(c.key() for c in constraints), restrict.key() if restrict else None)
     memo = _memo(session)
     if key in memo:
@@ -784,7 +812,7 @@ def count(session: Session, constraints: list[Constraint],
 
 def candidates(
     session: Session, constraints: list[Constraint], pool: int,
-    score_alts: list[Alt] | None = None, restrict: "Restrict | None" = None,
+    score_alts: list[Alt] | None = None, restrict: Restrict | None = None,
 ) -> list[str]:
     """Up to POOL matching person ids, strongest first when there are more.
 

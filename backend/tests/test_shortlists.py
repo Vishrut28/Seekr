@@ -7,11 +7,11 @@ nothing else.
 """
 
 import pytest
-
-from rip import api
 from rip.ingest import ingest_profile
 from rip.models import Person, Shortlist, ShortlistMember
 from tests.test_resolution import make_profile
+
+from rip import api
 
 
 def person(session, tag="a"):

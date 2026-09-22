@@ -12,7 +12,7 @@ measured before that one was found. Both are pinned here, because both look
 obviously right until you run them.
 """
 
-from rip.nlq import _build_vocab, _contained, _build_aux, _field_only_keys
+from rip.nlq import _build_aux, _contained
 from rip.textnorm import fold
 
 # as OpenAlex spells them

@@ -226,8 +226,9 @@ def test_suggestions_fall_through_to_other_sources(session, monkeypatch):
 
 
 def test_live_searchers_cover_all_free_connectors():
-    from rip.connectors import CONNECTORS
     from rip.nlq import PAID_SOURCES, SUGGESTION_SEARCHERS
+
+    from rip.connectors import CONNECTORS
 
     live = {name for name, _fn, _full in SUGGESTION_SEARCHERS}
     free = set(CONNECTORS) - set(PAID_SOURCES)
@@ -646,7 +647,6 @@ def test_match_feedback_is_recorded_but_never_ranks(session):
 def test_feedback_rejects_a_bad_verdict(session):
     import pytest
     from fastapi import HTTPException
-
     from rip.api import post_feedback
     from rip.models import Person
 
@@ -660,9 +660,13 @@ def test_feedback_rejects_a_bad_verdict(session):
 def test_shortlists_hold_people_with_the_query_that_found_them(session):
     import pytest
     from fastapi import HTTPException
-
-    from rip.api import (add_to_shortlist, create_shortlist, get_shortlist,
-                         list_shortlists, remove_from_shortlist)
+    from rip.api import (
+        add_to_shortlist,
+        create_shortlist,
+        get_shortlist,
+        list_shortlists,
+        remove_from_shortlist,
+    )
     from rip.models import Person
 
     seed(session)
@@ -800,8 +804,8 @@ def test_empty_filters_say_which_one_to_relax(session):
 
 def test_job_titles_are_matched_as_roles_not_topics(session):
     """"community managers" must not become the topic Microbial Community Ecology."""
-    from rip.nlq import parse
     from rip.ingest import ingest_profile
+    from rip.nlq import parse
     from rip.normalize import EvidenceItem, NormalizedProfile, OrgAffiliation
 
     ingest_profile(session, NormalizedProfile(
@@ -927,10 +931,9 @@ def test_a_stated_skill_outranks_a_bio_mention(session):
 
 def test_vocabulary_cache_does_not_leak_between_databases(session):
     """A cached vocabulary belongs to one database, never to the process."""
+    from rip.db import Base
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
-
-    from rip.db import Base
 
     seed(session)
     assert parse(session, "distributed systems experts").skill_groups  # populates the cache

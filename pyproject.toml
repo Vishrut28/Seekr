@@ -13,7 +13,17 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0"]
+# ruff for style and dead code, mypy for the type annotations this codebase
+# already writes, coverage to replace "644 tests pass" with a number that says
+# what they cover, pip-audit for known vulnerabilities in the dependency tree.
+# None of them ran against these 32,000 lines before.
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+    "mypy>=1.11",
+    "coverage>=7.6",
+    "pip-audit>=2.7",
+]
 postgres = ["psycopg[binary]>=3.1"]
 
 [build-system]
@@ -28,3 +38,54 @@ package-dir = {"" = "backend"}
 # the package lives under backend/, so tests import it from there
 pythonpath = ["backend"]
 testpaths = ["backend/tests"]
+
+[tool.ruff]
+# 99% of the lines here are under 95 characters and 123 of 30,000 are over
+# 100, so this is the width the code already has rather than one imposed on it
+line-length = 100
+target-version = "py310"
+extend-exclude = ["frontend", "web/node_modules"]
+
+[tool.ruff.lint]
+# Deliberately not the whole catalogue. Each of these catches something that
+# has actually gone wrong in this repository or would have: F for unused
+# imports and names, B for mutable defaults and the loop-variable capture that
+# bit the duplicate-adjudication scripts, SIM for the redundant conditionals
+# that accumulate in a 4,000-line parser, I for import order.
+select = ["E", "F", "W", "B", "SIM", "I", "UP", "C4"]
+ignore = [
+    "E501",    # line length is checked by the formatter's width, not as an error
+    "SIM108",  # a ternary is not always clearer than the if it replaces
+    "B008",    # FastAPI's Depends() and Query() are function calls in defaults
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests say what they mean at the cost of some repetition, and import inside a
+# function on purpose to keep module import time honest.
+"backend/tests/*" = ["E402", "B011"]
+"backend/scripts/*" = ["E402"]
+
+[tool.mypy]
+python_version = "3.10"
+files = ["backend/rip"]
+# Starting strict would produce thousands of errors nobody reads. These two
+# catch the mistakes that actually reach production: a function that says it
+# returns a value and does not, and a None flowing where it cannot.
+warn_return_any = true
+warn_unused_ignores = true
+no_implicit_optional = true
+ignore_missing_imports = true
+
+[tool.coverage.run]
+source = ["backend/rip", "backend/scripts", "backend/evaluation"]
+branch = true
+
+[tool.coverage.report]
+# Anything not executed at all is the honest first thing to look at.
+show_missing = true
+skip_covered = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]

@@ -6,9 +6,15 @@ import sys
 
 sys.path.insert(0, ".")
 
-from rip.db import Base, engine, SessionLocal
+from rip.db import Base, SessionLocal, engine
 from rip.ingest import ingest_profile
-from rip.normalize import EvidenceItem, NormalizedProfile, OrgAffiliation, ProjectData, PublicationData
+from rip.normalize import (
+    EvidenceItem,
+    NormalizedProfile,
+    OrgAffiliation,
+    ProjectData,
+    PublicationData,
+)
 
 random.seed(42)
 

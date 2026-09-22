@@ -34,11 +34,10 @@ def main() -> None:
     if args.db:
         os.environ["RIP_DATABASE_URL"] = args.db
 
-    from sqlalchemy import select
-
     from rip.db import SessionLocal
     from rip.ingest import SELF_TYPED_ATTRS, correct_spelling
     from rip.models import Evidence, Person
+    from sqlalchemy import select
 
     renamed = dropped = 0
     with SessionLocal() as session:

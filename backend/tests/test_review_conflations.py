@@ -7,10 +7,10 @@ reason this queue has a write endpoint at all.
 """
 
 import pytest
-
-from rip import api
 from rip.models import ConflationReview, Person
 from tests.test_conflation import one_field, researcher
+
+from rip import api
 
 
 def split_record(session, tag="two", name="Ann Double"):
@@ -95,9 +95,10 @@ def test_a_record_already_being_split_stays_in_the_queue(session):
     listed King Khalid University, while the record still mixed agricultural
     economics with hydrology and petroleum recovery. The employer check is
     60% precise; somebody's unfinished work is not a guess."""
-    from rip import conflation
     from rip.models import PersonSplit
     from tests.test_split import papers_titled
+
+    from rip import conflation
     from rip import split as splitter
 
     # Big enough that taking a paper off still leaves a judgeable record:

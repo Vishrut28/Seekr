@@ -1,7 +1,6 @@
 """Phase 2: auto-enrichment chain (no network — connectors are stubbed)."""
 
 import pytest
-
 from rip.enrich import _hops_from, enrich
 from rip.ingest import ingest_profile, run_connector
 from rip.models import IngestionRun, Person, SourceRecord

@@ -1,10 +1,9 @@
 """Records that are not people never become people; page titles become names."""
 
 import pytest
-
 from rip.ingest import ingest_profile
-from rip.normalize import EvidenceItem, NormalizedProfile
 from rip.nlq import execute, parse
+from rip.normalize import EvidenceItem, NormalizedProfile
 from rip.personhood import NotAPerson, assess
 
 

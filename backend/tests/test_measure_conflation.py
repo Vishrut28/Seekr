@@ -11,8 +11,8 @@ number that looks plausible.
 
 from datetime import datetime
 
-from scripts.measure_conflation import standing
 from rip.models import Person
+from scripts.measure_conflation import standing
 
 CONFLATED, ONE_PERSON = 1, 0
 LABELLED = datetime(2026, 9, 21)
@@ -109,11 +109,10 @@ def test_the_harness_refuses_to_print_a_table_it_cannot_support(tmp_path):
     from datetime import timedelta
     from pathlib import Path
 
-    from sqlalchemy import create_engine
-    from sqlalchemy.orm import sessionmaker
-
     from rip.db import Base
     from rip.models import Person, PersonSplit, SourceRecord
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
 
     backend = Path(__file__).resolve().parents[1]
     labels = json.loads((backend / "evaluation" / "conflation_labels.json")

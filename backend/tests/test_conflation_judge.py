@@ -8,8 +8,6 @@ back as "unsure" rather than as a confident wrong answer.
 
 import json
 
-import pytest
-
 from rip import conflation_judge
 
 

@@ -14,12 +14,24 @@ import sys
 import time
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
-from capture import Chrome, UI, TOKEN, OUT                      # noqa: E402
-import scenes                                                    # noqa: E402
-from scenes import (MARKS, card, caption, caption_corrected,      # noqa: E402
-                    caption_counted, caption_off, caption_typed, click_cursor,
-                    click_live, goto_ui, mark, move_cursor, record,
-                    show_cursor, submit, type_query)
+import scenes  # noqa: E402
+from capture import OUT, TOKEN, UI, Chrome  # noqa: E402
+from scenes import (  # noqa: E402
+    MARKS,
+    caption,
+    caption_off,
+    caption_typed,
+    card,
+    click_cursor,
+    click_live,
+    goto_ui,
+    mark,
+    move_cursor,
+    record,
+    show_cursor,
+    submit,
+    type_query,
+)
 
 MARK = re.search(r'd="([^"]+)"',
                  (pathlib.Path(__file__).parents[1] / "frontend/assets/mark.svg").read_text()).group(1)

@@ -23,9 +23,17 @@ TOP_TOPICS = 6
 
 
 def profile(session, person_id: str) -> dict:
-    from rip.models import (Affiliation, Authorship, Evidence, IdentityLink,
-                            Organization, Person, PersonKey, Publication,
-                            SourceRecord)
+    from rip.models import (
+        Affiliation,
+        Authorship,
+        Evidence,
+        IdentityLink,
+        Organization,
+        Person,
+        PersonKey,
+        Publication,
+        SourceRecord,
+    )
     from sqlalchemy import select
 
     person = session.get(Person, person_id)

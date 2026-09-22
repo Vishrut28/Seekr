@@ -9,22 +9,19 @@ for the best answers, not for every answer in insertion order — every result
 carries the score and the evidence components behind it.
 """
 
-from datetime import datetime
-
 import contextvars
 import os
 import pathlib
 import re
 import shutil
-
 from collections import OrderedDict
+from datetime import datetime
+from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from sqlalchemy import String as SAString
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
-
-from pathlib import Path
 
 from .db import READ_ONLY, SessionLocal, init_db
 
@@ -45,7 +42,6 @@ def _applied_filter_count(parsed) -> int:
         parsed.skill_groups, parsed.organizations, parsed.locations,
         parsed.countries, parsed.name_terms, parsed.roles,
     ))
-from .nlq import _word_match, place_mentioned  # whole-word matching, shared with the parser
 from .models import (
     Affiliation,
     Authorship,
@@ -56,10 +52,12 @@ from .models import (
     IngestionRun,
     Organization,
     Person,
+    PersonKey,
     Project,
     Publication,
     SourceRecord,
 )
+from .nlq import _word_match, place_mentioned  # whole-word matching, shared with the parser
 
 app = FastAPI(
     title="Seekr",
@@ -338,7 +336,8 @@ def list_persons(
     factual field (recency, name) and never by fitness for a role. Ranking
     stays in the downstream tool.
     """
-    from sqlalchemy import and_, exists as sa_exists
+    from sqlalchemy import and_
+    from sqlalchemy import exists as sa_exists
 
     from . import search_index as si
 
@@ -1096,8 +1095,7 @@ def review_conflations(
     with years, subjects and titles, because that is what the decision is
     actually made on.
     """
-    from .conflation import (break_evidence, candidates, describe,
-                             shares_an_employer)
+    from .conflation import break_evidence, candidates, describe, shares_an_employer
     from .models import ConflationReview, PersonSplit
 
     seen = {
@@ -1282,8 +1280,15 @@ def nl_query(
     the suggestions, and `persisted: false`, and the corpus is unchanged.
     Suggestions are not results and are not ranked.
     """
-    from .nlq import (count_matches, diagnose_empty, execute, execute_progressive,
-                      has_filters, parse, query_understanding, subjects_asked)
+    from .nlq import (
+        count_matches,
+        diagnose_empty,
+        execute_progressive,
+        has_filters,
+        parse,
+        query_understanding,
+        subjects_asked,
+    )
 
     # tolerate direct calls (tests) where FastAPI has not resolved the params
     limit = limit if isinstance(limit, int) else 0
@@ -1924,11 +1929,18 @@ def query_stream(
 
     from starlette.responses import StreamingResponse
 
-    from .nlq import (count_matches, discovery_suggestions, enabled_searchers,
-                      execute, execute_progressive, parse, query_understanding,
-                      relevance_scores, subjects_asked)
+    from .nlq import (
+        count_matches,
+        discovery_suggestions,
+        enabled_searchers,
+        execute_progressive,
+        parse,
+        query_understanding,
+        relevance_scores,
+        subjects_asked,
+    )
 
-    events: "_queue.Queue[dict | None]" = _queue.Queue()
+    events: _queue.Queue[dict | None] = _queue.Queue()
 
     def run():
         session = SessionLocal()

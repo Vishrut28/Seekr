@@ -7,10 +7,11 @@ routinely give "Bangalore, India" and no ISO code at all. The menu offered
 "IN - 48" over a filter that returned 70.
 """
 
-from rip import api
-from rip import search_index as si
 from rip.ingest import ingest_profile
 from tests.test_resolution import make_profile
+
+from rip import api
+from rip import search_index as si
 
 
 def corpus(session):

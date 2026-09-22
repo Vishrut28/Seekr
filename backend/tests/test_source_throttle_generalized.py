@@ -44,8 +44,9 @@ def test_note_source_throttled_uses_the_real_retry_after_when_given(session):
 
 def test_note_source_throttled_falls_back_to_default_when_none_given(session):
     _note_source_throttled(session, "dblp", seconds=None)
-    from rip.models import SourceThrottle
     from datetime import datetime, timezone
+
+    from rip.models import SourceThrottle
 
     row = session.query(SourceThrottle).filter_by(source="dblp").one()
     now = datetime.now(timezone.utc).replace(tzinfo=None)

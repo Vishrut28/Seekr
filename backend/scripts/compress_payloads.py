@@ -36,11 +36,10 @@ def main() -> None:
 
     import json
 
-    from sqlalchemy import func, select
-    from sqlalchemy.orm.attributes import flag_modified
-
     from rip.db import SessionLocal
     from rip.models import CompressedJSON, SourceRecord
+    from sqlalchemy import func, select
+    from sqlalchemy.orm.attributes import flag_modified
 
     coder = CompressedJSON()
     before = after = 0

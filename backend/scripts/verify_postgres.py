@@ -47,8 +47,7 @@ PEOPLE = [
 
 def seed(session):
     from rip.ingest import ingest_profile
-    from rip.normalize import (EvidenceItem, NormalizedProfile, OrgAffiliation,
-                               PublicationData)
+    from rip.normalize import EvidenceItem, NormalizedProfile, OrgAffiliation, PublicationData
 
     for index, (name, topics, orgs, location, papers) in enumerate(PEOPLE):
         ingest_profile(session, NormalizedProfile(
@@ -62,8 +61,9 @@ def seed(session):
 
 
 def answers(session, indexed: bool = True):
-    from rip import nlq
     from rip.nlq import count_matches, execute_progressive, parse
+
+    from rip import nlq
 
     # the SQL path a database serves from before its index is built: correlated
     # EXISTS per organization, a GROUP BY for the candidate cut, NOT IN for
@@ -153,9 +153,12 @@ def run(url: str, keep: bool) -> int:
     os.environ["RIP_DATABASE_URL"] = url
     for module in [m for m in list(sys.modules) if m.startswith("rip")]:
         del sys.modules[module]
-    from rip import models  # noqa: F401
-    from rip import search_index  # noqa: F401
     from rip.db import Base, SessionLocal, engine, init_db
+
+    from rip import (
+        models,  # noqa: F401
+        search_index,  # noqa: F401
+    )
 
     print(f"connecting to {url.split('@')[-1]}")
     init_db()

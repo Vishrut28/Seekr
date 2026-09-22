@@ -1,7 +1,6 @@
 """Wikidata connector: identity hub linking sources we cannot crawl."""
 
 import pytest
-
 from rip.connectors.wikidata import WikidataConnector
 from rip.ingest import ingest_profile
 from rip.models import Evidence, Person

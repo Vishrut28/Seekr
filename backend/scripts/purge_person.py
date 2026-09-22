@@ -88,7 +88,7 @@ def referencing_columns(target_table: str) -> list:
 
 def plan(session, person) -> dict:
     """What would go. Read-only."""
-    from rip.models import Authorship, IdentityLink, Publication, SourceRecord
+    from rip.models import Authorship, IdentityLink, Publication
     from sqlalchemy import func, select
 
     # Every record this person holds is theirs alone: identity_link is unique
@@ -189,11 +189,11 @@ def main() -> None:
         print(f"{person.id}  {person.canonical_name!r}")
         if verdict.is_person and not is_empty(session, person):
             sys.exit(
-                f"REFUSED: personhood still calls this a person, so this script "
-                f"will not touch it.\nIt removes only what ingest would now "
-                f"refuse at the door. If the record really is not a person, the "
-                f"fix is a rule in rip/personhood.py -- with a test -- and then "
-                f"this script follows from it.")
+                "REFUSED: personhood still calls this a person, so this script "
+                "will not touch it.\nIt removes only what ingest would now "
+                "refuse at the door. If the record really is not a person, the "
+                "fix is a rule in rip/personhood.py -- with a test -- and then "
+                "this script follows from it.")
         reason = ("holds no name, no evidence and no publications"
                   if is_empty(session, person) else verdict.reason)
         print(f"not a person: {reason}\n")

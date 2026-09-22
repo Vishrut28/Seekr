@@ -1,11 +1,12 @@
 """Ranking across disciplines and levels of evidence: citations judged by
 field norms, and a stated topic above a filing category."""
 
-from rip import nlq
 from rip.ingest import ingest_profile
 from rip.nlq import execute, parse
 from rip.normalize import EvidenceItem, PublicationData
 from tests.test_resolution import make_profile
+
+from rip import nlq
 
 
 def researcher(session, ext, name, field, citations, topics=(), filed=()):

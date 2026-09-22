@@ -8,13 +8,13 @@ same pair being decided twice.
 """
 
 import pytest
-
-from rip import api
 from rip.ingest import ingest_profile
 from rip.models import Evidence, MergeCandidate, Person
 from rip.normalize import EvidenceItem
 from rip.review import resolve_duplicate
 from tests.test_resolution import make_profile
+
+from rip import api
 
 
 def pair(session):
@@ -115,11 +115,12 @@ def deferred_or_rejected(session, decision):
     deferring one of those is as final as rejecting it. Worth knowing, and
     true of one of the thirteen pairs this was built for.
     """
-    from rip import dedupe
     from rip.ingest import ingest_profile
     from rip.models import Authorship, Publication
     from rip.normalize import EvidenceItem
     from tests.test_resolution import make_profile
+
+    from rip import dedupe
 
     a = ingest_profile(session, make_profile(
         external_id="same-a", url="https://openalex.org/same-a", raw={"id": "a"},
@@ -178,7 +179,6 @@ def test_rejecting_puts_the_pair_beyond_the_sweeps_reach(session):
 def test_a_deferred_pair_is_not_treated_as_decided(session):
     """plan's `already` set is what stops a decided pair coming back, and a
     deferred row must not be in it."""
-    from rip import dedupe
     from sqlalchemy import select as sa_select
 
     a, b, candidate = pair(session)

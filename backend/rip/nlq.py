@@ -24,8 +24,7 @@ from sqlalchemy.orm import Session
 from . import geo
 from . import search_index as si
 from .models import Evidence, IdentityLink, Organization, Person
-from .textnorm import (contains_phrase, fold, is_unspaced, org_key, singular, stems,
-                       value_key, words)
+from .textnorm import contains_phrase, fold, is_unspaced, org_key, singular, stems, value_key, words
 
 logger = logging.getLogger("rip.nlq")
 
@@ -65,7 +64,7 @@ STOPWORDS = {
     "publications", "papers", "paper", "authored", "spoken", "speaking",
     "joined", "later", "previously", "currently", "current", "former",
     "years", "year", "public", "publicly", "presence", "evidence", "online",
-    "portfolio", "profile", "show", "showing", "track", "record",
+    "portfolio", "showing", "track", "record",
     "conferences", "conference", "venues", "companies", "company", "startup",
     "startups", "industry", "academia", "academic", "production", "real",
     "stuff", "scale", "large", "major", "popular", "significant",
@@ -76,10 +75,9 @@ STOPWORDS = {
     "tools", "tool", "platform",
     # generic business nouns: "partner up with firms" must not reach
     # "Risk Management in Financial Firms"
-    "firm", "firms", "company", "companies", "startup", "startups",
-    "organisation", "organisations", "organization", "organizations",
+    "firm", "firms", "organisation", "organisations", "organization", "organizations",
     "business", "businesses", "agency", "agencies", "vendor", "vendors",
-    "client", "clients", "customer", "customers", "industry", "industries",
+    "client", "clients", "customer", "customers", "industries",
     "platforms", "application", "applications", "apps", "app", "solutions",
     "services", "service", "technology", "technologies", "tech", "software",
     "systems" if False else "__unused__",
@@ -1727,7 +1725,7 @@ def location_anywhere(loc: str):
     ("NMIT, Bangalore"). Restricting the filter to Person.location then
     reports the city as not found for people who clearly have it.
     """
-    from sqlalchemy import and_, exists as sa_exists
+    from sqlalchemy import exists as sa_exists
 
     from .models import Affiliation
 
@@ -2047,11 +2045,10 @@ def has_filters(parsed: NLQuery) -> bool:
 
 def _filtered_stmt(parsed: NLQuery):
     """The filter query, without paging — shared by the count and the page."""
-    from .models import Affiliation  # noqa: F401  (used below)
-
+    from sqlalchemy import exists as sa_exists
     from sqlalchemy import or_
 
-    from sqlalchemy import and_, exists as sa_exists
+    from .models import Affiliation  # noqa: F401  (used below)
 
     stmt = select(Person).where(Person.merged_into.is_(None))
     # One EXISTS per concept: a person must satisfy EVERY concept asked for,
@@ -2402,7 +2399,6 @@ def _matched_evidence_clause(parsed: NLQuery):
     CASE assigns each row its weight — full for a skill the source stated
     outright, a fraction for a passing mention in free text.
     """
-    from sqlalchemy import and_
 
     clauses = []
     for group in parsed.skill_groups:
@@ -3686,7 +3682,8 @@ def _search_stackoverflow(query: str, limit: int) -> list[dict]:
 
 def _search_web(query: str, limit: int, parsed: "NLQuery | None" = None) -> list[dict]:
     """Public pages via TinyFish Search, routed to the connector that owns the URL."""
-    from .tinyfish import configured, route_hit, search as tf_search
+    from .tinyfish import configured, route_hit
+    from .tinyfish import search as tf_search
 
     if not configured():
         return []
@@ -4532,7 +4529,6 @@ def queue_suggestions(session: Session, suggestions: list[dict], query: str) -> 
     normal lead pipeline (rate limits, enrichment, resolution) applies when a
     worker picks it up.
     """
-    from .discover import _add_lead
     from .models import DiscoveryLead, SourceRecord
 
     added = 0

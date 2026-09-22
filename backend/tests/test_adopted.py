@@ -2,13 +2,14 @@
 reparse-from-raw, integer change cursor, near-miss review band + tombstone
 merge, evidence-aggregated profiles."""
 
-from rip.connectors import get_connector
 from rip.ingest import ingest_profile
 from rip.models import Evidence, MergeCandidate, Person, SourceRecord
 from rip.normalize import OrgAffiliation
 from rip.review import list_suspicious, resolve_duplicate
 from tests.test_ingest import github_profile
 from tests.test_resolution import make_profile
+
+from rip.connectors import get_connector
 
 
 def test_reparse_from_stored_raw(session):
@@ -111,9 +112,9 @@ def test_duplicate_reject(session):
 
 
 def test_merge_dedupes_shared_publications(session):
+    from rip.models import Authorship
     from rip.normalize import PublicationData
     from rip.review import merge_persons
-    from rip.models import Authorship
 
     shared_pub = PublicationData(title="Shared Paper", external_id="doi:10.1/x", doi="10.1/x")
     p1 = ingest_profile(
@@ -182,7 +183,7 @@ def test_semanticscholar_normalize_and_merge(session):
 
 def test_attribute_conflict_two_sided_provenance(session):
     from rip.models import AttributeConflict
-    from tests.test_ingest import github_profile, GITHUB_USER, GITHUB_REPOS
+    from tests.test_ingest import github_profile
 
     ingest_profile(session, github_profile())  # location: Berlin, from github
     moved = github_profile()
@@ -252,9 +253,10 @@ def test_person_queries_avoid_distinct_on_json(session):
     assert len(execute(session, parse(session, "rust"))) == 1
 
     # and the SQL they emit de-duplicates on the id column, never whole rows
-    from rip.api import Person as _P  # noqa: F401  (module-level import check)
-    import rip.api as api_module
     import inspect
+
+    import rip.api as api_module
+    from rip.api import Person as _P  # noqa: F401  (module-level import check)
 
     source = inspect.getsource(api_module.list_persons)
     assert "with_only_columns(Person.id).distinct()" in source

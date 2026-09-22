@@ -1,7 +1,8 @@
 ﻿"""TinyFish Search + Fetch wiring. No network — keys unset or HTTP stubbed."""
 
-from rip import tinyfish
 from rip.nlq import PAID_SOURCES, _search_tinyfish
+
+from rip import tinyfish
 
 
 def test_tinyfish_is_free():

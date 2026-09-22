@@ -14,12 +14,12 @@ this machine.
 
 import pytest
 from fastapi.testclient import TestClient
+from rip.models import Base
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from rip import api, nlq
-from rip.models import Base
 
 REMOTE = ("203.0.113.12", 40000)
 

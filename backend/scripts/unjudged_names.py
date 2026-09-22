@@ -37,11 +37,10 @@ def main() -> None:
     if args.db:
         os.environ["RIP_DATABASE_URL"] = args.db
 
-    from sqlalchemy import select
-
     from rip.db import SessionLocal
     from rip.models import Person
     from rip.personhood import assess
+    from sqlalchemy import select
 
     with SessionLocal() as session:
         people = session.execute(

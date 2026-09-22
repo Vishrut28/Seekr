@@ -49,9 +49,17 @@ from dataclasses import dataclass
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .models import (Affiliation, Authorship, Evidence, IdentityLink,
-                     Organization, Person, PersonSplit, Publication,
-                     SourceRecord)
+from .models import (
+    Affiliation,
+    Authorship,
+    Evidence,
+    IdentityLink,
+    Organization,
+    Person,
+    PersonSplit,
+    Publication,
+    SourceRecord,
+)
 
 # What a paper's own topics are worth as a claim about the person: the same
 # confidences the OpenAlex connector uses for the author-level list, because

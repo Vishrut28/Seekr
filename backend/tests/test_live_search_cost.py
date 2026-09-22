@@ -19,9 +19,9 @@ today.
 import time
 
 import pytest
+from rip.normalize import NormalizedProfile
 
 from rip import nlq
-from rip.normalize import NormalizedProfile
 
 
 @pytest.mark.parametrize("query, because", [

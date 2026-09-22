@@ -18,7 +18,7 @@ every merge is auditable and reversible.
 """
 
 from rapidfuzz import fuzz
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .models import (

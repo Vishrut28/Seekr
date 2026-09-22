@@ -35,7 +35,7 @@ class BulkResult:
 def _open(path: Path):
     if str(path).endswith(".gz"):
         return gzip.open(path, "rt", encoding="utf-8")
-    return open(path, "r", encoding="utf-8")
+    return open(path, encoding="utf-8")
 
 
 def _profile_for(connector, obj: dict):

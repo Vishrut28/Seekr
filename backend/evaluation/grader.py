@@ -57,7 +57,7 @@ class Profile:
 
 def load_profiles(session: Session) -> dict[str, Profile]:
     from rip.geo import city_country, country_in_text
-    from rip.models import Affiliation, Evidence, Organization, Person, Publication, Authorship
+    from rip.models import Affiliation, Authorship, Evidence, Organization, Person, Publication
     from rip.textnorm import stems, words
 
     profiles: dict[str, Profile] = {}

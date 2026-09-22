@@ -5,12 +5,12 @@ and no staged data. Re-running this produces the same film.
 """
 from __future__ import annotations
 
+import pathlib
 import sys
 import time
-import pathlib
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
-from capture import Chrome, UI, TOKEN, OUT   # noqa: E402
+from capture import OUT, UI, Chrome  # noqa: E402
 
 FPS = 20
 frame_no = 0

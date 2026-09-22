@@ -1,8 +1,8 @@
 import pytest
+from rip.db import Base
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from rip.db import Base
 from rip import models  # noqa: F401
 
 

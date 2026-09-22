@@ -8,8 +8,10 @@ exists — a count filter with no subject would scan.
 from sqlalchemy import create_engine, inspect, text
 
 from rip import db as db_module
-from rip import models  # noqa: F401  registers the tables
-from rip import search_index  # noqa: F401  registers search_doc / search_term
+from rip import (
+    models,  # noqa: F401  registers the tables
+    search_index,  # noqa: F401  registers search_doc / search_term
+)
 
 
 def test_an_older_search_doc_gains_the_totals_and_their_indexes(tmp_path, monkeypatch):

@@ -40,8 +40,18 @@ from dataclasses import dataclass, field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .models import (Affiliation, Authorship, Evidence, IdentityLink, MergeCandidate,
-                     Organization, Person, PersonKey, Publication, SourceRecord)
+from .models import (
+    Affiliation,
+    Authorship,
+    Evidence,
+    IdentityLink,
+    MergeCandidate,
+    Organization,
+    Person,
+    PersonKey,
+    Publication,
+    SourceRecord,
+)
 from .textnorm import org_key, words
 
 # A different ID from one of these sources is that source saying "someone else".

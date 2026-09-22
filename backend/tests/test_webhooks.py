@@ -3,9 +3,8 @@
 import json
 
 import pytest
-
 from rip.ingest import ingest_profile
-from rip.models import ChangeLog, WebhookDelivery, WebhookSubscription
+from rip.models import ChangeLog, WebhookDelivery
 from rip.webhooks import (
     EVENT_CONFLICT,
     EVENT_PERSON_UPDATED,

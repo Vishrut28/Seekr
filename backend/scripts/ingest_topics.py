@@ -49,11 +49,12 @@ def main() -> None:
     parser.add_argument("--topic", action="append", help="just this subject (repeatable)")
     args = parser.parse_args()
 
-    from rip.connectors import get_connector
     from rip.db import SessionLocal, init_db
     from rip.ingest import run_connector
     from rip.models import Person
     from sqlalchemy import func, select
+
+    from rip.connectors import get_connector
 
     init_db()
     wanted = [t for t in TOPICS if not args.topic or t[0] in args.topic]

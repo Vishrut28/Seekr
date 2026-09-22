@@ -3,10 +3,11 @@
 Each case mirrors a cluster found in the real graph.
 """
 
-from rip import dedupe
 from rip.ingest import ingest_profile
 from rip.models import MergeCandidate, Person
 from rip.normalize import EvidenceItem, NormalizedProfile, OrgAffiliation, PublicationData
+
+from rip import dedupe
 
 
 def profile(source, ext, name, *, pubs=(), topics=(), orgs=(), orcid=None):

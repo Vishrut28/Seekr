@@ -1332,6 +1332,37 @@ process cannot write.
 > **Deploying this?** `DEPLOYMENT.md` has the instructions, and says
 > which of them have been verified and which have not.
 
+## Linting, types, coverage, audit
+
+```bash
+pip install -e ".[dev]"
+ruff check .                 # style, dead code, likely bugs
+ruff check . --fix
+mypy                         # configured in pyproject, reads backend/rip
+coverage run -m pytest && coverage report
+pip-audit                    # known vulnerabilities in the dependency tree
+```
+
+None of these had ever run against these 32,000 lines. The first `ruff` pass
+found **267 things**, most of them cosmetic and 158 auto-fixable, and three
+that were not:
+
+- **`GET /v1/persons?has_email=true` raised `NameError` on every call.**
+  `PersonKey` was used in the query and never imported. It is a documented
+  filter in the table above and 711 tests went past it, because not one of
+  them used it. `tests/test_person_filters.py` now walks the filters the
+  endpoint *declares* rather than the ones somebody remembered, which is the
+  only version of that test that would have caught it.
+- **`rip/dossier.py` could not be imported on the Python this project claims
+  to support.** It used backslashes inside f-strings, which is Python 3.12+;
+  `requires-python` says 3.10. Nobody noticed because nobody here runs 3.10.
+- Duplicate entries in half a dozen set literals, and three re-imports
+  shadowing a module-level name.
+
+Coverage is **69%** overall. The honest part of that number is where the
+zeroes are: `rip/dossier.py` 0%, `rip/harvest.py` 0%, `rip/cli.py` 13%.
+`pip-audit` reports no vulnerability in any runtime dependency.
+
 ## Running the full build
 
 This is the version with every capability. One command:

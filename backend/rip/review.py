@@ -20,8 +20,8 @@ from .models import (
     MergeCandidate,
     Person,
     PersonKey,
-    Publication,
     Project,
+    Publication,
     SourceRecord,
 )
 

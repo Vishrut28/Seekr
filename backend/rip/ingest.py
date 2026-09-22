@@ -8,14 +8,13 @@ Source -> Connector -> NormalizedProfile -> [this module]:
 """
 
 import hashlib
-import re
 import json
+import logging
+import re
 from datetime import datetime, timezone
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
-
-import logging
 
 from .compliance import redact
 from .models import (

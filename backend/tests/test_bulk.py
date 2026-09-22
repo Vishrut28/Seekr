@@ -4,7 +4,6 @@ import gzip
 import json
 
 import pytest
-
 from rip.bulk import bulk_ingest
 from rip.models import Person, SourceRecord
 

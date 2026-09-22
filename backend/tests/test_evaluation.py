@@ -143,6 +143,7 @@ def test_a_criterion_edited_after_seeing_results_says_so():
     touched on 2026-09-22; each records that, so its number is not read as
     an untouched one."""
     import json
+
     from evaluation.grader import JUDGMENTS
     raw = {c["id"]: c for c in json.loads(JUDGMENTS.read_text(encoding="utf-8"))["cases"]}
     for cid in ("h-chemists", "h2-neuro-agent", "h2-statisticians",

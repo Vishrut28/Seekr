@@ -7,15 +7,21 @@ was thrown away.
 """
 
 import pytest
-
-from rip import split
 from rip.ingest import SplitRecordError, ingest_profile
-from rip.models import (Authorship, Evidence, IdentityLink, Person,
-                        PersonSplit, Publication, SourceRecord)
+from rip.models import (
+    Authorship,
+    Evidence,
+    IdentityLink,
+    Person,
+    PersonSplit,
+    Publication,
+    SourceRecord,
+)
 from rip.normalize import EvidenceItem, OrgAffiliation, PublicationData
 from sqlalchemy import select
 from tests.test_resolution import make_profile
 
+from rip import split
 
 SURGERY = ["Congenital gastrointestinal anomalies", "Paediatric Surgery"]
 MATHS = ["Markov Chains and Monte Carlo", "Graph Theory"]

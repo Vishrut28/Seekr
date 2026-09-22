@@ -10,8 +10,8 @@ Examples:
 """
 
 import argparse
-import pathlib
 import json
+import pathlib
 import sys
 from datetime import datetime, timedelta, timezone
 

@@ -154,7 +154,7 @@ def _host(url: str) -> str:
 
 
 def _path_parts(url: str) -> list[str]:
-    from urllib.parse import urlparse, unquote
+    from urllib.parse import unquote, urlparse
 
     path = unquote(urlparse(url).path or "").strip("/")
     return [p for p in path.split("/") if p]

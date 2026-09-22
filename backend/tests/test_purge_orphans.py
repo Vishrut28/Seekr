@@ -10,12 +10,9 @@ litter and can go. A dangling foreign key is corruption, and deleting the row
 that points would finish destroying the evidence of what was lost.
 """
 
-import pytest
-from sqlalchemy import func, select
-
-from rip.models import (Authorship, IdentityLink, Person, PersonNameToken,
-                        Publication, SourceRecord)
+from rip.models import Authorship, IdentityLink, Person, PersonNameToken, Publication, SourceRecord
 from scripts.purge_orphans import find, purge
+from sqlalchemy import func, select
 
 
 def record(session, source="semanticscholar", external_id="150034040",

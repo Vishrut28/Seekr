@@ -72,8 +72,8 @@ def main() -> None:
         print(f"{len(blind)} of {len(rows)} query terms have no related subjects:")
         for case_id, term, _n in blind:
             print(f"  {case_id:<18}{term}")
-        print(f"\nthose queries can only reach people whose stated topic contains "
-              f"the words typed.")
+        print("\nthose queries can only reach people whose stated topic contains "
+              "the words typed.")
         return
 
     for subject in sorted(CONCEPTS):

@@ -13,12 +13,12 @@ answered for this machine only.
 
 import pytest
 from fastapi.testclient import TestClient
+from rip.models import Base
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from rip import api
-from rip.models import Base
 
 REMOTE = ("203.0.113.7", 40000)      # TEST-NET-3, never a real peer
 

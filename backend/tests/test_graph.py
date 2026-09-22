@@ -3,15 +3,14 @@ answer stays a picture of who works with whom."""
 
 import pytest
 from fastapi.testclient import TestClient
-
+from rip.db import Base
+from rip.ingest import ingest_profile
+from rip.normalize import NormalizedProfile, OrgAffiliation, PublicationData
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from rip import api
-from rip.db import Base
-from rip.ingest import ingest_profile
-from rip.normalize import NormalizedProfile, OrgAffiliation, PublicationData
 
 
 def researcher(ext, name, papers, orgs=()):

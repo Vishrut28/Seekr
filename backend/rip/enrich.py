@@ -23,7 +23,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .connectors.base import RateLimitedError
-from .models import Person, SourceRecord
+from .models import SourceRecord
 from .normalize import NormalizedProfile
 
 logger = logging.getLogger("rip.enrich")
@@ -135,7 +135,6 @@ def enrich(
 ) -> EnrichResult:
     """Follow identity signals out of `profile` into other sources."""
     from .connectors import get_connector
-    from .ingest import run_connector
 
     result = result if result is not None else EnrichResult()
     visited = visited if visited is not None else set()
