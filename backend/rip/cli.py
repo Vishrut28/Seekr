@@ -741,12 +741,12 @@ def cmd_check_db(args) -> None:
 
     from sqlalchemy import func, text
 
-    from .db import DB_URL, engine
+    from .db import DB_URL, engine, printable_url
     from .models import DiscoveryLead, Person, SourceRecord, WebhookDelivery
 
     init_db()
     is_sqlite = DB_URL.startswith("sqlite")
-    print(f"database url:  {DB_URL}")
+    print(f"database url:  {printable_url()}")
     print(f"engine:        {engine.dialect.name}")
     if is_sqlite:
         with engine.connect() as conn:
@@ -828,10 +828,10 @@ def cmd_serve(args) -> None:
 
     import uvicorn
 
-    from .db import DB_URL, READ_ONLY
+    from .db import DB_URL, READ_ONLY, printable_url
 
     print(f"Seekr on http://{args.host}:{args.port}/ui")
-    print(f"  database  {DB_URL}{'  (READ-ONLY)' if READ_ONLY else ''}")
+    print(f"  database  {printable_url()}{'  (READ-ONLY)' if READ_ONLY else ''}")
     if READ_ONLY:
         print("  ! live search can find people but cannot keep them")
     print(f"  auth      {'bearer token required' if os.environ.get('RIP_API_TOKEN') else 'OPEN — set RIP_API_TOKEN'}")

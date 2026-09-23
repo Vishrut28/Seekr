@@ -8,6 +8,30 @@ from sqlalchemy.orm import DeclarativeBase, sessionmaker
 DB_URL = os.environ.get("RIP_DATABASE_URL", "sqlite:///rip.db")
 
 
+def printable_url(url: str = "") -> str:
+    """DB_URL with the password taken out, for anything that displays it.
+
+    `check-db` exists to be run and shown to somebody — that is what a
+    diagnostic command is for — and it printed the URL verbatim. On SQLite
+    that is a file path and harmless; on Postgres it is
+    postgresql+psycopg://user:PASSWORD@host/db, and the command whose output
+    goes into a bug report was the one handing the password over. `serve`
+    printed it at startup too, into the log.
+
+    SQLAlchemy's own renderer rather than a regex: it knows which part of a
+    URL is the password in every shape of URL it accepts, and it leaves one
+    without a password exactly as it found it.
+    """
+    from sqlalchemy.engine import make_url
+
+    try:
+        return make_url(url or DB_URL).render_as_string(hide_password=True)
+    except Exception:
+        # An unparseable URL is not a reason to crash a status command, but
+        # it is every reason not to print it.
+        return "<unparseable database url>"
+
+
 class Base(DeclarativeBase):
     pass
 
