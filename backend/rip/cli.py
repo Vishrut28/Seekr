@@ -839,9 +839,20 @@ def cmd_serve(args) -> None:
     if missing:
         print(f"  note      not set: {', '.join(missing)}")
     workers = max(1, int(getattr(args, "workers", 1) or 1))
+    # SQLite takes one writer, so a writable file gets one worker. It takes
+    # as many READERS as you like, and the deployed snapshot is opened with
+    # mode=ro, where there is no writer to serialise against -- clamping that
+    # too cost a measured 5.4x. Over HTTP against the real corpus, at eight
+    # concurrent callers: 9.2 req/s and a p95 of 1,406 ms on one worker,
+    # 49.4 req/s and 281 ms on four. /v1/query is CPU-bound Python, so it does
+    # not scale on threads inside one process however many are waiting.
     if workers > 1 and DB_URL.startswith("sqlite"):
-        print("  ! SQLite does not take concurrent writers — using one worker")
-        workers = 1
+        if READ_ONLY:
+            print(f"  workers   {workers} (read-only SQLite: readers do not "
+                  f"serialise)")
+        else:
+            print("  ! SQLite does not take concurrent writers — using one worker")
+            workers = 1
     uvicorn.run("rip.api:app", host=args.host, port=args.port,
                 workers=workers, reload=False)
 
