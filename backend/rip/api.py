@@ -1910,8 +1910,14 @@ def person_dossier_pdf(person_id: str, db: Session = Depends(get_db)):
 
 @app.get("/v1/query/stream")
 def query_stream(
+    request: Request = None,
     q: str = Query(..., description="the question, in plain language"),
     limit: int = Query(50, ge=1, le=200),
+    discover: str = Query(
+        "auto",
+        description="auto (default) = search the FREE live sources; "
+        "true = also allow metered providers. Same meaning as on /v1/query.",
+    ),
     db: Session = Depends(get_db),
 ):
     """The same search as /v1/query, reported as it happens.
@@ -1920,6 +1926,20 @@ def query_stream(
     Returning only the finished answer makes that look like a hang; this emits
     an event per source as it is reached, so a caller can show what is being
     asked and what came back, then the finished result set.
+
+    "The same search" has to include what the search COSTS and what it KEEPS.
+    This endpoint called discovery_suggestions with allow_paid=True and no
+    persist argument at all, so every request -- from anyone, with no
+    credentials -- could bill a metered provider and grow the corpus, while
+    the plain endpoint beside it required a token to write and opt-in for
+    paid sources. It is the same miss as gating persist_suggestions and
+    leaving _store_results open: the rule was applied to one of the two
+    places that reach live discovery. This is the UI's live path, so it was
+    the one that mattered.
+
+    Both gates are read from the request HERE, on the request thread, and
+    closed over as plain booleans: the worker below runs after the response
+    starts and must not touch `request`.
 
     Server-sent events. Each line is `data: {json}`.
     """
@@ -1938,6 +1958,9 @@ def query_stream(
         relevance_scores,
         subjects_asked,
     )
+
+    may_write = _may_write(request)
+    allow_paid = str(discover).lower() in ("true", "queue", "1")
 
     events: _queue.Queue[dict | None] = _queue.Queue()
 
@@ -1963,7 +1986,8 @@ def query_stream(
                 events.put({"type": "source", "source": name, "state": state, **facts})
 
             suggestions = discovery_suggestions(
-                session, parsed, allow_paid=True, on_source=on_source
+                session, parsed, allow_paid=allow_paid, on_source=on_source,
+                persist=may_write,
             )
             stored = sum(1 for s_ in suggestions if s_.get("stored"))
             if stored:
@@ -2017,6 +2041,7 @@ def query_stream(
             events.put({
                 "type": "results",
                 "count": len(rows),
+                "persisted": may_write,
                 "stored_from_live": stored,
                 "not_found": not_found,
                 "total_matches": max(corpus_total, len(rows)),
