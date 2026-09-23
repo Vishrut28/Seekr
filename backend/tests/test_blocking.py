@@ -37,19 +37,50 @@ def test_tokens_synced_on_ingest(session):
 
 
 def test_candidate_set_is_blocked_not_full_scan(session):
-    """1000 unrelated persons must not all be scored for one incoming profile."""
-    for i in range(1000):
-        ingest_profile(
-            session,
-            make_profile(
-                source="github",
-                external_id=f"filler{i}",
-                url=f"https://github.com/filler{i}",
-                raw={"login": f"filler{i}"},
-                name=f"Filler Person{i}",
-                usernames=[f"github:filler{i}"],
-            ),
-        )
+    """1000 unrelated persons must not all be scored for one incoming profile.
+
+    The crowd is built with Person + sync_name_tokens rather than 1000 full
+    ingests. Blocking reads exactly two things -- a person row and its name
+    tokens -- and the other 998 ingests were paying for source records,
+    evidence, resolution and search indexing that this assertion never looks
+    at. 26 seconds of a 90-second suite, for one test.
+
+    The shortcut is pinned to the real thing instead of assumed equal to it:
+    ONE of the thousand goes through ingest_profile, a twin of it is built
+    the short way, and their token sets must match. If ingest ever stops
+    writing name tokens -- the failure this test exists to catch -- the twin
+    disagrees and this fails, rather than passing against a crowd the
+    shortcut invented.
+    """
+    real = ingest_profile(
+        session,
+        make_profile(
+            source="github",
+            external_id="filler0",
+            url="https://github.com/filler0",
+            raw={"login": "filler0"},
+            name="Filler Person0",
+            usernames=["github:filler0"],
+        ),
+    )
+
+    def tokens_of(person_id):
+        return {t.token for t in
+                session.query(PersonNameToken).filter_by(person_id=person_id)}
+
+    twin = Person(id="twin", canonical_name="Filler Person0")
+    session.add(twin)
+    session.flush()
+    sync_name_tokens(session, twin)
+    assert tokens_of(real.id), "ingest wrote no name tokens at all"
+    assert tokens_of(twin.id) == tokens_of(real.id),         "the shortcut no longer writes what ingest writes"
+
+    for i in range(1, 999):
+        filler = Person(id=f"filler{i}", canonical_name=f"Filler Person{i}")
+        session.add(filler)
+        session.flush()
+        sync_name_tokens(session, filler)
+    session.commit()
     assert session.query(Person).count() == 1000
 
     incoming = make_profile(
