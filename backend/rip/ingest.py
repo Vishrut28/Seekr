@@ -172,6 +172,59 @@ FREE_TEXT_ATTRS = frozenset({"bio", "summary", "role", "award", "location", "hea
 # record. Not "bio": a misspelling inside a sentence is not a subject heading.
 SELF_TYPED_ATTRS = frozenset({"skill", "research_interest", "specialization"})
 
+# How many of someone's papers must be about a subject before it is one of
+# their subjects rather than a word that turned up in their work.
+MIN_SUBJECT_TITLES = 2
+
+
+def on_subject(profile, subject: str) -> bool:
+    """Is SUBJECT something this person works on, or a word inside their work?
+
+    A topical search answers with whoever's text contains the term, and for a
+    clinical subject most of that text is symptoms. Asking Europe PMC for
+    "headache" returned a thyroid oncologist and two Wuhan clinicians, whose
+    COVID papers list headache among the things patients reported. Three of
+    fourteen people ingested for the subject did not work on it.
+
+    Two ways to pass, and they are the grader's, because the question is the
+    same one it answers: the person SAYS it -- a stated skill, research
+    interest or specialization naming the subject -- or enough of their
+    published titles are about it. One title is not a research area (the
+    pandemic put COVID-19 in front of crop geneticists and database
+    researchers alike), which is why MIN_SUBJECT_TITLES is 2 here and
+    MIN_TITLE_MENTIONS is 2 in evaluation/grader.py.
+
+    Deliberately NOT the rule discovery uses. _matches_only_the_name is
+    looser on purpose -- a live search should trust that the provider did the
+    semantic work, and OpenAlex matching a Rust verification researcher whose
+    topics say "formal methods" is a good answer. A bulk pass building
+    coverage for a named subject is the case where that trust is misplaced,
+    because the provider is matching a word and nobody is reading the result.
+    """
+    # Stems, not plain words: the corpus writes "Recommender Systems" and a
+    # caller asks for "recommender system". Number deciding whether a
+    # coverage pass finds anyone would be worse than no check at all. This is
+    # the comparison _contained() in nlq.py makes, for the same reason.
+    from .textnorm import contains_phrase, stems
+
+    phrase = stems(subject or "")
+    if not phrase:
+        return False
+
+    def names_it(text) -> bool:
+        return bool(text) and contains_phrase(stems(str(text)), phrase)
+
+    for item in profile.evidence or []:
+        if item.attribute_type in SELF_TYPED_ATTRS and names_it(item.value):
+            return True
+    titles = sum(
+        1 for pub in (profile.publications or [])
+        if names_it(getattr(pub, "title", ""))
+        or any(names_it(t) for t in (getattr(pub, "topics", None) or []))
+    )
+    return titles >= MIN_SUBJECT_TITLES
+
+
 # Misspelled subject words, and what they were meant to be.
 #
 # A LIST, not a rule, and the corpus is why. Four ORCID profiles say
@@ -634,19 +687,30 @@ def ingest_profile(session: Session, profile: NormalizedProfile) -> Person:
 
 
 def run_connector(
-    session: Session, connector, identifier: str, enrich_chain: bool = False
+    session: Session, connector, identifier: str, enrich_chain: bool = False,
+    keep=None,
 ) -> Person | None:
     """Fetch + ingest with failure tracking (IngestionRun).
 
     With `enrich_chain`, identity signals in the fetched profile (ORCID,
     linked profiles, homepage) are followed into other sources; enrichment
     failures never fail this ingest.
+
+    KEEP is a predicate on the fetched profile, checked BEFORE anything is
+    stored. Declining is not an error -- the fetch worked and the answer was
+    no -- so the run is recorded as "skipped" and None comes back, the same
+    thing a caller sees when there was nobody to ingest. Callers who want
+    whatever the source returned pass nothing and get exactly the old
+    behaviour.
     """
     run = IngestionRun(source=connector.source, identifier=identifier)
     session.add(run)
     session.commit()
     try:
         profile = connector.fetch(identifier)
+        if keep is not None and not keep(profile):
+            run.status = "skipped"
+            return None
         person = ingest_profile(session, profile)
         run.status = "ok"
         if enrich_chain:

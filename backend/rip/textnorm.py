@@ -179,18 +179,28 @@ def _terms(ws: list[str]) -> set[str]:
     return terms
 
 
-def contains_phrase(haystack_words: list[str], phrase_words: list[str]) -> bool:
-    """Is PHRASE_WORDS a contiguous run inside HAYSTACK_WORDS?"""
-    n = len(phrase_words)
+def contains_phrase(haystack_words, phrase_words) -> bool:
+    """Is PHRASE_WORDS a contiguous run inside HAYSTACK_WORDS?
+
+    Either may be any sequence. The phrase is normalized to a list first
+    because the comparison is against a LIST SLICE of the haystack, and a
+    tuple never equals one: passing a tuple returned False for every
+    multi-word phrase while a one-word phrase, which takes the `in` branch,
+    kept working. Right on the easy case and silently wrong on the hard one
+    is the worst shape a bug can have. Every caller in the tree happens to
+    pass lists, so nothing was broken by it -- but none of them should have
+    had to know that, and the first new caller did not.
+    """
+    phrase = list(phrase_words)
+    n = len(phrase)
     if not n:
         return False
     if n == 1:
-        return phrase_words[0] in haystack_words
-    first = phrase_words[0]
-    for i in range(len(haystack_words) - n + 1):
-        if haystack_words[i] == first and haystack_words[i:i + n] == phrase_words:
-            return True
-    return False
+        return phrase[0] in haystack_words
+    hay = list(haystack_words)
+    first = phrase[0]
+    return any(hay[i] == first and hay[i:i + n] == phrase
+               for i in range(len(hay) - n + 1))
 
 
 def value_key(text: str | None) -> str:

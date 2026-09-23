@@ -180,3 +180,21 @@ def test_a_protected_word_that_does_not_describe_people_is_left_alone(session):
     assert skills_of(parse(session, "women's health researchers")) == ["Women's Health"]
     for query in ("Christian Rabl", "white box testing", "male infertility", "black holes"):
         assert parse(session, query).protected_terms == [], query
+
+
+def test_contains_phrase_does_not_care_what_kind_of_sequence_it_is_given():
+    """It compared the phrase against a LIST SLICE of the haystack, so a
+    tuple never matched: `("new", "york")` returned False where
+    `["new", "york"]` returned True, while a one-word tuple kept working
+    because that branch uses `in`. Right on the easy case and silently wrong
+    on the hard one — and every caller in the tree happened to pass lists,
+    so nothing failed until a new one did not."""
+    from rip.textnorm import contains_phrase
+
+    hay = ["i", "live", "in", "new", "york", "city"]
+    for phrase in (["new", "york"], ("new", "york"), iter(["new", "york"])):
+        assert contains_phrase(hay, phrase), phrase
+    for phrase in (["york", "new"], ("york", "new")):
+        assert not contains_phrase(hay, phrase), "order still has to hold"
+    assert contains_phrase(tuple(hay), ("new", "york", "city"))
+    assert not contains_phrase(hay, ())
