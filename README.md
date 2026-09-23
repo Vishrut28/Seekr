@@ -1113,7 +1113,8 @@ backend/
     normalize.py  NormalizedProfile IR + strong-key extraction
     resolution.py entity resolution strategies
     ingest.py     pipeline: upsert record → resolve → apply → change log
-    nlq.py        natural-language query parsing, ranking + live discovery
+    nlq.py        natural-language query parsing and ranking
+    discovery.py  live search of external sources, and storing what it finds
     search_index.py  postings index that /v1/query filters and ranks on
     textnorm.py   worldwide text folding and tokenisation (index + query)
     geo.py        countries, endonyms, demonyms, world cities

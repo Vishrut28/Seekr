@@ -1,6 +1,6 @@
 ﻿"""TinyFish Search + Fetch wiring. No network — keys unset or HTTP stubbed."""
 
-from rip.nlq import PAID_SOURCES, _search_tinyfish
+from rip.discovery import PAID_SOURCES, _search_tinyfish
 
 from rip import tinyfish
 
@@ -125,7 +125,8 @@ def test_fetch_requests_html_not_agent(monkeypatch):
 
 
 def test_name_query_asks_for_github_profiles(monkeypatch):
-    from rip.nlq import NLQuery, _search_tinyfish
+    from rip.discovery import _search_tinyfish
+    from rip.nlq import NLQuery
 
     monkeypatch.setenv("TINYFISH_API_KEY", "k")
     seen = {}

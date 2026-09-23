@@ -167,20 +167,20 @@ def test_the_institution_is_read_out_of_an_affiliation_string():
 def test_a_source_can_be_switched_off_without_a_code_change(monkeypatch):
     """What a source is worth differs by graph: Europe PMC adds people no
     other free source can identify, and costs a few seconds to do it."""
-    from rip import nlq
+    from rip import discovery
 
-    assert "europepmc" in [s for s, _f, _u in nlq.enabled_searchers()]
+    assert "europepmc" in [s for s, _f, _u in discovery.enabled_searchers()]
     monkeypatch.setenv("RIP_SKIP_SOURCES", "europepmc")
-    names = [s for s, _f, _u in nlq.enabled_searchers()]
+    names = [s for s, _f, _u in discovery.enabled_searchers()]
     assert "europepmc" not in names and "openalex" in names
     monkeypatch.setenv("RIP_SKIP_SOURCES", " Europe PMC ")      # not a source name
-    assert "europepmc" in [s for s, _f, _u in nlq.enabled_searchers()]
+    assert "europepmc" in [s for s, _f, _u in discovery.enabled_searchers()]
 
 
 def test_europe_pmc_is_searched_beside_openalex_not_after_it():
     """It runs in the background phase, so its latency — a median of 1.4s and
     a tail measured at 14s — is spent while OpenAlex is still working."""
-    from rip import nlq
+    from rip import discovery
 
-    assert nlq._always_run("europepmc")
-    assert "europepmc" in nlq.FREE_FETCH_SOURCES
+    assert discovery._always_run("europepmc")
+    assert "europepmc" in discovery.FREE_FETCH_SOURCES

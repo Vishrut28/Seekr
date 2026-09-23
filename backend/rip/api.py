@@ -670,7 +670,7 @@ def _facets_uncached(field: str, limit: int, db: Session) -> dict:
             ).all()
     elif field == "source":
         from .connectors import CONNECTORS
-        from .nlq import PAID_SOURCES, enabled_searchers
+        from .discovery import PAID_SOURCES, enabled_searchers
 
         rows = db.execute(
             select(SourceRecord.source, func.count(func.distinct(IdentityLink.person_id)))
@@ -1450,7 +1450,7 @@ def nl_query(
     # UI about whether the button is worth pressing, not a veto over someone
     # who already pressed it.
     if explicit or (mode == "auto" and response["discover_available"]):
-        from .nlq import discovery_suggestions, queue_suggestions
+        from .discovery import discovery_suggestions, queue_suggestions
 
         # Live results are persisted when the provider returned a full person
         # payload: we already paid for that data, so keeping it means the same
@@ -1711,7 +1711,7 @@ def post_feedback(payload: dict, db: Session = Depends(get_db)):
     labelled data that tool can train on, exposed at GET /v1/feedback.
     """
     from .models import MatchFeedback, Person
-    from .nlq import _norm_query
+    from .discovery import _norm_query
 
     person_id = str(payload.get("person_id") or "").strip()
     verdict = str(payload.get("verdict") or "").strip().lower()
@@ -1929,10 +1929,9 @@ def query_stream(
 
     from starlette.responses import StreamingResponse
 
+    from .discovery import discovery_suggestions, enabled_searchers
     from .nlq import (
         count_matches,
-        discovery_suggestions,
-        enabled_searchers,
         execute_progressive,
         parse,
         query_understanding,

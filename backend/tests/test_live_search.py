@@ -65,6 +65,7 @@ def _profile(source, ext, name):
 
 
 def test_phase_b_profiles_are_fetched_while_phase_a_is_still_working(session, monkeypatch):
+    import rip.discovery as discovery
     import rip.nlq as nlq
 
     log = {}
@@ -86,11 +87,11 @@ def test_phase_b_profiles_are_fetched_while_phase_a_is_still_working(session, mo
             return _profile(self.source, identifier, "Ada Lovelace")
 
     monkeypatch.setattr("rip.connectors.get_connector", lambda s: Fake(s))
-    monkeypatch.setattr(nlq, "SUGGESTION_SEARCHERS", (
+    monkeypatch.setattr(discovery, "SUGGESTION_SEARCHERS", (
         ("openalex", openalex_search, True), ("orcid", orcid_search, False),
     ))
     parsed = nlq.parse(session, "Ada Lovelace")
-    out = nlq.discovery_suggestions(session, parsed, allow_paid=False)
+    out = discovery.discovery_suggestions(session, parsed, allow_paid=False)
 
     assert {i["source"] for i in out if i.get("stored")} == {"openalex", "orcid"}
     # ORCID's profile was pulled before the slow OpenAlex search even returned
@@ -98,6 +99,7 @@ def test_phase_b_profiles_are_fetched_while_phase_a_is_still_working(session, mo
 
 
 def test_fetches_not_started_within_the_budget_are_skipped_and_reported(session, monkeypatch):
+    import rip.discovery as discovery
     import rip.nlq as nlq
 
     def orcid_search(query, limit):
@@ -108,14 +110,15 @@ def test_fetches_not_started_within_the_budget_are_skipped_and_reported(session,
             raise AssertionError("must not fetch once the budget is spent")
 
     monkeypatch.setattr("rip.connectors.get_connector", lambda s: Fake())
-    monkeypatch.setattr(nlq, "SUGGESTION_SEARCHERS", (("orcid", orcid_search, False),))
-    monkeypatch.setattr(nlq, "LIVE_BUDGET_SECONDS", -1.0)
-    out = nlq.discovery_suggestions(session, nlq.parse(session, "Ada Lovelace"), allow_paid=False)
+    monkeypatch.setattr(discovery, "SUGGESTION_SEARCHERS", (("orcid", orcid_search, False),))
+    monkeypatch.setattr(discovery, "LIVE_BUDGET_SECONDS", -1.0)
+    out = discovery.discovery_suggestions(session, nlq.parse(session, "Ada Lovelace"), allow_paid=False)
     assert out and out[0]["stored"] is False
     assert "TimeoutError" in out[0]["store_error"]
 
 
 def test_results_are_stored_in_source_order_regardless_of_fetch_timing(session, monkeypatch):
+    import rip.discovery as discovery
     import rip.nlq as nlq
 
     def search_for(source):
@@ -131,17 +134,17 @@ def test_results_are_stored_in_source_order_regardless_of_fetch_timing(session, 
             return _profile(self.source, identifier, f"Ada {self.source.title()}")
 
     order = []
-    real_store = nlq._store_results
+    real_store = discovery._store_results
 
     def spy(session_, raw_items, fetched):
         order.extend(item["source"] for item, _p, _e in fetched)
         return real_store(session_, raw_items, fetched)
 
     monkeypatch.setattr("rip.connectors.get_connector", lambda s: Fake(s))
-    monkeypatch.setattr(nlq, "_store_results", spy)
-    monkeypatch.setattr(nlq, "SUGGESTION_SEARCHERS", tuple(
+    monkeypatch.setattr(discovery, "_store_results", spy)
+    monkeypatch.setattr(discovery, "SUGGESTION_SEARCHERS", tuple(
         (s, search_for(s), False) for s in ("orcid", "wikidata", "huggingface")))
-    nlq.discovery_suggestions(session, nlq.parse(session, "Ada Lovelace"), allow_paid=False)
+    discovery.discovery_suggestions(session, nlq.parse(session, "Ada Lovelace"), allow_paid=False)
     assert order == ["orcid", "wikidata", "huggingface"]
 
 
@@ -152,7 +155,11 @@ def test_a_long_backoff_a_source_asks_for_is_capped(session):
     from datetime import datetime, timezone
 
     from rip.models import SourceThrottle
-    from rip.nlq import MAX_THROTTLE_SECONDS, _note_source_throttled, _source_throttled
+    from rip.discovery import (
+        MAX_THROTTLE_SECONDS,
+        _note_source_throttled,
+        _source_throttled,
+    )
 
     _note_source_throttled(session, "openalex", seconds=47125.0)
     row = session.query(SourceThrottle).filter_by(source="openalex").one()
@@ -168,7 +175,7 @@ def test_a_candidate_named_after_the_subject_is_not_a_person(monkeypatch):
     query words, so any two-word subject walked through it."""
     from rip.normalize import NormalizedProfile
 
-    from rip import nlq
+    from rip import discovery
 
     names = {"S1": "ARTERIAl STIffnESS", "S2": "Kate Tilling"}
 
@@ -183,6 +190,6 @@ def test_a_candidate_named_after_the_subject_is_not_a_person(monkeypatch):
     items = [{"source": "semanticscholar", "external_id": ext, "_term": term}
              for ext in names]
     results = {item["external_id"]: (profile, exc)
-               for item, profile, exc in nlq._fetch_profiles(items)}
+               for item, profile, exc in discovery._fetch_profiles(items)}
     assert results["S1"][0] is None and "named after the search term" in str(results["S1"][1])
     assert results["S2"][0] is not None and results["S2"][1] is None

@@ -19,7 +19,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from rip import api, nlq
+from rip import api, discovery, nlq
 
 REMOTE = ("203.0.113.12", 40000)
 
@@ -51,7 +51,7 @@ def watched(monkeypatch):
         return []
 
     monkeypatch.setattr(api, "discovery_suggestions", fake, raising=False)
-    monkeypatch.setattr(nlq, "discovery_suggestions", fake)
+    monkeypatch.setattr(discovery, "discovery_suggestions", fake)
     return calls
 
 
@@ -122,13 +122,13 @@ def test_the_flag_stops_the_store_itself_not_only_the_caller(session, monkeypatc
 
     monkeypatch.setattr("rip.connectors.get_connector", lambda s: Fake())
 
-    monkeypatch.setattr(nlq, "SUGGESTION_SEARCHERS", (("orcid", searcher("one"), False),))
-    nlq.discovery_suggestions(session, nlq.parse(session, "Ada Lovelace"),
+    monkeypatch.setattr(discovery, "SUGGESTION_SEARCHERS", (("orcid", searcher("one"), False),))
+    discovery.discovery_suggestions(session, nlq.parse(session, "Ada Lovelace"),
                               allow_paid=False, persist=False)
     assert session.query(Person).count() == 0, "persist=False still grew the corpus"
 
     # a different candidate, so the search cache cannot answer for it
-    monkeypatch.setattr(nlq, "SUGGESTION_SEARCHERS", (("orcid", searcher("two"), False),))
-    nlq.discovery_suggestions(session, nlq.parse(session, "Ada Byron"),
+    monkeypatch.setattr(discovery, "SUGGESTION_SEARCHERS", (("orcid", searcher("two"), False),))
+    discovery.discovery_suggestions(session, nlq.parse(session, "Ada Byron"),
                               allow_paid=False, persist=True)
     assert session.query(Person).count() == 1, "persist=True stored nothing"

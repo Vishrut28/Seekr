@@ -6,13 +6,13 @@ the SAME backoff protects openalex, semanticscholar, dblp, or any other
 source, not just GitHub's fetch step.
 """
 from rip.connectors.base import RateLimitedError
-from rip.nlq import (
+from rip.discovery import (
     DEFAULT_THROTTLE_SECONDS,
     _note_source_throttled,
     _source_throttled,
     discovery_suggestions,
-    parse,
 )
+from rip.nlq import parse
 
 
 def test_rate_limited_error_carries_retry_after():
@@ -82,8 +82,8 @@ def test_a_rate_limited_source_is_skipped_on_the_next_discovery_call(session, mo
 
     monkeypatch.setattr("rip.connectors.get_connector", lambda s: _WouldBeCalled())
     monkeypatch.setattr(
-        "rip.nlq.SUGGESTION_SEARCHERS",
-        (("openalex", __import__("rip.nlq", fromlist=["x"])._search_openalex, True),),
+        "rip.discovery.SUGGESTION_SEARCHERS",
+        (("openalex", __import__("rip.discovery", fromlist=["x"])._search_openalex, True),),
     )
 
     _note_source_throttled(session, "openalex", seconds=900.0)
@@ -108,8 +108,8 @@ def test_a_rate_limit_failure_during_search_throttles_the_source(session, monkey
 
     monkeypatch.setattr("rip.connectors.get_connector", lambda s: _RateLimitedOnSearch())
     monkeypatch.setattr(
-        "rip.nlq.SUGGESTION_SEARCHERS",
-        (("openalex", __import__("rip.nlq", fromlist=["x"])._search_openalex, True),),
+        "rip.discovery.SUGGESTION_SEARCHERS",
+        (("openalex", __import__("rip.discovery", fromlist=["x"])._search_openalex, True),),
     )
 
     assert _source_throttled(session, "openalex") is False

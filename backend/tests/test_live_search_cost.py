@@ -21,7 +21,7 @@ import time
 import pytest
 from rip.normalize import NormalizedProfile
 
-from rip import nlq
+from rip import discovery, nlq
 
 
 @pytest.mark.parametrize("query, because", [
@@ -32,9 +32,9 @@ from rip import nlq
 def test_a_query_naming_nothing_does_not_reach_a_provider(session, monkeypatch,
                                                           query, because):
     asked = []
-    monkeypatch.setattr(nlq, "SUGGESTION_SEARCHERS",
+    monkeypatch.setattr(discovery, "SUGGESTION_SEARCHERS",
                         (("orcid", lambda q, limit: asked.append(q) or [], False),))
-    out = nlq.discovery_suggestions(session, nlq.parse(session, query),
+    out = discovery.discovery_suggestions(session, nlq.parse(session, query),
                                     allow_paid=False, persist=False)
     assert out == []
     assert asked == [], f"{because}, yet a provider was called"
@@ -44,16 +44,16 @@ def test_gibberish_is_still_searched_because_it_cannot_be_told_apart():
     """The one thing this must NOT do is guess. "zqxjv plormbat" and "photonic
     metasurface" are the same shape to a parser, and the second is exactly the
     query live discovery exists for."""
-    assert nlq.worth_searching_live(["zqxjv plormbat"]) == ""
-    assert nlq.worth_searching_live(["photonic metasurface"]) == ""
-    assert nlq.worth_searching_live([])
-    assert nlq.worth_searching_live(["12345"])
-    assert nlq.worth_searching_live(["  "])
+    assert discovery.worth_searching_live(["zqxjv plormbat"]) == ""
+    assert discovery.worth_searching_live(["photonic metasurface"]) == ""
+    assert discovery.worth_searching_live([])
+    assert discovery.worth_searching_live(["12345"])
+    assert discovery.worth_searching_live(["  "])
 
 
 def test_a_source_that_will_not_answer_stops_holding_up_the_rest(session, monkeypatch):
     """The slow one is abandoned; the quick one's results still arrive."""
-    monkeypatch.setattr(nlq, "LIVE_SEARCH_SECONDS", 0.4)
+    monkeypatch.setattr(discovery, "LIVE_SEARCH_SECONDS", 0.4)
 
     def quick(_q, _limit):
         return [{"source": "orcid", "external_id": "quick-1", "name": "Ada Quick"}]
@@ -74,11 +74,11 @@ def test_a_source_that_will_not_answer_stops_holding_up_the_rest(session, monkey
 
     states = []
     monkeypatch.setattr("rip.connectors.get_connector", lambda s: Fake())
-    monkeypatch.setattr(nlq, "SUGGESTION_SEARCHERS",
+    monkeypatch.setattr(discovery, "SUGGESTION_SEARCHERS",
                         (("orcid", quick, False), ("wikidata", glacial, False)))
 
     started = time.perf_counter()
-    out = nlq.discovery_suggestions(
+    out = discovery.discovery_suggestions(
         session, nlq.parse(session, "Ada Lovelace"), allow_paid=False, persist=False,
         on_source=lambda name, state, **f: states.append((name, state)))
     took = time.perf_counter() - started
@@ -92,7 +92,7 @@ def test_the_sequential_phase_stops_once_the_budget_is_spent(session, monkeypatc
     """Phase A runs one source after another, so a slow one spends the budget
     of everyone behind it. The call already running cannot be interrupted;
     nothing after it needs to start."""
-    monkeypatch.setattr(nlq, "LIVE_SEARCH_SECONDS", 0.3)
+    monkeypatch.setattr(discovery, "LIVE_SEARCH_SECONDS", 0.3)
     reached = []
 
     def slow_first(_q, _limit):
@@ -105,9 +105,9 @@ def test_the_sequential_phase_stops_once_the_budget_is_spent(session, monkeypatc
         return []
 
     states = []
-    monkeypatch.setattr(nlq, "SUGGESTION_SEARCHERS",
+    monkeypatch.setattr(discovery, "SUGGESTION_SEARCHERS",
                         (("openalex", slow_first, False), ("dblp", should_not_run, False)))
-    nlq.discovery_suggestions(session, nlq.parse(session, "Ada Lovelace"),
+    discovery.discovery_suggestions(session, nlq.parse(session, "Ada Lovelace"),
                               allow_paid=False, persist=False,
                               on_source=lambda n, s, **f: states.append((n, s)))
     assert reached == ["openalex"], reached

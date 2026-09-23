@@ -3,7 +3,7 @@ asked only when a key makes the request likely to be answered."""
 
 from rip.connectors.semanticscholar import MAX_TOPIC_TEAM, SemanticScholarConnector
 
-from rip import nlq
+from rip import discovery
 
 
 def paper(*authors, cited=0):
@@ -68,10 +68,10 @@ def test_a_subject_is_searched_by_topic_only_with_a_key(monkeypatch):
     rec = Recorder()
     monkeypatch.setattr("rip.connectors.get_connector", lambda source: rec)
     monkeypatch.delenv("SEMANTIC_SCHOLAR_API_KEY", raising=False)
-    assert nlq._search_semanticscholar("soil microbiome researchers", 5) == []
+    assert discovery._search_semanticscholar("soil microbiome researchers", 5) == []
     assert rec.topic == 0
     monkeypatch.setenv("SEMANTIC_SCHOLAR_API_KEY", "k")
-    rows = nlq._search_semanticscholar("soil microbiome researchers", 5)
+    rows = discovery._search_semanticscholar("soil microbiome researchers", 5)
     assert rec.topic == 1
     assert rows[0]["source"] == "semanticscholar" and rows[0]["external_id"] == "9"
 
@@ -80,6 +80,6 @@ def test_a_name_is_still_searched_by_name(monkeypatch):
     rec = Recorder()
     monkeypatch.setattr("rip.connectors.get_connector", lambda source: rec)
     monkeypatch.setenv("SEMANTIC_SCHOLAR_API_KEY", "k")
-    rows = nlq._search_semanticscholar("Ada Lovelace", 5)
+    rows = discovery._search_semanticscholar("Ada Lovelace", 5)
     assert (rec.name, rec.topic) == (1, 0)
     assert rows[0]["affiliation"] == "Oxford"

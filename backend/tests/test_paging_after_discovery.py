@@ -37,7 +37,7 @@ def discovery_that_stores(session, tags):
 def test_the_cursor_describes_the_corpus_the_live_search_left_behind(session, monkeypatch):
     rust_person(session, "seed0")
     session.commit()
-    monkeypatch.setattr("rip.nlq.discovery_suggestions",
+    monkeypatch.setattr("rip.discovery.discovery_suggestions",
                         discovery_that_stores(session, [f"live{i}" for i in range(6)]))
 
     page = api.nl_query(q="rust developers", limit=4, offset=0, discover="true", db=session)
@@ -58,6 +58,6 @@ def test_a_page_that_ends_the_corpus_offers_no_next(session, monkeypatch):
     for i in range(3):
         rust_person(session, f"seed{i}")
     session.commit()
-    monkeypatch.setattr("rip.nlq.discovery_suggestions", lambda *a, **k: [])
+    monkeypatch.setattr("rip.discovery.discovery_suggestions", lambda *a, **k: [])
     page = api.nl_query(q="rust developers", limit=50, offset=0, discover="true", db=session)
     assert page["has_more"] is False and page["next_offset"] is None

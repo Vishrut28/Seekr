@@ -162,7 +162,7 @@ def test_auto_discover_never_calls_a_metered_provider(session, monkeypatch):
         called.append(query)
         return [{"source": "exa", "external_id": "X1", "name": "Paid Person"}]
 
-    monkeypatch.setattr("rip.nlq.SUGGESTION_SEARCHERS",
+    monkeypatch.setattr("rip.discovery.SUGGESTION_SEARCHERS",
                         (("exa", fake_exa, True),))
     nl_query(q="quantum basketweaving", discover="auto", db=session)
     assert called == []                      # not bought
@@ -200,8 +200,8 @@ def _patch_sources(monkeypatch, openalex=None, s2=None, dblp=None, fail=()):
         "dblp": _FakeSearcher(dblp or [], calls, "dblp", "dblp" in fail),
     }
     monkeypatch.setattr("rip.connectors.get_connector", lambda s: registry[s])
-    monkeypatch.setattr("rip.nlq.SUGGESTION_SEARCHERS", tuple(
-        (n, f, u) for (n, f, u) in __import__("rip.nlq", fromlist=["x"]).SUGGESTION_SEARCHERS
+    monkeypatch.setattr("rip.discovery.SUGGESTION_SEARCHERS", tuple(
+        (n, f, u) for (n, f, u) in __import__("rip.discovery", fromlist=["x"]).SUGGESTION_SEARCHERS
         if n != "exa"))
     return calls
 
@@ -226,7 +226,7 @@ def test_suggestions_fall_through_to_other_sources(session, monkeypatch):
 
 
 def test_live_searchers_cover_all_free_connectors():
-    from rip.nlq import PAID_SOURCES, SUGGESTION_SEARCHERS
+    from rip.discovery import PAID_SOURCES, SUGGESTION_SEARCHERS
 
     from rip.connectors import CONNECTORS
 
@@ -546,8 +546,8 @@ def test_paid_results_are_stored_so_the_next_query_is_free(session, monkeypatch)
     calls = []
     monkeypatch.setenv("EXA_API_KEY", "k")
     monkeypatch.setattr("rip.connectors.get_connector", lambda s: _FullPayloadSearcher(calls))
-    monkeypatch.setattr("rip.nlq.SUGGESTION_SEARCHERS",
-                        (("exa", __import__("rip.nlq", fromlist=["x"])._search_exa, True),))
+    monkeypatch.setattr("rip.discovery.SUGGESTION_SEARCHERS",
+                        (("exa", __import__("rip.discovery", fromlist=["x"])._search_exa, True),))
 
     first = nl_query(q="growth leads at Zeta Corp", discover="true", db=session)
     assert first["stored_from_live"] == 1
@@ -569,21 +569,21 @@ def test_paid_results_are_stored_so_the_next_query_is_free(session, monkeypatch)
 def test_cache_expires_after_the_ttl(session, monkeypatch):
     from datetime import datetime, timedelta, timezone
 
-    import rip.nlq as nlq
+    import rip.discovery as discovery
     from rip.models import SearchCache
 
-    nlq._cache_record(session, "exa", "some query", 3, 3)
-    assert nlq._cache_lookup(session, "exa", "some query") is not None
+    discovery._cache_record(session, "exa", "some query", 3, 3)
+    assert discovery._cache_lookup(session, "exa", "some query") is not None
     row = session.query(SearchCache).one()
-    row.ran_at = datetime.now(timezone.utc) - timedelta(days=nlq.SEARCH_TTL_DAYS + 1)
+    row.ran_at = datetime.now(timezone.utc) - timedelta(days=discovery.SEARCH_TTL_DAYS + 1)
     session.commit()
-    assert nlq._cache_lookup(session, "exa", "some query") is None
+    assert discovery._cache_lookup(session, "exa", "some query") is None
 
 
 def test_query_normalisation_ignores_word_order(session):
-    import rip.nlq as nlq
+    import rip.discovery as discovery
 
-    assert nlq._norm_query("growth leads at Zeta") == nlq._norm_query("Zeta growth at leads")
+    assert discovery._norm_query("growth leads at Zeta") == discovery._norm_query("Zeta growth at leads")
 
 
 def test_empty_result_names_the_filter_responsible(session):

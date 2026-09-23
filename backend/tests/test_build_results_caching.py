@@ -96,8 +96,8 @@ def test_second_build_results_call_excludes_already_cached_people(session, monke
         lambda s: _MergingSearcher("Newly Found", "newperson", "Kubernetes"),
     )
     monkeypatch.setattr(
-        "rip.nlq.SUGGESTION_SEARCHERS",
-        (("exa", __import__("rip.nlq", fromlist=["x"])._search_exa, True),),
+        "rip.discovery.SUGGESTION_SEARCHERS",
+        (("exa", __import__("rip.discovery", fromlist=["x"])._search_exa, True),),
     )
     monkeypatch.setenv("EXA_API_KEY", "k")
 
@@ -139,8 +139,8 @@ def test_eviction_prevents_stale_attrs_after_a_merge(session, monkeypatch):
         lambda s: _MergingSearcher("Existing Person", "mergetarget", "Distributed Systems"),
     )
     monkeypatch.setattr(
-        "rip.nlq.SUGGESTION_SEARCHERS",
-        (("exa", __import__("rip.nlq", fromlist=["x"])._search_exa, True),),
+        "rip.discovery.SUGGESTION_SEARCHERS",
+        (("exa", __import__("rip.discovery", fromlist=["x"])._search_exa, True),),
     )
     monkeypatch.setenv("EXA_API_KEY", "k")
 

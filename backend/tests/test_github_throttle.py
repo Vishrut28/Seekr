@@ -14,7 +14,7 @@ the fact every OTHER source now shares it too).
 import time
 
 from rip.models import SourceThrottle
-from rip.nlq import _may_fetch_github, _note_source_throttled, _source_throttled
+from rip.discovery import _may_fetch_github, _note_source_throttled, _source_throttled
 
 
 def test_not_throttled_by_default(session):
@@ -79,7 +79,7 @@ def _write_throttle_in_subprocess(db_path: str, seconds: float) -> None:
     anything relying on a global set only in the parent process cannot
     possibly be visible in this process."""
     from rip.db import Base
-    from rip.nlq import _note_source_throttled
+    from rip.discovery import _note_source_throttled
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
 
