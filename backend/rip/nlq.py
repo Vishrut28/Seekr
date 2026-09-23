@@ -2587,7 +2587,7 @@ def _parse_loose_date(text: str | None):
 
 def _output_signals(
     session: Session, parsed: NLQuery, ids: list[str]
-) -> tuple[dict[str, float], dict[str, object], dict[str, object]]:
+) -> tuple[dict[str, float], dict[str, float], dict[str, object], dict[str, object]]:
     """Work shipped, and when it was last touched — kept separate BY KIND.
 
     Evidence says someone claims a skill; this says what they built with it.
@@ -2601,24 +2601,41 @@ def _output_signals(
     the caller needs to know which kind of date it is looking at, not just
     the single most recent one across both.
 
-    Returns ({person_id: weighted impact}, {person_id: latest project date},
-    {person_id: latest publication date}).
+    On-topic and off-topic work come back APART rather than summed with the
+    off-topic half already discounted. The caller scales this through a log
+    that saturates at OUTPUT_SATURATION, and a discount applied before a
+    ceiling stops existing above it: 0.25 x anything over 20,000 is still
+    past 5,000. That left 97 people — 12.6% of the corpus — scoring a flat
+    output of 1.000 for every query whatever it asked about, and put Geoffrey
+    Hinton first for "information retrieval" on 195,452 citations of which
+    none were on topic. Scaling each half first and discounting the scaled
+    one bounds unrelated fame at OFF_TOPIC_WEIGHT of the component, which is
+    what that weight has always been documented to do.
+
+    Returns ({person_id: on-topic impact}, {person_id: off-topic impact},
+    {person_id: latest project date}, {person_id: latest publication date}).
     """
     from .models import Authorship, Contribution, Project, Publication
 
-    impact: dict[str, float] = {}
-    publication_impact: dict[str, float] = {}
+    on_project: dict[str, float] = {}
+    off_project: dict[str, float] = {}
+    on_publication: dict[str, float] = {}
+    off_publication: dict[str, float] = {}
     project_latest: dict[str, object] = {}
     publication_latest: dict[str, object] = {}
     terms = _query_terms(parsed)
 
     def record(pid, value, matched, when, latest: dict):
-        weight = 1.0 if (matched or not terms) else OFF_TOPIC_WEIGHT
-        into = publication_impact if latest is publication_latest else impact
-        into[pid] = into.get(pid, 0.0) + max(0.0, value) * weight
+        # No subject in the query means nothing can be off topic.
+        relevant = bool(matched or not terms)
+        if latest is publication_latest:
+            into = on_publication if relevant else off_publication
+        else:
+            into = on_project if relevant else off_project
+        into[pid] = into.get(pid, 0.0) + max(0.0, value)
         # An off-topic project should not set someone's recency — otherwise a
         # side repo makes a decade-dormant specialism look current.
-        if not (matched or not terms):
+        if not relevant:
             return
         parsed_when = _parse_loose_date(when)
         if parsed_when:
@@ -2715,10 +2732,27 @@ def _output_signals(
         matched = bool(phrases) and on_topic([*(topics or []), title])
         record(pid, float(citations or 0), matched, published, publication_latest)
 
-    factors = _field_citation_factors(session, list(publication_impact))
-    for pid, cites in publication_impact.items():
-        impact[pid] = impact.get(pid, 0.0) + cites * factors.get(pid, 1.0)
-    return impact, project_latest, publication_latest
+    # A field's citation norms are a property of the person, not of which
+    # half their papers landed in, so the same factor scales both.
+    factors = _field_citation_factors(
+        session, list({*on_publication, *off_publication}))
+    on_impact, off_impact = dict(on_project), dict(off_project)
+    for cited, into in ((on_publication, on_impact), (off_publication, off_impact)):
+        for pid, cites in cited.items():
+            into[pid] = into.get(pid, 0.0) + cites * factors.get(pid, 1.0)
+    return on_impact, off_impact, project_latest, publication_latest
+
+
+def _output_component(on_topic: float, off_topic: float) -> float:
+    """Work shipped, with unrelated fame bounded rather than discounted.
+
+    Each half is scaled on its own before OFF_TOPIC_WEIGHT applies, so the
+    discount outlives saturation. Someone with no on-topic output scores at
+    most OFF_TOPIC_WEIGHT here however cited they are elsewhere, and nobody's
+    on-topic work is diluted by work they did on something else.
+    """
+    return min(1.0, _log_scale(on_topic, OUTPUT_SATURATION)
+               + OFF_TOPIC_WEIGHT * _log_scale(off_topic, OUTPUT_SATURATION))
 
 
 # How far a field's citation norms may move someone's output. Damped (square
@@ -3009,7 +3043,8 @@ def relevance_scores(
     ).all():
         breadth[pid] = n or 0
 
-    impact, project_latest, publication_latest = _output_signals(session, parsed, ids)
+    on_impact, off_impact, project_latest, publication_latest = _output_signals(
+        session, parsed, ids)
 
     name_only = _name_only_intent(parsed)
     name_fit = _name_fit_scores(session, parsed, ids) if name_only else {}
@@ -3021,7 +3056,8 @@ def relevance_scores(
     for pid in ids:
         parts = {
             "depth": _depth_component(group_depth.get(pid), depth.get(pid, 0.0), concept_weights),
-            "output": _log_scale(impact.get(pid, 0.0), OUTPUT_SATURATION),
+            "output": _output_component(on_impact.get(pid, 0.0),
+                                        off_impact.get(pid, 0.0)),
             "confidence": best_conf.get(pid, 0.0),
             "corroboration": _log_scale(corroborated.get(pid, 0), 3.0),
             "breadth": _log_scale(breadth.get(pid, 0), BREADTH_SATURATION),
@@ -3053,7 +3089,11 @@ def relevance_scores(
             "components": {k: round(v, 3) for k, v in parts.items()},
             "matched_evidence": round(depth.get(pid, 0.0), 2),
             "sources": breadth.get(pid, 0),
-            "impact": round(impact.get(pid, 0.0), 1),
+            # Reported apart for the same reason they are scored apart: a
+            # breakdown that summed them could not show WHY someone very
+            # cited scored low on output for this particular query.
+            "impact": round(on_impact.get(pid, 0.0), 1),
+            "impact_off_topic": round(off_impact.get(pid, 0.0), 1),
         }
     return out
 
