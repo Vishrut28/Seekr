@@ -434,8 +434,21 @@ def generation(session: Session) -> int:
 
 
 def rebuild(session: Session, batch: int = 1000, progress=None) -> int:
-    """Regenerate the whole index. Safe to re-run; commits per batch."""
+    """Regenerate the whole index. Safe to re-run; commits per batch.
+
+    BATCH is checked BEFORE anything is deleted, because the order of those
+    two things is the whole difference between a refused command and an
+    unsearchable corpus. `range(0, n, -1)` is empty, so a negative batch
+    emptied both tables, indexed nobody, and returned 0 -- which the CLI
+    printed as "indexed 0 people", a success message for a destroyed index.
+    A batch of 0 emptied them and then raised out of range() with the delete
+    already committed. Either way the person running it was trying to REPAIR
+    the index, and had no reason to read the number as a failure.
+    """
     from .models import Person
+
+    if batch < 1:
+        raise ValueError(f"batch must be at least 1, not {batch}")
 
     # an index written with an older table layout is recreated, not patched
     bind = session.get_bind()

@@ -873,6 +873,43 @@ def load_env(path: str = ".env") -> int:
     return loaded
 
 
+
+# argparse has no `ge=`, so these are the type functions that give it one.
+# Without them every count in this file accepted a negative: `reindex
+# --batch -1` deleted the search index, indexed nobody, and printed
+# "indexed 0 people" -- a success message for a corpus that no longer
+# answered any query. The same omission bounded nothing on the HTTP side
+# either, where `limit=-1` returned the whole table.
+def positive_int(text: str) -> int:
+    """A count of things to do. Doing -3 of something is not a request."""
+    value = int(text)
+    if value < 1:
+        raise argparse.ArgumentTypeError(f"must be 1 or more, not {value}")
+    return value
+
+
+def counting_int(text: str) -> int:
+    """A threshold rather than a count, so zero is a real answer."""
+    value = int(text)
+    if value < 0:
+        raise argparse.ArgumentTypeError(f"must be 0 or more, not {value}")
+    return value
+
+
+def positive_float(text: str) -> float:
+    value = float(text)
+    if value <= 0:
+        raise argparse.ArgumentTypeError(f"must be greater than 0, not {value}")
+    return value
+
+
+def port_number(text: str) -> int:
+    value = int(text)
+    if not 1 <= value <= 65535:
+        raise argparse.ArgumentTypeError(f"not a port: {value}")
+    return value
+
+
 def main() -> None:
     load_env()
     parser = argparse.ArgumentParser(prog="rip", description="Resource Intelligence Platform")
@@ -898,8 +935,8 @@ def main() -> None:
     p_search_s2.add_argument("name")
 
     p_refresh = sub.add_parser("refresh", help="re-fetch stale source records")
-    p_refresh.add_argument("--older-than-hours", type=float, default=24.0)
-    p_refresh.add_argument("--processes", type=int, default=1,
+    p_refresh.add_argument("--older-than-hours", type=positive_float, default=24.0)
+    p_refresh.add_argument("--processes", type=positive_int, default=1,
                            help="refresh in N processes, each on its share of the records")
 
     p_discover = sub.add_parser("discover", help="mine stored records for new people (leads)")
@@ -907,20 +944,20 @@ def main() -> None:
         "--github-contributors", action="store_true",
         help="also fetch contributors of known repos (live API calls)",
     )
-    p_discover.add_argument("--max-repos", type=int, default=3)
+    p_discover.add_argument("--max-repos", type=positive_int, default=3)
 
     p_leads = sub.add_parser("ingest-leads", help="ingest pending discovery leads")
-    p_leads.add_argument("--limit", type=int, default=25)
+    p_leads.add_argument("--limit", type=positive_int, default=25)
     p_leads.add_argument("--source", default=None)
     p_leads.add_argument("--no-enrich", action="store_true")
-    p_leads.add_argument("--processes", type=int, default=1,
+    p_leads.add_argument("--processes", type=positive_int, default=1,
                          help="drain in N processes; each claims its own leads")
 
     p_review = sub.add_parser("review", help="review suspicious merges and duplicates")
     p_review.add_argument(
         "action", choices=["list", "triage", "approve", "split", "merge", "dismiss"])
     p_review.add_argument(
-        "link_id", nargs="?", type=int,
+        "link_id", nargs="?", type=positive_int,
         help="identity link id (approve/split) or merge-candidate id (merge/dismiss)",
     )
     p_review.add_argument(
@@ -935,7 +972,7 @@ def main() -> None:
     p_harvest = sub.add_parser("harvest", help="page a source's whole index into JSONL")
     p_harvest.add_argument("source", help="currently: openalex")
     p_harvest.add_argument("--out", required=True, help="output .jsonl or .jsonl.gz")
-    p_harvest.add_argument("--limit", type=int, default=10000)
+    p_harvest.add_argument("--limit", type=positive_int, default=10000)
     p_harvest.add_argument("--filter", default=None, help="OpenAlex filter, e.g. works_count:>50")
     p_harvest.add_argument("--cursor", default="*", help="resume from a previous next_cursor")
     p_harvest.add_argument("--india", action="store_true",
@@ -944,25 +981,25 @@ def main() -> None:
     p_bulk = sub.add_parser("bulk-ingest", help="stream a JSONL(.gz) dump into the graph")
     p_bulk.add_argument("source", help="connector name the dump belongs to")
     p_bulk.add_argument("--file", required=True)
-    p_bulk.add_argument("--batch-size", type=int, default=500)
-    p_bulk.add_argument("--limit", type=int, default=None)
+    p_bulk.add_argument("--batch-size", type=positive_int, default=500)
+    p_bulk.add_argument("--limit", type=positive_int, default=None)
     p_bulk.add_argument("--no-enrich", action="store_true", default=True,
                         help="(default) skip the enrichment chain during bulk load")
 
     p_home = sub.add_parser("find-homepages",
                             help="search the web for people's homepages and read them")
-    p_home.add_argument("--limit", type=int, default=20, help="people to process")
-    p_home.add_argument("--candidates", type=int, default=2, help="URLs to try per person")
-    p_home.add_argument("--min-sources", type=int, default=1,
+    p_home.add_argument("--limit", type=positive_int, default=20, help="people to process")
+    p_home.add_argument("--candidates", type=positive_int, default=2, help="URLs to try per person")
+    p_home.add_argument("--min-sources", type=counting_int, default=1,
                         help="only people already corroborated across N sources")
 
     p_hooks = sub.add_parser("deliver-webhooks", help="POST queued webhook deliveries")
-    p_hooks.add_argument("--limit", type=int, default=100)
-    p_hooks.add_argument("--fail-threshold", type=int, default=0,
+    p_hooks.add_argument("--limit", type=positive_int, default=100)
+    p_hooks.add_argument("--fail-threshold", type=counting_int, default=0,
                          help="exit non-zero when failures exceed this")
 
     p_qstats = sub.add_parser("queue-stats", help="discovery-lead backlog and drain estimate")
-    p_qstats.add_argument("--batch-size", type=int, default=100)
+    p_qstats.add_argument("--batch-size", type=positive_int, default=100)
 
     sub.add_parser("check-db", help="engine, journal mode, queue depths, credentials")
 
@@ -982,22 +1019,22 @@ def main() -> None:
     p_dedupe.add_argument("--yes", action="store_true", help="actually merge; otherwise dry-run")
 
     p_reindex = sub.add_parser("reindex", help="rebuild the search index from the tables")
-    p_reindex.add_argument("--batch", type=int, default=1000)
+    p_reindex.add_argument("--batch", type=positive_int, default=1000)
 
     p_worker = sub.add_parser("worker", help="continuously drain the discovery-lead queue")
-    p_worker.add_argument("--poll-interval", type=float, default=30.0)
-    p_worker.add_argument("--limit", type=int, default=25)
+    p_worker.add_argument("--poll-interval", type=positive_float, default=30.0)
+    p_worker.add_argument("--limit", type=positive_int, default=25)
     p_worker.add_argument("--source", default=None)
     p_worker.add_argument("--no-enrich", action="store_true")
     p_worker.add_argument("--once", action="store_true", help="single pass then exit")
-    p_worker.add_argument("--processes", type=int, default=1,
+    p_worker.add_argument("--processes", type=positive_int, default=1,
                           help="run N workers; --limit is each one's batch size")
 
     p_serve = sub.add_parser("serve", help="run the API and UI (full build)")
     p_serve.add_argument("--host", default="127.0.0.1",
                          help="0.0.0.0 to accept connections from other machines")
-    p_serve.add_argument("--port", type=int, default=8000)
-    p_serve.add_argument("--workers", type=int, default=1,
+    p_serve.add_argument("--port", type=port_number, default=8000)
+    p_serve.add_argument("--workers", type=positive_int, default=1,
                          help="worker processes; >1 needs Postgres, not SQLite")
 
     args = parser.parse_args()
