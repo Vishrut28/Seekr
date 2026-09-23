@@ -187,6 +187,9 @@ def judge(a: Features, b: Features, names_vouched: bool = False) -> Judgement:
     signals = {
         "shared_publications": shared_pubs, "shared_coauthors": shared_co,
         "coauthor_overlap": round(co_ratio, 2),
+        # The denominator, carried so the ratio can be read. Without it a
+        # reviewer sees "100%" and cannot tell 40-of-40 from 1-of-1.
+        "coauthor_pool": smaller_co,
         "topic_overlap": None if topic_j is None else round(topic_j, 2),
         "shared_organizations": shared_orgs,
     }
@@ -225,7 +228,16 @@ def _describe(s: dict) -> str:
     if s["shared_publications"]:
         parts.append(f"{s['shared_publications']} shared papers")
     if s["shared_coauthors"]:
-        parts.append(f"{s['shared_coauthors']} shared co-authors ({s['coauthor_overlap']:.0%})")
+        # The POOL, not the percentage. This line is what a reviewer decides
+        # on, and "2 shared co-authors (100%)" was the most persuasive thing
+        # in the queue while meaning almost nothing: Tim Steiner holds one
+        # paper, a mass-authored consensus document of his field, so both of
+        # his two co-authors are shared with every headache researcher alive.
+        # A ratio whose denominator is 2 is not a measurement, and hiding the
+        # denominator made it look like one.
+        pool = s.get("coauthor_pool")
+        parts.append(f"{s['shared_coauthors']} shared co-authors"
+                     + (f", of the {pool} on the smaller record" if pool else ""))
     if s["shared_organizations"]:
         parts.append(f"{s['shared_organizations']} shared organizations")
     if s["topic_overlap"]:
