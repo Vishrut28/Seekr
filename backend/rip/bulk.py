@@ -29,6 +29,11 @@ class BulkResult:
     processed: int = 0
     ingested: int = 0
     failed: int = 0
+    # Rows the dump could not answer on its own, so the source was asked.
+    # Counted because the difference between a bulk load and a slow crawl is
+    # invisible otherwise: it is the same command, printing the same summary,
+    # taking a thousand times longer.
+    fetched: int = 0
     failure_file: str | None = None
 
 
@@ -38,18 +43,45 @@ def _open(path: Path):
     return open(path, encoding="utf-8")
 
 
-def _profile_for(connector, obj: dict):
-    """Normalize a dump line offline when possible; fetch only if it's a bare id."""
+def _profile_for(connector, obj: dict, result=None, offline: bool = False):
+    """Normalize a dump line offline when possible; fetch only if it's a bare id.
+
+    The fallback is the dangerous part of this file. A dump whose rows are
+    the wrong shape -- one missing key is enough, since renormalize reads
+    raw["author"] -- makes every line a live request, and nothing about the
+    command says so. It is the same invocation, the same progress line and
+    the same summary, at a few rows a second instead of a few hundred: a
+    million-row load quietly becomes fifty hours of requests against a public
+    API that did not ask to be crawled. Writing a benchmark with author rows
+    instead of harvest's {id, author, works} rows sent two hundred of them
+    before the slowness gave it away.
+
+    So the fallback is counted, announced the first time, and refusable.
+    """
     external_id = obj.get("external_id") or obj.get("id")
     if external_id is None:
         raise ValueError("line has neither 'external_id' nor 'id'")
     external_id = str(external_id).rsplit("/", 1)[-1]
+
+    def from_network(why: str):
+        if offline:
+            raise ValueError(f"{why}, and --offline was asked for")
+        if result is not None:
+            if result.fetched == 0:
+                logger.warning(
+                    "%s: falling back to a live request PER ROW. If the whole "
+                    "dump is shaped this way this is a crawl, not a bulk "
+                    "load -- check it against what `harvest` writes, or pass "
+                    "--offline to stop here.", why)
+            result.fetched += 1
+        return connector.fetch(external_id)
+
     if set(obj) <= {"external_id", "id"}:
-        return connector.fetch(external_id)  # bare identifier: network needed
+        return from_network("row holds only an identifier")
     try:
         return connector.renormalize(external_id, obj)
-    except (NotImplementedError, KeyError):
-        return connector.fetch(external_id)
+    except (NotImplementedError, KeyError) as exc:
+        return from_network(f"row cannot be read offline ({type(exc).__name__}: {exc})")
 
 
 def bulk_ingest(
@@ -60,6 +92,7 @@ def bulk_ingest(
     batch_size: int = 500,
     limit: int | None = None,
     enrich_chain: bool = False,
+    offline: bool = False,
     progress=print,
 ) -> BulkResult:
     path = Path(file_path)
@@ -81,7 +114,7 @@ def bulk_ingest(
                 result.processed += 1
                 try:
                     obj = json.loads(line)
-                    profile = _profile_for(connector, obj)
+                    profile = _profile_for(connector, obj, result, offline)
                     ingest_profile(session, profile)
                     result.ingested += 1
                     if enrich_chain:

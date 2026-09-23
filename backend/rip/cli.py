@@ -322,11 +322,17 @@ def cmd_bulk_ingest(args) -> None:
         result = bulk_ingest(
             session, args.source, args.file,
             batch_size=args.batch_size, limit=args.limit,
-            enrich_chain=not args.no_enrich,
+            enrich_chain=not args.no_enrich, offline=args.offline,
         )
     print(
         f"processed {result.processed}, ingested {result.ingested}, failed {result.failed}"
     )
+    if result.fetched:
+        # Said plainly, because the difference between this and a bulk load
+        # is otherwise only visible as "it took all night".
+        print(f"! {result.fetched} of {result.processed} rows could not be read "
+              f"from the dump and were fetched live — that is a crawl, not a "
+              f"bulk load. Check the dump against what `harvest` writes.")
     if result.failure_file:
         print(f"failures written to {result.failure_file}")
         sys.exit(1)
@@ -994,6 +1000,9 @@ def main() -> None:
     p_bulk.add_argument("--file", required=True)
     p_bulk.add_argument("--batch-size", type=positive_int, default=500)
     p_bulk.add_argument("--limit", type=positive_int, default=None)
+    p_bulk.add_argument("--offline", action="store_true",
+                        help="refuse to fetch anything: a row the dump cannot "
+                             "answer is an error, not a request")
     p_bulk.add_argument("--no-enrich", action="store_true", default=True,
                         help="(default) skip the enrichment chain during bulk load")
 
