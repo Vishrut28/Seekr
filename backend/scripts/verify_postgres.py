@@ -161,9 +161,8 @@ def check_payloads(session) -> int:
     provenance store -- if it does not round trip, the evidence is gone and
     nothing else here would notice.
     """
-    from sqlalchemy import select
-
     from rip.models import CompressedJSON, SourceRecord
+    from sqlalchemy import select
 
     big = {"works": [{"id": f"W{i}", "title": f"A study of things, number {i}",
                       "authorships": [{"author": {"id": "A1"}}]} for i in range(200)]}

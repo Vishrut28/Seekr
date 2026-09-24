@@ -12,10 +12,9 @@ command actually waits to be told twice.
 """
 
 import pytest
-
-from rip import cli
 from rip.models import Evidence, Organization, Person
 
+from rip import cli
 
 # --------------------------------------------------------------------------
 # load_env: every command depends on it and nothing checked it

@@ -14,10 +14,9 @@ import pathlib
 import re
 
 import pytest
-from sqlalchemy import select
-
 from rip.dossier import _esc, _link, collect, render_html
 from rip.models import Affiliation, Evidence, Organization, Person, PersonKey
+from sqlalchemy import select
 
 
 @pytest.fixture

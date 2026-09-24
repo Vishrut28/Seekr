@@ -154,12 +154,12 @@ def test_a_long_backoff_a_source_asks_for_is_capped(session):
     out for thirteen hours over a limit that clears in a second."""
     from datetime import datetime, timezone
 
-    from rip.models import SourceThrottle
     from rip.discovery import (
         MAX_THROTTLE_SECONDS,
         _note_source_throttled,
         _source_throttled,
     )
+    from rip.models import SourceThrottle
 
     _note_source_throttled(session, "openalex", seconds=47125.0)
     row = session.query(SourceThrottle).filter_by(source="openalex").one()
