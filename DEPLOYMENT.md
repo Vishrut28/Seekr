@@ -224,6 +224,13 @@ python -m rip.cli harvest openalex --out authors.jsonl --limit 50000   --filter 
 python -m rip.cli bulk-ingest openalex --file authors.jsonl
 ```
 
+A dump `harvest` wrote is read without touching the network. A row that
+cannot be read that way is fetched live instead — right for a dump of bare
+identifiers, and also what happens silently when a dump is the wrong shape,
+which turns a bulk load into a crawl at a few rows a second. `bulk-ingest`
+now says so the first time it happens and counts it in the summary; pass
+`--offline` to make such a row an error instead of a request.
+
 Measured on a laptop: **2,000 people takes about 50 seconds**, so
 
 | People | Roughly |

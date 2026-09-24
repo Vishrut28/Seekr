@@ -24,9 +24,9 @@ import contextlib
 import io
 
 import pytest
+from rip.search_index import SearchDoc, SearchTerm, rebuild
 
 from rip import cli
-from rip.search_index import SearchDoc, SearchTerm, rebuild
 
 
 def parse(argv):

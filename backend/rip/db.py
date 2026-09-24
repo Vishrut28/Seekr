@@ -189,10 +189,18 @@ def _backfill_name_tokens(inspector) -> None:
 
     if "person_name_token" not in inspector.get_table_names():
         return
+    # The same engine the caller inspected, not SessionLocal's. _migrate
+    # decides what to do by inspecting `engine` and does its DDL through it;
+    # SessionLocal was bound to whatever `engine` was at import, so if the two
+    # ever differ -- a test that points _migrate at an old database does
+    # exactly this -- the backfill reads one database while the rest of the
+    # migration changes another.
+    from sqlalchemy.orm import Session
+
     from .models import Person, PersonNameToken
     from .resolution import sync_name_tokens
 
-    with SessionLocal() as session:
+    with Session(inspector.bind) as session:
         persons = session.execute(select(func.count(Person.id))).scalar_one()
         tokens = session.execute(select(func.count(PersonNameToken.id))).scalar_one()
         if persons == 0 or tokens > 0:

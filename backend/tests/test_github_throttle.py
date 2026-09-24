@@ -13,8 +13,8 @@ the fact every OTHER source now shares it too).
 """
 import time
 
-from rip.models import SourceThrottle
 from rip.discovery import _may_fetch_github, _note_source_throttled, _source_throttled
+from rip.models import SourceThrottle
 
 
 def test_not_throttled_by_default(session):

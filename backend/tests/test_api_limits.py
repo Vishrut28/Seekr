@@ -62,6 +62,10 @@ def test_a_negative_page_size_is_refused_rather_than_unlimited():
 
 
 def test_the_page_size_is_still_bounded_above():
+    """The 200 half of this used to be answered by the developer's real
+    corpus: nothing overrode the database, so the app opened rip.db in the
+    working directory, and the test failed in any checkout without one. It
+    now reaches the suite's own empty database (tests/conftest.py)."""
     client = TestClient(api.app)
     assert client.get("/v1/persons?limit=99999").status_code == 422
     assert client.get("/v1/persons?limit=500").status_code == 200

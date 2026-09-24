@@ -1710,8 +1710,8 @@ def post_feedback(payload: dict, db: Session = Depends(get_db)):
     that would be ranking, which belongs to the downstream tool. This is the
     labelled data that tool can train on, exposed at GET /v1/feedback.
     """
-    from .models import MatchFeedback, Person
     from .discovery import _norm_query
+    from .models import MatchFeedback, Person
 
     person_id = str(payload.get("person_id") or "").strip()
     verdict = str(payload.get("verdict") or "").strip().lower()

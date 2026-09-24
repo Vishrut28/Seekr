@@ -628,6 +628,13 @@ pathology`: a topical search matches the word, not the subject. They were left
 in. Removing people because they are not what the benchmark wanted is how a
 corpus stops resembling the world.
 
+What changed is the next pass. `ingest_topics.py` now puts each fetched
+profile to `ingest.on_subject` before storing it — the grader's own rule: the
+person states the subject, or more than one of their titles is about it. The
+ones it declines are printed with the topics they do state, so the call can
+be argued with, and `--loose` stores whatever the source returned, as before.
+The three already stored stay, for the reason above.
+
 ### A corpus typo defeats the typo tolerance
 
 `reinforcment learning` scored **0.000** while `reinforcement learning
@@ -1322,10 +1329,11 @@ process cannot write.
 
 ### Notes for a real deployment
 
-- **One worker.** SQLite takes one writer, and `serve` enforces that. To run
-  more than one process, move to Postgres via `RIP_DATABASE_URL` — the
-  connection pool settings in `db.py` already switch on for server-backed
-  engines.
+- **Workers.** SQLite takes one writer, so `serve` gives a writable SQLite
+  file one worker. A read-only snapshot (`mode=ro`) has no writer, and gets
+  every worker asked for. To run more than one process against a graph that
+  also grows, move to Postgres via `RIP_DATABASE_URL` — the connection pool
+  settings in `db.py` already switch on for server-backed engines.
 - **Ingestion is not this container's job.** It serves. Run `ingest`,
   `refresh` and `deliver-webhooks` as separate jobs against the same volume
   or database.
@@ -1377,15 +1385,25 @@ This is the version with every capability. One command:
 It reads `.env` itself, prints what it is serving, and refuses to pretend:
 if the database is read-only it says so, and if `RIP_API_TOKEN` is unset it
 warns that the API is open. `--host 0.0.0.0` accepts connections from other
-machines; `--workers N` needs Postgres, because SQLite does not take
-concurrent writers.
+machines; `--workers N` needs Postgres for a writable graph, because SQLite
+does not take concurrent writers. A read-only SQLite snapshot has no writer
+to serialise against, so it takes `--workers N` as it stands.
 
 **Use the workers.** Ranking is CPU-bound Python, so a second concurrent
-request does not get a second core — measured over HTTP on one process,
-`/v1/query` serves **13.5 requests a second serially and 10.7 with ten
-clients**, because they contend for the GIL rather than sharing the work.
-More processes is the only thing that raises that number; more threads
-lowers it.
+request does not get a second core. Measured over HTTP against the
+767-person corpus, natural-language queries with live discovery off:
+
+| concurrent callers | 1 | 2 | 4 | 8 | 16 |
+|---|---|---|---|---|---|
+| one worker (req/s) | 13.7 | 9.5 | 15.9 | 9.2 | 7.8 |
+| four workers (req/s) | 12.4 | 27.3 | 41.1 | **49.4** | 31.8 |
+
+On one process throughput *falls* as callers are added — they contend for
+the GIL rather than sharing the work — and p95 goes from 112 ms serially to
+1.4 s at eight-way. Four processes serve the same eight-way load at a p95 of
+281 ms. More processes is the only thing that raises the number; more
+threads lower it. For comparison, `/v1/persons` (plain SQL, no ranking)
+does 50 req/s serially and 90 at eight-way on a single worker.
 
 What "full" means, against the read-only snapshot described below:
 
