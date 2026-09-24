@@ -270,13 +270,31 @@ def plan(session: Session, person_ids: list[str] | None = None) -> Plan:
     # Pairs a human (or an earlier run) already has in the review queue —
     # including REJECTED ones: rejecting records that they are two people, and
     # that decision must not be re-proposed.
-    # A "deferred" row is not a decision — it says the pair had no evidence
-    # either way when it was last looked at, so it is allowed back into the
-    # queue once there is some.
     already = {
         frozenset(pair) for pair in session.execute(
             select(MergeCandidate.person_id, MergeCandidate.candidate_person_id)
             .where(MergeCandidate.status != "deferred")
+        ).all()
+    }
+    # A "deferred" row is not a decision, so it may come back -- but only when
+    # there is something NEW to look at. This used to say a deferred row
+    # "had no evidence either way when it was last looked at", and let every
+    # deferred pair with any evidence back in on every run. That is true of
+    # the triage's deferrals, which record no evidence because there was none.
+    # It is false of a reviewer's: they deferred a pair LOOKING AT its shared
+    # co-authors and topics and judged them short of proof. Re-proposing it
+    # unchanged asks the same question again -- and apply() then overwrote the
+    # row's signals, erasing the written reason. On the live queue a
+    # `dedupe --yes` would have flipped 12 deferred pairs back to pending and
+    # erased all 12 notes; 11 had exactly the evidence they were deferred
+    # with. So where the row holds the evidence it was deferred on, the pair
+    # returns only if that evidence has grown.
+    deferred_on = {
+        frozenset((a, b)): signals or {}
+        for a, b, signals in session.execute(
+            select(MergeCandidate.person_id, MergeCandidate.candidate_person_id,
+                   MergeCandidate.signals)
+            .where(MergeCandidate.status == "deferred")
         ).all()
     }
 
@@ -337,6 +355,8 @@ def plan(session: Session, person_ids: list[str] | None = None) -> Plan:
             x, y = sorted(pair)
             if cluster_of[x] is cluster_of[y] or pair in already:
                 continue
+            if pair in deferred_on and not grew_since_deferral(deferred_on[pair], j.signals):
+                continue
             if j.decision == "review":
                 result.reviews.append((x, y, j))
             elif pair in ambiguous:
@@ -344,6 +364,28 @@ def plan(session: Session, person_ids: list[str] | None = None) -> Plan:
                     "review", f"proven match, but it matches a different person almost as "
                               f"well: {j.reason}", j.signals)))
     return result
+
+
+# What counts as new evidence for a deferred pair. Topic overlap is left out
+# on purpose: it is a Jaccard ratio, so it rises when either record merely
+# LOSES an unrelated topic, and judge() never accepts it as proof on its own
+# -- a pair that is topic overlap and nothing else can move in and out of the
+# queue forever without ever becoming decidable. The Dhruv Dixit cluster is
+# exactly that: ten pairs, topic overlap only.
+EVIDENCE_THAT_CAN_SETTLE = ("shared_publications", "shared_coauthors", "shared_organizations")
+
+
+def grew_since_deferral(then: dict, now: dict) -> bool:
+    """Has a deferred pair gained evidence since it was deferred?
+
+    A row with no recorded evidence was deferred for having none to judge
+    (the triage does that), so anything now is new. A row that recorded what
+    the reviewer was looking at comes back only if one of the things that can
+    settle a pair has increased.
+    """
+    if not any(k in then for k in EVIDENCE_THAT_CAN_SETTLE):
+        return True
+    return any((now.get(k) or 0) > (then.get(k) or 0) for k in EVIDENCE_THAT_CAN_SETTLE)
 
 
 def strength(j: Judgement) -> float:
@@ -405,10 +447,19 @@ def apply(session: Session, planned: Plan) -> tuple[int, int]:
         if pa is None or pb is None or pa.merged_into or pb.merged_into:
             continue
         if exists is not None:
-            if exists.status == "deferred":      # evidence has since appeared
+            if exists.status == "deferred":      # plan() found new evidence
+                old = exists.signals or {}
                 exists.status = "pending"
                 exists.score = float(j.signals["coauthor_overlap"])
                 exists.signals = {**j.signals, "reason": j.reason}
+                # What was already looked for, and why it was not enough. The
+                # reviewer picking this up again needs it more than anyone,
+                # and it used to be overwritten here.
+                if old.get("deferred_because"):
+                    exists.signals["previously_deferred_because"] = old["deferred_because"]
+                if any(k in old for k in EVIDENCE_THAT_CAN_SETTLE):
+                    exists.signals["evidence_when_deferred"] = {
+                        k: old.get(k) for k in (*EVIDENCE_THAT_CAN_SETTLE, "topic_overlap")}
                 queued += 1
             continue
         session.add(MergeCandidate(person_id=a, candidate_person_id=b,
