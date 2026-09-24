@@ -942,19 +942,6 @@
    "kind": "holdout"
   },
   {
-   "id": "h-ml-eng",
-   "query": "machine learning engineers",
-   "strong": [
-    "machine learning",
-    "deep learning",
-    "neural network"
-   ],
-   "related": [
-    "artificial intelligence"
-   ],
-   "kind": "holdout"
-  },
-  {
    "id": "h-nano",
    "query": "nanotechnology",
    "strong": [
