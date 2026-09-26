@@ -250,6 +250,19 @@ class OpenAlexConnector(BaseConnector):
         # broad question asks about. "Glioma Diagnosis and Treatment" is filed
         # under Oncology and Medicine, and nobody states "oncology" as a topic.
         # Weaker than the topics themselves (search counts them for half).
+        #
+        # Every shelf of every top-15 topic is emitted, so one network-science
+        # topic files Marco Gori under "Physics and Astronomy" and 25 people
+        # match "physicists" through a label alone. Tried 2026-09-26 and NOT
+        # kept: emitting a shelf only when two or more topics sit on it. It
+        # fixed a-physicists (recall 0.818 -> 0.848) and broke the queries
+        # that live on shelves -- h-radiologists nDCG 0.858 -> 0.359, recall
+        # 0.769 -> 0.154 -- because a radiologist states specific topics and
+        # one large topic under Radiology is their whole route in. Counting
+        # topics cannot tell a specialist's one big topic from a generalist's
+        # one small one; the topic `count` (works per topic) can, as a share.
+        # Choosing that share needs a threshold designed on one set and
+        # judged on another, which this was not.
         filed: dict[str, tuple[str, float]] = {}
         for topic in topics:
             for level, confidence in (("subfield", 0.45), ("field", 0.35)):
