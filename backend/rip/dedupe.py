@@ -320,6 +320,24 @@ def plan(session: Session, person_ids: list[str] | None = None) -> Plan:
         for pair in rejected:
             if judged[pair].decision == "merge":
                 judged[pair] = Judgement(None, "rejected in review", judged[pair].signals)
+        # A human said "not proven" -- and judge()'s bar is lower than the
+        # reviewer's: it accepts a co-author overlap as proof, where the
+        # reviewer's rule is a shared ORCID or a shared paper. So a deferred
+        # pair is merged here only when what GREW since the deferral is shared
+        # papers -- the reviewer's own standard, now met by new evidence
+        # (test_review_duplicates holds that path open). Proof resting on
+        # anything else goes back to REVIEW, and only if its evidence has
+        # grown (the check below), with the note kept. This was latent until
+        # strength() stopped scoring 2-of-2 co-authors like 40-of-40: the only
+        # thing stopping a deferred Vishesh Jain pair from auto-merging on
+        # co-authors alone was a one-paper rival sharing 1 co-author of 1,
+        # which _torn() read as a contest.
+        for pair, j in list(judged.items()):
+            if pair in deferred_on and j.decision == "merge" and not papers_grew(
+                    deferred_on[pair], j.signals):
+                judged[pair] = Judgement(
+                    "review", f"deferred by a reviewer, so not merged on: {j.reason}",
+                    j.signals)
 
         # complete-link clustering over proven pairs, strongest first
         cluster_of = {pid: {pid} for pid in ids}
@@ -388,10 +406,35 @@ def grew_since_deferral(then: dict, now: dict) -> bool:
     return any((now.get(k) or 0) > (then.get(k) or 0) for k in EVIDENCE_THAT_CAN_SETTLE)
 
 
+# How many co-authors a ratio has to be a ratio OF before it counts in full.
+# judge() will not let co-authors stand as proof on their own below five shared
+# names, and strength() now holds the ratio to the same bar: under it the
+# ratio is scaled in proportion. It used to count 2-of-2 exactly like 40-of-40
+# -- "100%" either way -- so a thin rival could make a well-evidenced match
+# look contested in _torn(), and clusters were joined in an order that trusted
+# the thinnest overlaps as much as the thickest.
+COAUTHOR_POOL_FOR_FULL_WEIGHT = 5
+
+
+def papers_grew(then: dict, now: dict) -> bool:
+    """Have the two records gained a shared paper since the pair was deferred?
+
+    A deferral that recorded no evidence was made when there was none to
+    record -- ingest's near-miss check and the triage both defer like that --
+    so its paper count is read as zero, the same reading grew_since_deferral
+    gives it.
+    """
+    return (now.get("shared_publications") or 0) > (then.get("shared_publications") or 0)
+
+
 def strength(j: Judgement) -> float:
     """One number for how much two records have in common."""
     s = j.signals
-    return s["shared_publications"] + 3 * s["coauthor_overlap"] + 0.5 * s["shared_organizations"]
+    # Rows judged before the pool was recorded carry only the shared count,
+    # which is a lower bound on it.
+    pool = s.get("coauthor_pool", s.get("shared_coauthors", 0)) or 0
+    ratio = s["coauthor_overlap"] * min(1.0, pool / COAUTHOR_POOL_FOR_FULL_WEIGHT)
+    return s["shared_publications"] + 3 * ratio + 0.5 * s["shared_organizations"]
 
 
 def _torn(record, target, pair, j, ids, judged, vetoed, cluster_of) -> bool:
