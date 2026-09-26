@@ -20,7 +20,17 @@
   "   the living people with six or more papers -- a queue a person can",
   "   actually read.",
   "6. Anything changed after step 4 is marked tuned, and its figures on",
-  "   this set are no longer evidence."
+  "   this set are no longer evidence.",
+  "",
+  "LABELLED 2026-09-26, positions 0-119, from blind cards (titles, years, the",
+  "author's own per-paper institutions), with no detector score computed for any",
+  "of them: 11 conflated, 106 one_person, 3 unsure. Ten or more conflated, so by",
+  "step 3 no extension was drawn. Committed before step 4 was run.",
+  "CAVEAT, known before scoring: per-paper institutions were on the cards, and the",
+  "new detector reads institutions too. Where a label leaned on an institution",
+  "(an SGPGI paper on a PGIMER record, a Schneider Electric paper on a Bristol",
+  "statistician), the subject matter differed as well; no label rests on an",
+  "institution alone."
  ],
  "drawn_at": "2026-09-26",
  "salt": "seekr conflation judge draw 2026-09-26",
@@ -397,5 +407,608 @@
   "5e39c67d",
   "001cc86f"
  ],
- "labels": {}
+ "labels": {
+  "12bd04ff": {
+   "position": 0,
+   "label": "one_person",
+   "note": "Ganqu Cui - NLP and LLM alignment at Tsinghua; the 2019 power-grid matrix-ordering paper is Tsinghua ML too."
+  },
+  "eae6d372": {
+   "position": 1,
+   "label": "one_person",
+   "note": "Dong Yu - speech recognition at Microsoft, then Tencent; the malware and visual-grounding papers fit that path."
+  },
+  "acfb2379": {
+   "position": 2,
+   "label": "one_person",
+   "note": "Benjamin L Ebert - hypoxia work as a student, then myeloid malignancy, clonal haematopoiesis and degraders at the Broad/Dana-Farber."
+  },
+  "5a4b8778": {
+   "position": 3,
+   "label": "one_person",
+   "note": "Daniel Loss - spin qubits and quantum dots, IBM then Basel."
+  },
+  "a7a16163": {
+   "position": 4,
+   "label": "one_person",
+   "note": "Francesco Messi - neutron detectors, Lund/ESS."
+  },
+  "7aedc934": {
+   "position": 5,
+   "label": "one_person",
+   "note": "Harender Singh Dhattarwal - molecular dynamics of ionic liquids and electrolytes."
+  },
+  "fa1d4aee": {
+   "position": 6,
+   "label": "one_person",
+   "note": "Chandan Karak - vegetable breeding at Bidhan Chandra Krishi Viswavidyalaya."
+  },
+  "8369bc20": {
+   "position": 7,
+   "label": "one_person",
+   "note": "Bernhard Lohkamp - protein crystallography and Coot; the clinical papers are on the enzymes he solved."
+  },
+  "0c1039bc": {
+   "position": 8,
+   "label": "one_person",
+   "note": "Chirag R. Parikh - acute kidney injury biomarkers, Yale then Johns Hopkins."
+  },
+  "897a5a67": {
+   "position": 9,
+   "label": "one_person",
+   "note": "Djallel Hamouda - IoT intrusion detection, University of Guelma."
+  },
+  "b29d26e4": {
+   "position": 10,
+   "label": "one_person",
+   "note": "Aparna Bandi - agricultural economics and marketing in Andhra Pradesh; the time-series and precipitation papers are agricultural statistics with the same group."
+  },
+  "ab55de0c": {
+   "position": 11,
+   "label": "one_person",
+   "note": "A. Aman - Malaysian accounting, shared services, impact sourcing, RPA and waqf. Weakest fits are two law papers and two tourism papers, all Malaysian; no institutions on file. Close to unsure."
+  },
+  "84376aec": {
+   "position": 12,
+   "label": "one_person",
+   "note": "Shamkant B. Navathe - databases, Florida then Georgia Tech; the health-informatics and spam papers are Georgia Tech too."
+  },
+  "077f7b8d": {
+   "position": 13,
+   "label": "one_person",
+   "note": "David Silver - reinforcement learning, Alberta then DeepMind; he is an author on the AlphaFold papers."
+  },
+  "c6294431": {
+   "position": 14,
+   "label": "one_person",
+   "note": "Dhruv Utpalkumar Dixit - ALICE heavy-ion physics."
+  },
+  "964794ce": {
+   "position": 15,
+   "label": "conflated",
+   "note": "Sooyong Park - Sogang software product lines and self-adaptive systems, plus Texas A&M/Youngsan structural damage identification (1996-2005), a Daegu oocyte-maturation paper, Sogang paper microfluidics, and a Pusan bioelectrode paper."
+  },
+  "010aeab3": {
+   "position": 16,
+   "label": "one_person",
+   "note": "Edi Brogi - MSK breast pathology; the 1992-96 angiogenesis papers are her earlier research at St. Elizabeth's."
+  },
+  "aaa756d9": {
+   "position": 17,
+   "label": "one_person",
+   "note": "TJ Steiner - headache and Lifting The Burden; the Nepal hypertension paper comes from the same NTNU population survey."
+  },
+  "860e575f": {
+   "position": 18,
+   "label": "one_person",
+   "note": "Steve Hanneke - learning theory, CMU then TTIC; the social-network models are his CMU work."
+  },
+  "7b8c257f": {
+   "position": 19,
+   "label": "one_person",
+   "note": "Vasileios Iosifidis - sentiment and fairness-aware learning at L3S/Hannover."
+  },
+  "ff6c1095": {
+   "position": 20,
+   "label": "one_person",
+   "note": "Virat Shejwalkar - privacy and federated learning at UMass, then private ASR at Google."
+  },
+  "00aad6a9": {
+   "position": 21,
+   "label": "conflated",
+   "note": "Aman Sharma - PGIMER Chandigarh internal medicine and rheumatology, including ocular TB with the COTS group, plus a 2022 economics-of-AI paper from Sanjay Gandhi PGI Lucknow. One intruder."
+  },
+  "ebf43545": {
+   "position": 22,
+   "label": "one_person",
+   "note": "Alex P. Reiner - genetic epidemiology, Fred Hutch and UW."
+  },
+  "548f899a": {
+   "position": 23,
+   "label": "one_person",
+   "note": "Vishesh Manjunath - perovskite and oxide solar cells, IIT Indore then Chonnam."
+  },
+  "ac9a7ca7": {
+   "position": 24,
+   "label": "one_person",
+   "note": "Dolf Gielen - energy-transition modelling, ECN, IEA, UNIDO, IRENA, World Bank."
+  },
+  "6f0fc3a2": {
+   "position": 25,
+   "label": "one_person",
+   "note": "Ioannis Kavakiotis - bioinformatics and population-genomic marker selection in Thessaloniki; the red-deer, seabass and molecular-communication papers fit that range. Moderate confidence."
+  },
+  "27b10b03": {
+   "position": 26,
+   "label": "conflated",
+   "note": "Vishesh Jain - AIIMS paediatric surgery 2010-2026, plus a 1988 pyrazinamide case report, 2004 ophthalmology at Guru Nanak Eye Centre, BITS Pilani plant genomics and semiconductor strain papers, an El Camino menopause review, an RMIT diabetes paper and a Chandigarh University ML paper."
+  },
+  "1a97963e": {
+   "position": 27,
+   "label": "one_person",
+   "note": "Loet Leydesdorff - Triple Helix and scientometrics, Amsterdam."
+  },
+  "969a3bcb": {
+   "position": 28,
+   "label": "one_person",
+   "note": "Chirag Bavishi - cardiology training and research, St Luke's-Roosevelt, Mount Sinai, Brown."
+  },
+  "69e10fce": {
+   "position": 29,
+   "label": "one_person",
+   "note": "Omar M. Yaghi - metal-organic and covalent organic frameworks."
+  },
+  "0ca06f8c": {
+   "position": 30,
+   "label": "one_person",
+   "note": "Suhang Wang - data mining, fake news, graph neural networks, LLMs; the early face-recognition papers are semi-supervised learning too. No institutions on file."
+  },
+  "339c74c7": {
+   "position": 31,
+   "label": "one_person",
+   "note": "William J. Munro - quantum information, Queensland, HP Bristol, NTT."
+  },
+  "4e95e0bf": {
+   "position": 32,
+   "label": "one_person",
+   "note": "Isha Khedikar - civil engineering at Raisoni; the greywater papers are environmental engineering in the same department."
+  },
+  "8fa278c4": {
+   "position": 33,
+   "label": "one_person",
+   "note": "Jerome Eeckhoute - nuclear receptors and chromatin, Dana-Farber then Lille; the clinical papers are Lille circadian and cardiac collaborations."
+  },
+  "f6664e52": {
+   "position": 34,
+   "label": "one_person",
+   "note": "Virat Sirisanthana - paediatric infectious disease at Chiang Mai, from rickettsioses and dengue to paediatric HIV."
+  },
+  "6c054e19": {
+   "position": 35,
+   "label": "one_person",
+   "note": "Knut Hagen - headache and musculoskeletal epidemiology in HUNT, NTNU; the genetics papers are HUNT consortium work."
+  },
+  "4ec9ecaf": {
+   "position": 36,
+   "label": "one_person",
+   "note": "Loren Terveen - HCI and online communities, AT&T then Minnesota; the 1995 cognitive-science book is his with Bickhard."
+  },
+  "9dae9a28": {
+   "position": 37,
+   "label": "one_person",
+   "note": "Antonios Katsarakis - distributed systems, Edinburgh then Huawei."
+  },
+  "22a5cd73": {
+   "position": 38,
+   "label": "conflated",
+   "note": "Christophe Andrieu - Monte Carlo methods, Cambridge then Bristol, plus a 2003 Schneider Electric paper on distributed generation in distribution networks. One intruder."
+  },
+  "1ff6c2d1": {
+   "position": 39,
+   "label": "one_person",
+   "note": "M. Ehsan Khalili - audiology."
+  },
+  "b78bf88a": {
+   "position": 40,
+   "label": "one_person",
+   "note": "Adel Kotb - near-surface geophysics and groundwater in Egypt."
+  },
+  "0407fb32": {
+   "position": 41,
+   "label": "one_person",
+   "note": "Alex Bateman - protein family databases, Sanger then EBI."
+  },
+  "559a04ea": {
+   "position": 42,
+   "label": "one_person",
+   "note": "Aparna Shrotri - obstetrics and maternal health in Pune, 1978-2018, including HIV in pregnancy and HIV vaccine trials."
+  },
+  "61da85f7": {
+   "position": 43,
+   "label": "one_person",
+   "note": "Vishrut Shah - multi-material topology optimisation."
+  },
+  "8425f59d": {
+   "position": 44,
+   "label": "one_person",
+   "note": "Vishesh Kumar - Indian paediatrics: IAP feeding and vaccine guidance, neonatology, child public health."
+  },
+  "d7f65cea": {
+   "position": 45,
+   "label": "one_person",
+   "note": "D. Dixit - heavy-ion physics in PHENIX 2018-2023 and ALICE 2022-2025; a student-to-postdoc move between collaborations is ordinary. No institutions on file."
+  },
+  "2fb8dcd1": {
+   "position": 46,
+   "label": "conflated",
+   "note": "Vivek Kumar - haematology-oncology research at Maimonides and Brigham/Dana-Farber, plus a 2020 dental review of oral manifestations in postmenopausal women. The many GBD consortium papers could be either."
+  },
+  "54357347": {
+   "position": 47,
+   "label": "one_person",
+   "note": "Bruno Pannier - arterial stiffness in end-stage renal disease and hypertension, Paris."
+  },
+  "b72b68eb": {
+   "position": 48,
+   "label": "one_person",
+   "note": "Deger Saygin - industrial energy efficiency and renewable roadmaps, Utrecht, IRENA, Sabanci."
+  },
+  "3cb6f42f": {
+   "position": 49,
+   "label": "one_person",
+   "note": "Joseph A. Konstan - recommender systems and online communities, Minnesota."
+  },
+  "b40205a9": {
+   "position": 50,
+   "label": "one_person",
+   "note": "Peter J. Goadsby - headache neurology, Sydney, London, UCSF, King's."
+  },
+  "46c61bf9": {
+   "position": 51,
+   "label": "one_person",
+   "note": "Alex Pentland - computer vision, then computational social science, MIT."
+  },
+  "57fd000a": {
+   "position": 52,
+   "label": "one_person",
+   "note": "Michael A Gillette - Broad proteomics and biomarkers; the lung pathology and pneumonia papers fit a pulmonologist in proteomics."
+  },
+  "85af13af": {
+   "position": 53,
+   "label": "one_person",
+   "note": "V. Sharma - CLEO then CMS, which is Vivek Sharma of UCSD's path."
+  },
+  "16615a74": {
+   "position": 54,
+   "label": "one_person",
+   "note": "Abraham Silberschatz - databases, operating systems and networking, Texas, Bell Labs, Yale."
+  },
+  "c560f422": {
+   "position": 55,
+   "label": "one_person",
+   "note": "Sujin Choi - software process improvement at Sogang."
+  },
+  "e293854f": {
+   "position": 56,
+   "label": "one_person",
+   "note": "C. Messi - supported iron-oxide catalysis, Milan."
+  },
+  "314d846e": {
+   "position": 57,
+   "label": "one_person",
+   "note": "Maria E Casanueva - Chilean acarology and arachnology at Concepcion; the essential-oil papers are applied entomology in the same department."
+  },
+  "4bf350c7": {
+   "position": 58,
+   "label": "one_person",
+   "note": "Marc G. Bellemare - reinforcement learning, McGill, Alberta, DeepMind, Google Brain."
+  },
+  "13948b8c": {
+   "position": 59,
+   "label": "one_person",
+   "note": "Elias G. Carayannis - innovation helices, George Washington; the HCI and architectural-geometry items are encyclopedia entries he edited."
+  },
+  "6cde0478": {
+   "position": 60,
+   "label": "one_person",
+   "note": "G Messi - paediatric emergency medicine at Burlo Garofolo, Trieste; the INFN affiliation is an OpenAlex error."
+  },
+  "cc0af727": {
+   "position": 61,
+   "label": "one_person",
+   "note": "Dhruv Utpalkumar Dixit - ALICE."
+  },
+  "24850fb4": {
+   "position": 62,
+   "label": "one_person",
+   "note": "Carol D. von Dohlen - insect molecular phylogenetics and endosymbionts, Arizona then Utah State."
+  },
+  "333e87c1": {
+   "position": 63,
+   "label": "one_person",
+   "note": "Priyadarshani P. Mohapatra - horticulture and vegetable breeding across several Indian agricultural universities."
+  },
+  "b676df33": {
+   "position": 64,
+   "label": "one_person",
+   "note": "Ron Holzman - combinatorics and game theory, Technion."
+  },
+  "8f7f8ee7": {
+   "position": 65,
+   "label": "one_person",
+   "note": "Nicolas Mongardon - anaesthesia and intensive care, cardiac arrest and ECMO, Paris."
+  },
+  "96b82230": {
+   "position": 66,
+   "label": "one_person",
+   "note": "Youssef Bennis - clinical pharmacology and uraemic toxins, Amiens; the EPO/progenitor-cell papers are his earlier research."
+  },
+  "bc47c5f5": {
+   "position": 67,
+   "label": "one_person",
+   "note": "Aleksandar Dragojevic - transactional memory and distributed systems, EPFL, Microsoft Research, OpenAI."
+  },
+  "a2fd73e5": {
+   "position": 68,
+   "label": "conflated",
+   "note": "Karan Singh - many people: UAB fetal heart-rate studies, UNT sleep and cadmium epidemiology, Panjab University Kapton irradiation, Northwell critical-care echocardiography, Kentucky pharmacy, PGIMER neurocysticercosis, LPU flood modelling."
+  },
+  "c06d195d": {
+   "position": 69,
+   "label": "one_person",
+   "note": "Koray Kavukcuoglu - deep learning, NYU then DeepMind; the Shandong affiliation is an OpenAlex error."
+  },
+  "f331e2f6": {
+   "position": 70,
+   "label": "one_person",
+   "note": "Charalambos Vlachopoulos - arterial stiffness and preventive cardiology, Athens."
+  },
+  "f263def4": {
+   "position": 71,
+   "label": "one_person",
+   "note": "Timothy C. Ralph - quantum optics and information, Queensland."
+  },
+  "1a6d24b4": {
+   "position": 72,
+   "label": "one_person",
+   "note": "Nosakros Arya - communication science at Hasanuddin; the stray mayonnaise, air-particulate and dental-outreach items are student theses and community-service reports from the repository, and the name is unique."
+  },
+  "7f4f3fcd": {
+   "position": 73,
+   "label": "one_person",
+   "note": "Alex Zunger - electronic structure theory of semiconductors, NREL then Boulder."
+  },
+  "8b5d33aa": {
+   "position": 74,
+   "label": "one_person",
+   "note": "Manuel Becana - antioxidants and haemoglobins in legume nodules."
+  },
+  "1df2db00": {
+   "position": 75,
+   "label": "conflated",
+   "note": "Pierre L'Ecuyer - random number generation, simulation and call-centre optimisation at Montreal, plus a 2004 NRC Canada paper on microwave synthesis of cobalt-ferrite nanoparticles. One intruder."
+  },
+  "65c2aca1": {
+   "position": 76,
+   "label": "one_person",
+   "note": "Andrei A. Rusu - DeepMind continual and meta-learning; the 2013 personality-models neuroscience paper is with Hassabis."
+  },
+  "96ef4c1a": {
+   "position": 77,
+   "label": "one_person",
+   "note": "Rahul Banerjee - MOF and COF chemistry, Yaghi's lab then NCL Pune then IISER Kolkata."
+  },
+  "94ec028a": {
+   "position": 78,
+   "label": "one_person",
+   "note": "Jonathan P. Dowling - photonic band gaps then quantum optics and metrology, Army, JPL, LSU."
+  },
+  "4ffc1c7e": {
+   "position": 79,
+   "label": "one_person",
+   "note": "Aparna Prasad - SickKids genomics, autism copy-number variation then PCAWG consortium papers."
+  },
+  "f5009965": {
+   "position": 80,
+   "label": "one_person",
+   "note": "Vishrut Bhatnagar - prosthodontics, Terna Dental College."
+  },
+  "061a5e48": {
+   "position": 81,
+   "label": "one_person",
+   "note": "Cristina Giannattasio - cardiology, sympathetic activity and arterial function, Milan; the Apple affiliation is an OpenAlex error."
+  },
+  "08f186a7": {
+   "position": 82,
+   "label": "one_person",
+   "note": "Aparna Natarajan - prosthodontics and occlusion."
+  },
+  "2bc5689e": {
+   "position": 83,
+   "label": "one_person",
+   "note": "O. Tsave - Thessaloniki biomedical research: metal-complex adipogenesis in Salifoglou's lab, with bioinformatics, microRNA and imaging collaborations. Broad; moderate confidence."
+  },
+  "3ba37ccb": {
+   "position": 84,
+   "label": "one_person",
+   "note": "Rahul Kashyap - LIGO-Virgo collaboration papers."
+  },
+  "ae28346a": {
+   "position": 85,
+   "label": "one_person",
+   "note": "Emma Mosley - cardiac vagal activity and sport psychophysiology."
+  },
+  "f025e99f": {
+   "position": 86,
+   "label": "conflated",
+   "note": "Ram Karan Singh - mosquito vector and insecticide-resistance studies in Jharkhand, plus a 2010 lentil wilt and root-rot plant-pathology paper. One intruder."
+  },
+  "2887c3d9": {
+   "position": 87,
+   "label": "one_person",
+   "note": "Pierre Boutouyrie - arterial stiffness and hypertension, Paris."
+  },
+  "0f29792d": {
+   "position": 88,
+   "label": "one_person",
+   "note": "Noga Alon - combinatorics and theoretical computer science."
+  },
+  "3428255b": {
+   "position": 89,
+   "label": "one_person",
+   "note": "Elizabeth Villa - molecular dynamics fitting then cellular cryo-electron tomography. The 2016 photoactivable nanoliposome paper is the weakest fit and could be another E. Villa; not settled."
+  },
+  "ce80a1a8": {
+   "position": 90,
+   "label": "conflated",
+   "note": "Chirag Shah - information retrieval, UNC, Rutgers, UW, plus a 2000 UIUC fMRI paper on prefrontal attentional set, from before his IR career; the 2018 phishing paper may be another person too."
+  },
+  "5d50f8d5": {
+   "position": 91,
+   "label": "conflated",
+   "note": "Andres Moya - evolutionary genomics, RNA viruses, symbionts and gut microbiota in Valencia, plus the 2009 ESC syncope guidelines and ECG loop-recorder indications, which are the cardiologist Angel Moya."
+  },
+  "371bd7e0": {
+   "position": 92,
+   "label": "conflated",
+   "note": "Ke Zhu - HKU magnetic sensing for power cables 2016-2019, plus porous-silicon photoluminescence, P2P traffic, Ningbo machinery prognostics, PM2.5 airway inflammation, nasal microbiome proteomics, AZO films and van der Waals antiferromagnets."
+  },
+  "dcc37273": {
+   "position": 93,
+   "label": "one_person",
+   "note": "Emilio Rodriguez-Cerezo - plant virology, then GM-crop and agricultural policy at the JRC; the pharmacogenetics study is a JRC-IPTS report."
+  },
+  "64f5451d": {
+   "position": 94,
+   "label": "one_person",
+   "note": "John M Drake - population and disease ecology, invasions, extinction and outbreak forecasting."
+  },
+  "ac029c60": {
+   "position": 95,
+   "label": "one_person",
+   "note": "D. Yu. Rybalko - clinical anatomy, Bashkir State Medical University."
+  },
+  "693bb1ed": {
+   "position": 96,
+   "label": "one_person",
+   "note": "Goutam Sarker - pattern recognition and machine learning; the black-hole and astronomy items are in the same self-maintained citation format as the rest, so he lists them himself."
+  },
+  "6c625512": {
+   "position": 97,
+   "label": "one_person",
+   "note": "L. R. Rabiner - speech and signal processing, Bell Labs/AT&T; the combinatorial-optimisation item is a book review."
+  },
+  "274b7d79": {
+   "position": 98,
+   "label": "one_person",
+   "note": "Vishesh Jain - probabilistic combinatorics and random matrices, Stanford, MIT, UIC."
+  },
+  "9da87827": {
+   "position": 99,
+   "label": "one_person",
+   "note": "Elio Messi - neuroendocrinology then motor-neuron protein quality control, Milan pharmacology; the cancer-cell papers are from the same department."
+  },
+  "898a72a0": {
+   "position": 100,
+   "label": "one_person",
+   "note": "Jiuyang Xu - respiratory viruses and COVID-19, Beijing."
+  },
+  "a59b0666": {
+   "position": 101,
+   "label": "one_person",
+   "note": "Vishrut S. Landge - traffic safety and transport planning at VNIT; the groundwater-vulnerability papers are VNIT civil-engineering work."
+  },
+  "768ba31f": {
+   "position": 102,
+   "label": "one_person",
+   "note": "Ellen Douglas-Cowie - speech in deafness, then emotional speech and databases, Queen's Belfast."
+  },
+  "95df3171": {
+   "position": 103,
+   "label": "one_person",
+   "note": "S.C. Kaushik - solar and thermal energy systems, IIT Delhi."
+  },
+  "b3351fed": {
+   "position": 104,
+   "label": "one_person",
+   "note": "Edward Korot - retina and ophthalmic AI."
+  },
+  "955663c2": {
+   "position": 105,
+   "label": "one_person",
+   "note": "Aparna Bhaduri - genomics at Stanford then single-cell brain development at UCSF and UCLA."
+  },
+  "b9e21846": {
+   "position": 106,
+   "label": "unsure",
+   "note": "Irfan Ullah - nothing but Global Burden of Disease consortium papers; several GBD collaborators share this name, and nothing on the record says which one or how many."
+  },
+  "d684fc4a": {
+   "position": 107,
+   "label": "one_person",
+   "note": "Jie Zhou - computer vision at Tsinghua."
+  },
+  "1adae37d": {
+   "position": 108,
+   "label": "one_person",
+   "note": "RB Lipton - headache medicine, Albert Einstein."
+  },
+  "9f9b5817": {
+   "position": 109,
+   "label": "one_person",
+   "note": "Fernando Gama - biased affine estimation, then graph signal processing and graph neural networks at Penn."
+  },
+  "5a1269ad": {
+   "position": 110,
+   "label": "one_person",
+   "note": "Vishesh Khanna - myeloid neoplasm genomics."
+  },
+  "8b9fb4ba": {
+   "position": 111,
+   "label": "one_person",
+   "note": "Alex Guenther - biogenic emissions and atmospheric chemistry."
+  },
+  "cb2af4d8": {
+   "position": 112,
+   "label": "unsure",
+   "note": "Darragh G McArt - Belfast cancer bioinformatics and digital pathology, plus a 2021 review of piezoelectric materials for ultrasound-powered implants with no institution on file; could be a collaboration or another person."
+  },
+  "e6fa4f24": {
+   "position": 113,
+   "label": "one_person",
+   "note": "Mark M Huycke - enterococcal virulence and microbiome-driven colorectal carcinogenesis; the melanoma-laterality note is a plausible side paper."
+  },
+  "6f5f5217": {
+   "position": 114,
+   "label": "one_person",
+   "note": "Vasilis Gavrielatos - distributed systems and coherence protocols, Edinburgh then Huawei."
+  },
+  "5abf2010": {
+   "position": 115,
+   "label": "one_person",
+   "note": "Sylvain Laborde - sport psychophysiology, heart-rate variability and slow-paced breathing."
+  },
+  "2d9d533c": {
+   "position": 116,
+   "label": "one_person",
+   "note": "Manuel Salto-Tellez - molecular and digital pathology, Singapore then Belfast; the hydrogen-sulfide, corneal and stem-cell papers are NUS collaborations a pathologist joins."
+  },
+  "d368e3b9": {
+   "position": 117,
+   "label": "unsure",
+   "note": "V. Mishra - anthropometry in schizophrenia and child carpal bones, sport psychology of gymnasts and footballers, Ayurvedic massage and yoga for asthma. Initials only and no institutions; could be one physiologist with range or several people."
+  },
+  "07c4a277": {
+   "position": 118,
+   "label": "one_person",
+   "note": "Stuart K. Card - HCI and information visualisation, Xerox PARC."
+  },
+  "b8b96c99": {
+   "position": 119,
+   "label": "one_person",
+   "note": "Victor E. Reuter - genitourinary pathology at MSK, including TCGA and PCAWG consortium papers."
+  }
+ },
+ "labelled_at": "2026-09-26",
+ "labelled_through_position": 119
 }
