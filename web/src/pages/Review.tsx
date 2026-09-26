@@ -265,26 +265,24 @@ export function Review() {
         </h2>
         {/* Sources disambiguate authors themselves and get it wrong, and a
             record that holds two people's work answers searches with the wrong
-            half. Measured 2026-09-21, about a third of these are real at the
-            threshold this queue uses; the rest are one person with a wide
-            career, which is why the papers are printed rather than a verdict.
-            A third still beats the 8% base rate by four times over, so the
-            queue is worth reading — but only as a reading order. */}
+            half. Judged 2026-09-26 on 120 records drawn before the detector
+            was built: two thirds of what it reports there are real, and it
+            finds about a third of the conflations -- so the papers are printed
+            rather than a verdict, and the queue is a reading order. */}
         {conflations === null ? (
           <Loading message="Reading publication records…" />
         ) : conflations.length === 0 ? (
           <EmptyState
             title="Nothing to look at"
-            /* Not "nothing is wrong". The score is the second-largest group
-               of papers over the largest, so a record whose intruder is one
-               or two papers that share no topic and no co-author scores zero
-               — 1895 Labrador geology filed with 2019 materials science among
-               them. Measured recall against records found by other signals
-               was nil, and saying so here is cheaper than somebody inferring
-               a clean corpus from an empty list. */
-            body="No record splits into two comparable bodies of work. That is
-                  not a clean bill of health: this test cannot see a stray
-                  paper or two, only a second career."
+            /* Not "nothing is wrong". On a blind draw this found 4 of 11
+               conflated records: an intruder on a neighbouring subject, or
+               one tied to the career by a stray link, is invisible to it.
+               Saying so here is cheaper than somebody inferring a clean
+               corpus from an empty list. */
+            body="No record holds work foreign to its career or a gap in time
+                  no career explains. That is not a clean bill of health: on a
+                  blind draw this found about a third of the records that
+                  were really several people."
           />
         ) : (
           conflations.map((c) => (
@@ -295,10 +293,30 @@ export function Review() {
                 </b>{" "}
                 <span className="muted">{c.papers} papers</span>
               </div>
-              {/* Why this record is here, in terms a reader can check. A
-                  record found only by the hole in time scores 0.00 and its
-                  evidence is a SINGLETON paper, which the groups below never
-                  print — so without this the queue looks broken. */}
+              {/* Why this record is here, in terms a reader can check. Foreign
+                  work and a hole in time are usually SINGLE papers, which the
+                  groups below never print — so without these the queue looks
+                  broken. */}
+              {(c.foreign || []).slice(0, 4).map((p) => (
+                <div className="idline" key={`f${p.publication_id}`}>
+                  {p.year ?? "undated"} · another {p.distance}
+                  {p.topics.length ? ` (${p.topics[0]})` : ""} · {p.title}{" "}
+                  {/* Nothing ties this paper to the career, so it is offered on
+                      its own, like a paper alone in time. */}
+                  <button
+                    className="btn sm ghost"
+                    onClick={() =>
+                      splitOff(
+                        c,
+                        [p.publication_id],
+                        `the ${p.year ?? "undated"} paper in another ${p.distance}`,
+                      )
+                    }
+                  >
+                    Not this person
+                  </button>
+                </div>
+              ))}
               {(c.break_years || 0) > 0 && (
                 <div className="idline">
                   <b>

@@ -194,3 +194,26 @@ def test_an_arm_nobody_has_vouched_for_measures_nothing():
 
     flagged, independent, positives = by_arm([row("y", 1, "targeted-sweep")])
     assert flagged == [] and independent == [] and positives == []
+
+
+def test_the_judging_draw_is_not_scored_from_a_handful(capsys):
+    """Below the floor the draw is named and left unscored, like the arms."""
+    from scripts.measure_conflation import report_judge_draw
+
+    report_judge_draw([{"short": "a", "label": True, "reported": True}] * 4)
+    out = capsys.readouterr().out
+    assert "not scored" in out and "finds" not in out
+
+
+def test_the_judging_draw_reports_recall_and_precision(capsys):
+    """Recall over its conflated records; precision over what it reported."""
+    from scripts.measure_conflation import report_judge_draw
+
+    judged = ([{"short": "c", "label": True, "reported": True}] * 4
+              + [{"short": "m", "label": True, "reported": False}] * 7
+              + [{"short": "o", "label": False, "reported": True}] * 2
+              + [{"short": "q", "label": False, "reported": False}] * 50)
+    report_judge_draw(judged)
+    out = capsys.readouterr().out
+    assert "finds 4 of 11 conflations (36%)" in out
+    assert "of the 6 records it reports here, 4 are conflated (67%)" in out

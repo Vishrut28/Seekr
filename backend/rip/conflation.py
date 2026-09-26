@@ -34,9 +34,23 @@ never touches. See FOREIGN_WEIGHTS for the rule.
 
 On the 77 unrepaired records of conflation_labels.json, which it was DESIGNED
 on and so cannot be judged by: foreign work or a break reports 15 of 25
-conflations for 5 false alarms, against the previous default's 5 for 13. The
-judged figure comes from evaluation/conflation_judge_draw.json, drawn before
-any of this was written, and is recorded there.
+conflations for 5 false alarms, against the previous default's 5 for 13.
+
+JUDGED ONCE on evaluation/conflation_judge_draw.json -- 120 records drawn by
+hash and committed before any of this was written, then labelled blind: 11
+conflated. The previous default flagged none of the 120 and found 0 of 11.
+This finds 4 of 11 (36%), and 4 of the 6 records it flags there are
+conflated; it flags 11% of people with six or more papers. Eleven positives
+make that 4 a wide estimate, somewhere between a sixth and two thirds.
+
+What it still misses, and why, so nobody rediscovers it:
+  a single paper foreign only at subfield level scores 1 and is not
+  reported -- four of the seven misses. Reporting at 1 would have found 8
+  of 11 on the judging set, but that was seen after scoring, so it is not
+  evidence; it wants a fresh draw.
+  a broad career already touches the intruder's subfield (a Monte Carlo
+  statistician's control-engineering work covers a power-systems paper).
+  a spurious link pulls the intruder into the career group.
 
 HOW WELL, EXACTLY (the group ratio and the break, before foreign work)
 

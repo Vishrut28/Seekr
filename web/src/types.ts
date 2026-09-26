@@ -278,11 +278,26 @@ export interface LonelyPaper {
   alone_by: number;
 }
 
+/** A paper nothing ties to the career -- no co-author, no institution on the
+ *  author's own line, no citation -- on subjects the career never touches. */
+export interface ForeignPaper {
+  publication_id: number;
+  title: string | null;
+  year: number | null;
+  /** how far from the career's subjects, in OpenAlex's taxonomy */
+  distance: "subfield" | "field" | "domain";
+  topics: string[];
+}
+
 export interface Conflation {
   person_id: string;
   person_name: string | null;
+  /** which signals put it here: "foreign", "break", and "ratio" when asked for */
+  reasons?: string[];
   score: number;
   papers: number;
+  foreign_score?: number;
+  foreign?: ForeignPaper[];
   /** size of the hole in time, 0 if there is none. A record can be queued on
    *  this alone, with a score of 0.00 — an intruder paper is a singleton, and
    *  the score is the second-LARGEST group over the largest. */

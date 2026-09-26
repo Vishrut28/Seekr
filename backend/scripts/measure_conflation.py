@@ -30,6 +30,11 @@ from them gets quoted as though they could.
 
 Records labelled `unsure` are scored by nothing, and `not_a_person` is a
 different defect that happened to surface during labelling.
+
+THE JUDGING DRAW (evaluation/conflation_judge_draw.json) is scored last and is
+the figure to quote. The default detector -- foreign work or a break -- was
+DESIGNED on conflation_labels.json, so its numbers there are printed but are
+not evidence of anything; the draw was fixed and labelled before it existed.
 """
 
 import argparse
@@ -42,6 +47,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 LABELS = os.path.join(os.path.dirname(__file__), "..", "evaluation",
                       "conflation_labels.json")
+JUDGE_DRAW = os.path.join(os.path.dirname(__file__), "..", "evaluation",
+                          "conflation_judge_draw.json")
 # Below this many usable positives, precision and recall move by whole records
 # and mean nothing. Five of the previous set's seven positives were repaired by
 # acting on them, which is the success case, not a reason to quote leftovers.
@@ -159,6 +166,7 @@ def main() -> None:
             note_repair((old_value or "").removeprefix("person:").split(" ")[0], when)
         verdicts = {row.person_id: row.verdict
                     for row in session.execute(select(ConflationReview)).scalars()}
+        hierarchy = conflation.topic_hierarchy(session)
         for short, label in wanted.items():
             person = session.execute(
                 select(Person).where(Person.id.like(short + "%"))
@@ -173,7 +181,8 @@ def main() -> None:
                 continue
             if state == "disputed":
                 disputed.append(f"{short} {note}")
-            split = conflation.split_of(session, person.id, person.canonical_name)
+            split = conflation.split_of(session, person.id, person.canonical_name,
+                                        hierarchy=hierarchy)
             big = [g for g in split.groups if len(g) >= conflation.MIN_GROUP]
             rows.append({
                 "short": short, "label": label,
@@ -182,8 +191,10 @@ def main() -> None:
                 "break_years": split.break_years,
                 "cover": (sum(len(g) for g in big[:2]) / split.papers) if split.papers else 0.0,
                 "employer": conflation.shares_an_employer(session, split),
+                "default": split.reportable,
                 "name": person.canonical_name,
             })
+        judged = judge_draw_rows(session, conflation)
 
     positives = len(raw["conflated"])
     print(f"labelled {positives} conflated, {len(raw['one_person'])} one_person, "
@@ -202,6 +213,8 @@ def main() -> None:
     flagged, independent, true_independent = by_arm(rows)
 
     # ---- precision, from the arm the detector chose -------------------------
+    print("\nTHE GROUP RATIO AND THE BREAK -- the default until 2026-09-26; the")
+    print("  ratio now reports only when asked for (rip.conflation.REPORT_ABOVE)")
     print(f"\nPRECISION, over the {len(flagged)} records the detector flagged")
     can_measure = sum(1 for r in flagged if r["label"]) >= MIN_POSITIVES
     if not can_measure:
@@ -247,6 +260,17 @@ def main() -> None:
         print(f"\nBASE RATE, from the {len(drawn)} unbiased draws: "
               f"{rate:.0%} conflated")
 
+    # ---- the default, on the labels it was designed on -------------------
+    print("\nDEFAULT DETECTOR (foreign work or a break) on these labels -- it was")
+    print("  designed on them, so this shows the fit, not how well it works")
+    hit = [r for r in rows if r.get("default")]
+    right = sum(1 for r in hit if r["label"])
+    print(f"  reports {len(hit)}: {right} conflated, {len(hit) - right} one_person; "
+          f"finds {sum(1 for r in true_independent if r.get('default'))} of "
+          f"{len(true_independent)} independently found conflations")
+
+    report_judge_draw(judged)
+
     if not (can_measure or can_recall):
         # Nothing was measured, so exiting 0 would let a caller read the run as
         # a pass. The set needs re-labelling against the corpus as it now is:
@@ -254,6 +278,47 @@ def main() -> None:
         # the label file's own comment says how to sample the other two.
         sys.exit("\nnothing here can be measured: re-label against the current "
                  "corpus before using this to judge a change")
+
+
+def judge_draw_rows(session, conflation) -> list[dict]:
+    """The judging draw's labelled records, and whether the default reports them.
+
+    Runs candidates() itself rather than rebuilding its logic here, so the
+    figure is for exactly what the review queue shows.
+    """
+    if not os.path.exists(JUDGE_DRAW):
+        return []
+    from rip.models import Person
+    from sqlalchemy import select
+
+    with open(JUDGE_DRAW, encoding="utf-8") as fh:
+        labels = json.load(fh).get("labels", {})
+    reported = {s.person_id[:8] for s in conflation.candidates(session)}
+    out = []
+    for short, entry in labels.items():
+        if entry["label"] not in ("conflated", "one_person"):
+            continue
+        if session.execute(select(Person.id).where(Person.id.like(short + "%"))).first() is None:
+            continue
+        out.append({"short": short, "label": entry["label"] == "conflated",
+                    "reported": short in reported})
+    return out
+
+
+def report_judge_draw(judged: list[dict]) -> None:
+    """Precision and recall on the draw fixed before the detector was built."""
+    positives = [r for r in judged if r["label"]]
+    print("\nJUDGING DRAW (evaluation/conflation_judge_draw.json) -- the figure to quote")
+    if len(positives) < MIN_POSITIVES:
+        print(f"  not scored: {len(positives)} of its conflated records are in this "
+              f"database, too few to mean anything")
+        return
+    hit = [r for r in judged if r["reported"]]
+    found = sum(1 for r in hit if r["label"])
+    print(f"  finds {found} of {len(positives)} conflations "
+          f"({found / len(positives):.0%}); of the {len(hit)} records it reports "
+          f"here, {found} are conflated"
+          + (f" ({found / len(hit):.0%})" if hit else ""))
 
 
 if __name__ == "__main__":

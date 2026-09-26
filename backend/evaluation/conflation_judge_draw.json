@@ -30,7 +30,9 @@
   "new detector reads institutions too. Where a label leaned on an institution",
   "(an SGPGI paper on a PGIMER record, a Schneider Electric paper on a Bristol",
   "statistician), the subject matter differed as well; no label rests on an",
-  "institution alone."
+  "institution alone.",
+  "",
+  "JUDGED 2026-09-26, once, as step 4 says: see `judged`. The new detector met all three criteria and is the default."
  ],
  "drawn_at": "2026-09-26",
  "salt": "seekr conflation judge draw 2026-09-26",
@@ -1010,5 +1012,35 @@
   }
  },
  "labelled_at": "2026-09-26",
- "labelled_through_position": 119
+ "labelled_through_position": 119,
+ "judged": {
+  "judged_at": "2026-09-26",
+  "deployed": {
+   "commit": "f6af1d4",
+   "flagged_in_set": 0,
+   "conflated_found": 0,
+   "of": 11,
+   "corpus_flag_rate": "23/461"
+  },
+  "new": {
+   "commit": "a052b8e",
+   "flagged_in_set": 6,
+   "conflated_found": 4,
+   "of": 11,
+   "one_person_flagged": 2,
+   "corpus_flag_rate": "51/461"
+  },
+  "criteria": {
+   "a_finds_more": "4 > 0, met",
+   "b_precision_at_least_30pct": "4 of 6 = 67%, met",
+   "c_flags_at_most_20pct": "11%, met"
+  },
+  "decision": "adopted",
+  "misses": [
+   "four single papers were recorded as foreign at subfield level only (score 1, below FOREIGN_REPORT_AT): Vivek Kumar, Ram Karan Singh, Chirag Shah, Andres Moya",
+   "two intruders sit in a subfield the broad career also touches: Christophe Andrieu (Control and Systems Engineering), Aman Sharma",
+   "one intruder is linked into the career group: Pierre L'Ecuyer's ferrite paper"
+  ],
+  "tuned_observation": "Reporting at a foreign score of 1 would have found 8 of 11 here. That was seen AFTER scoring, so it is not evidence; changing the threshold needs a fresh draw."
+ }
 }
