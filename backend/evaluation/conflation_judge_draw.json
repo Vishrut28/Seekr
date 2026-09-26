@@ -1042,5 +1042,31 @@
    "one intruder is linked into the career group: Pierre L'Ecuyer's ferrite paper"
   ],
   "tuned_observation": "Reporting at a foreign score of 1 would have found 8 of 11 here. That was seen AFTER scoring, so it is not evidence; changing the threshold needs a fresh draw."
+ },
+ "round2": {
+  "_comment": [
+   "Fixed 2026-09-27, before any record at these positions was opened.",
+   "QUESTION: should rip.conflation.FOREIGN_REPORT_AT be 1 instead of 2, i.e.",
+   "report a single paper foreign only at subfield level? On round 1 that",
+   "would have found 8 of 11 instead of 4, but it was seen after scoring,",
+   "so round 1 is now design data for this question and cannot judge it.",
+   "PROTOCOL:",
+   "1. Label positions 120-239 of `order` exactly as round 1: blind cards",
+   "   (titles, years, the author's own institutions), no score computed.",
+   "2. If fewer than 10 are conflated, label the next 40, and repeat.",
+   "3. Commit the labels. Then score FOREIGN_REPORT_AT = 2 (deployed) and 1",
+   "   once each, everything else identical, on one snapshot.",
+   "4. ADOPT 1 only if, on these labels: (a) it finds more conflated records",
+   "   than 2; (b) at least 30% of what it flags here is conflated; (c) it",
+   "   flags no more than 20% of living people with six or more papers; (d)",
+   "   if 3 or more records here are flagged by 1 and not by 2, at least",
+   "   20% of those are conflated.",
+   "5. Anything changed after step 3 is marked tuned."
+  ],
+  "fixed_at": "2026-09-27",
+  "first_position": 120,
+  "first_block": 120,
+  "extension_block": 40,
+  "labels": {}
  }
 }
