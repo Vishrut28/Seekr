@@ -27,7 +27,7 @@ LABELS = os.path.join(os.path.dirname(__file__), "..", "evaluation",
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--above", type=float, default=None,
-                        help="judge detector hits at or above this score")
+                        help="also judge group ratios at or above this score")
     parser.add_argument("--dry-run", action="store_true",
                         help="print the questions and stop, without asking")
     parser.add_argument("--benchmark", action="store_true",
@@ -48,6 +48,7 @@ def main() -> None:
             raw = json.load(open(LABELS, encoding="utf-8"))
             wanted = dict.fromkeys(raw["conflated"], 1) | dict.fromkeys(raw["one_person"], 0)
             splits = []
+            hierarchy = conflation.topic_hierarchy(session)
             for short, label in wanted.items():
                 person = session.execute(
                     select(Person).where(Person.id.like(short + "%"))
@@ -56,10 +57,10 @@ def main() -> None:
                     print(f"  missing from this database, not judged: {short}")
                     continue
                 truth[person.id] = label
-                splits.append(conflation.split_of(session, person.id, person.canonical_name))
+                splits.append(conflation.split_of(session, person.id, person.canonical_name,
+                                                  hierarchy=hierarchy))
         else:
-            above = conflation.REPORT_ABOVE if args.above is None else args.above
-            splits = conflation.candidates(session, above=above)
+            splits = conflation.candidates(session, above=args.above)
         if args.limit:
             splits = splits[: args.limit]
 

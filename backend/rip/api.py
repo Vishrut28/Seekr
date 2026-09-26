@@ -1081,7 +1081,7 @@ def review_split(link_id: int, db: Session = Depends(get_db)):
 
 @app.get("/v1/review/conflations")
 def review_conflations(
-    above: float = Query(0.5, ge=0.0, le=1.0),
+    above: float | None = Query(None, ge=0.0, le=1.0),
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
 ):
@@ -1090,12 +1090,19 @@ def review_conflations(
     Its own route, not part of /v1/review/merges: this reads stored source
     payloads and takes a moment, and the merge queue should not wait for it.
 
-    Half of what it returns is one person with a wide career — the detector is
-    measured at 60% precision — so every entry carries the groups themselves,
-    with years, subjects and titles, because that is what the decision is
-    actually made on.
+    Much of what it returns is one person with a wide career, so every entry
+    carries the evidence itself -- the foreign papers, the papers alone in
+    time, and the groups, with years, subjects and titles -- because that is
+    what the decision is actually made on. ABOVE adds the group ratio, which
+    no longer reports by default (see rip.conflation.REPORT_ABOVE).
     """
-    from .conflation import break_evidence, candidates, describe, shares_an_employer
+    from .conflation import (
+        break_evidence,
+        candidates,
+        describe,
+        foreign_evidence,
+        shares_an_employer,
+    )
     from .models import ConflationReview, PersonSplit
 
     seen = {
@@ -1119,13 +1126,22 @@ def review_conflations(
         if split.person_id in seen:
             continue                     # somebody has already ruled on this one
         employer = shares_an_employer(db, split)
-        if employer is True and split.person_id not in started:
+        reasons = split.reasons(above)
+        # The employer check answers the ratio only: foreign work shares no
+        # institution with the career by construction.
+        if employer is True and reasons == ["ratio"] and split.person_id not in started:
             continue                     # probably one person with a wide career
         out.append({
             "person_id": split.person_id,
             "person_name": split.name,
+            "reasons": reasons,
             "score": round(split.score, 2),
             "papers": split.papers,
+            # papers nothing ties to the career and that are not about the
+            # same things, farthest first -- often single papers, which
+            # `groups` never shows
+            "foreign_score": split.foreign_score,
+            "foreign": foreign_evidence(db, split),
             "shares_an_employer": employer,
             "split_already": split.person_id in started,
             # A record can be here on the group ratio, on a hole in time, or

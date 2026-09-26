@@ -11,6 +11,11 @@ from tests.test_resolution import make_profile
 
 from rip import conflation
 
+# These exercise the group ratio, which reports only when asked for; the
+# fixtures' made-up topics have no place in OpenAlex's taxonomy, so the
+# foreign-work signal has nothing to say about them (see test_foreign_work.py).
+RATIO = conflation.REPORT_ABOVE
+
 
 def researcher(session, tag, name, papers):
     """papers: list of (title, topics, coauthors)."""
@@ -88,14 +93,14 @@ def test_a_huge_author_list_does_not_bridge_two_separate_careers(session):
 def test_too_few_papers_to_judge_is_not_reported(session):
     papers = one_field(2, "Subject A", "Colleague A") + one_field(2, "Subject B", "Colleague B")
     researcher(session, "thin", "Ann Thin", papers)
-    assert conflation.candidates(session) == []
+    assert conflation.candidates(session, above=RATIO) == []
 
 
 def test_the_report_carries_what_a_reader_needs_to_judge(session):
     papers = one_field(6, "Congenital Anomalies", "Surgeon Colleague")
     papers += one_field(6, "Markov Chains and Monte Carlo", "Maths Colleague")
     who = researcher(session, "desc", "Ann Double", papers)
-    found = conflation.candidates(session)
+    found = conflation.candidates(session, above=RATIO)
     assert [s.person_id for s in found] == [who.id]
     groups = conflation.describe(session, found[0])
     assert len(groups) == 2
@@ -171,7 +176,7 @@ def test_one_employer_across_both_halves_says_one_person(session):
     split = conflation.split_of(session, who.id)
     assert split.score == 1.0                      # the papers still look split
     assert conflation.shares_an_employer(session, split) is True
-    assert conflation.candidates(session) == []    # ...and that is enough to drop it
+    assert conflation.candidates(session, above=RATIO) == []    # ...and that is enough to drop it
 
 
 def test_no_employer_in_common_leaves_the_record_flagged(session):
@@ -179,7 +184,7 @@ def test_no_employer_in_common_leaves_the_record_flagged(session):
                           two_halves(["AIIMS Delhi"], ["University of Illinois Chicago"]))
     split = conflation.split_of(session, who.id)
     assert conflation.shares_an_employer(session, split) is False
-    assert [s.person_id for s in conflation.candidates(session)] == [who.id]
+    assert [s.person_id for s in conflation.candidates(session, above=RATIO)] == [who.id]
 
 
 def test_papers_with_no_institutions_answer_neither_way(session):
@@ -191,7 +196,7 @@ def test_papers_with_no_institutions_answer_neither_way(session):
     split = conflation.split_of(session, who.id)
     assert conflation.shares_an_employer(session, split) is None
     # unknown is not a reason to drop it
-    assert [s.person_id for s in conflation.candidates(session)] == [who.id]
+    assert [s.person_id for s in conflation.candidates(session, above=RATIO)] == [who.id]
 
 
 # ---- the temporal break: what the group-ratio score cannot see -------------
@@ -232,7 +237,7 @@ def test_one_intruder_paper_decades_away_is_found(session):
     assert split.score == 0.0, split.sizes
     assert split.break_years >= conflation.LONELY_PAPER_YEARS
     assert split.reportable
-    assert who.id in [c.person_id for c in conflation.candidates(session)]
+    assert who.id in [c.person_id for c in conflation.candidates(session, above=RATIO)]
 
 
 def test_two_blocks_of_work_a_lifetime_apart_are_found(session):

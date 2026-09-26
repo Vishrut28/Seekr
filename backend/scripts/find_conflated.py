@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--above", type=float, default=None,
-                        help="report splits at or above this score")
+                        help="also report group ratios at or above this score")
     parser.add_argument("--person", help="just this person (id or its first characters)")
     parser.add_argument("--titles", type=int, default=3, help="titles shown per group")
     args = parser.parse_args()
@@ -39,10 +39,10 @@ def main() -> None:
                 sys.exit(f"no person whose id starts with {args.person}")
             found = [conflation.split_of(session, person.id, person.canonical_name)]
         else:
-            above = conflation.REPORT_ABOVE if args.above is None else args.above
-            found = conflation.candidates(session, above=above)
-            print(f"{len(found)} records split into two comparable bodies of work "
-                  f"(score >= {above})\n")
+            found = conflation.candidates(session, above=args.above)
+            ratio = "" if args.above is None else f", or group ratio >= {args.above}"
+            print(f"{len(found)} records reported by foreign work or a break in "
+                  f"time{ratio}\n")
 
         for split in found:
             shared = conflation.shares_an_employer(session, split)
@@ -52,6 +52,10 @@ def main() -> None:
             print(f"{split.score:.2f}  {split.name or '?'}  [{split.person_id[:8]}]  "
                   f"{split.papers} papers, groups {split.sizes[:6]}")
             print(f"      {employer}")
+            print(f"      reported for: {', '.join(split.reasons(args.above)) or 'nothing'}")
+            for paper in conflation.foreign_evidence(session, split)[:args.titles]:
+                print(f"      foreign ({paper['distance']}) {paper['year']}  "
+                      f"{(paper['title'] or '')[:64]}")
             for group in conflation.describe(session, split, per_group=args.titles):
                 print(f"      {group['papers']:>3} papers  {group['years']:<11}"
                       f"{', '.join(group['topics'][:3])}")

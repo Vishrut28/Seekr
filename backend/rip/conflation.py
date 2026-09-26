@@ -23,7 +23,22 @@ and the topics have nothing in common.
 The score is the second-largest group over the largest. One dominant group
 scores near zero; two comparable bodies of work score near one.
 
-HOW WELL, EXACTLY
+FOREIGN WORK, added 2026-09-26, because what follows was not enough
+
+An independent draw of 18 records put the detector below at 1 of 13
+conflations found by other means: 8%. Its misses had two shapes, a single
+intruder paper with no hole in time around it, and two people publishing in
+the same decades. Both are work nothing ties to the career -- no co-author,
+no institution on the author's own line, no citation -- on subjects the career
+never touches. See FOREIGN_WEIGHTS for the rule.
+
+On the 77 unrepaired records of conflation_labels.json, which it was DESIGNED
+on and so cannot be judged by: foreign work or a break reports 15 of 25
+conflations for 5 false alarms, against the previous default's 5 for 13. The
+judged figure comes from evaluation/conflation_judge_draw.json, drawn before
+any of this was written, and is recorded there.
+
+HOW WELL, EXACTLY (the group ratio and the break, before foreign work)
 
 Measured 2026-09-21 against records read by hand - evaluation/conflation
 _labels.json, reproduced by scripts/measure_conflation.py. At 0.5 and above,
@@ -130,10 +145,38 @@ MIN_PAPERS = 6
 # A group has to reach this size to count as a body of work rather than a
 # stray paper that simply shares nothing.
 MIN_GROUP = 2
-# Reported by default, and measured: 0.5 is the best of every threshold tried
-# (scripts/measure_conflation.py). Higher is not better — precision falls to
-# 40% at 0.9, because two-paper artefacts score 1.00 as easily as two careers.
+# The group ratio's threshold WHEN IT IS ASKED FOR. It no longer reports by
+# default: on the 77 unrepaired design labels (2026-09-26) it added 2
+# conflations to what the other two signals find, for 11 false alarms. 0.5 is
+# still the best of the thresholds tried; higher is not better — precision
+# falls at 0.9, because two-paper artefacts score 1.00 as easily as careers.
 REPORT_ABOVE = 0.5
+
+# FOREIGN WORK, the signal that replaced the ratio as the default. Join papers
+# on what only the same person shares -- a co-author, an institution the
+# author put on their own authorship line, a citation between them or a
+# reference in common -- and take the largest resulting body as the career.
+# Any other body whose OpenAlex subjects are disjoint from the career's, at
+# subfield, field or domain level, is foreign work: nothing ties it to this
+# person and it is not even about the same things.
+#
+# Topics alone are NOT a link here, which is the difference from the ratio's
+# grouping: OpenAlex topics are broad enough that two people's papers chain
+# through them (the parasitologist and the medicinal chemist named William
+# Trager share one), and then no group separates them.
+#
+# Each foreign paper scores by how far away it is -- the weights below -- and
+# a record is reported at FOREIGN_REPORT_AT, so one paper whose only
+# difference is a subfield (often a mis-tagged topic) is not enough, but a
+# single paper in another field is. Groups made only of papers with more than
+# MAX_AUTHORS names are skipped: a consortium paper links to nothing by
+# construction, and Global Burden of Disease papers span every disease.
+#
+# Designed 2026-09-26 on conflation_labels.json and nothing else; judged once
+# on evaluation/conflation_judge_draw.json, which was drawn and committed
+# before this was written. See scripts/measure_conflation.py.
+FOREIGN_WEIGHTS = {"subfield": 1, "field": 2, "domain": 3}
+FOREIGN_REPORT_AT = 2
 
 # A TEMPORAL BREAK, which is the other half of the job. The score above is a
 # ratio of group sizes, so it cannot see the commonest conflation in this
@@ -175,10 +218,28 @@ class Split:
     papers: int
     groups: list[list[int]] = field(default_factory=list)   # publication ids
     years: list[int] = field(default_factory=list)          # one per dated paper
+    # publication id -> how far it is from the career: subfield, field, domain
+    foreign: dict[int, str] = field(default_factory=dict)
 
     @property
     def sizes(self) -> list[int]:
         return [len(g) for g in self.groups]
+
+    @property
+    def foreign_score(self) -> int:
+        """Foreign papers, each weighted by how far from the career it is."""
+        return sum(FOREIGN_WEIGHTS[level] for level in self.foreign.values())
+
+    def reasons(self, above: float | None = None) -> list[str]:
+        """Which signals report this record. The ratio only when asked for."""
+        out = []
+        if self.foreign_score >= FOREIGN_REPORT_AT:
+            out.append("foreign")
+        if self.break_years > 0:
+            out.append("break")
+        if above is not None and self.score >= above:
+            out.append("ratio")
+        return out
 
     @property
     def score(self) -> float:
@@ -213,8 +274,8 @@ class Split:
 
     @property
     def reportable(self) -> bool:
-        """Worth a person's attention, by either signal."""
-        return self.score >= REPORT_ABOVE or self.break_years > 0
+        """Worth a person's attention by a default signal."""
+        return bool(self.reasons())
 
 
 def _year(published_date) -> list[int]:
@@ -272,116 +333,215 @@ def _group(papers: dict[int, set]) -> list[list[int]]:
     return sorted(groups.values(), key=len, reverse=True)
 
 
-def split_of(session: Session, person_id: str, name: str | None = None) -> Split:
-    """How one person's papers group. See the module docstring for the rule."""
+def _tail(url) -> str:
+    """The last path segment: the bare OpenAlex id, however it was written."""
+    return str(url or "").rsplit("/", 1)[-1]
+
+
+def _as_payload(raw) -> dict:
+    return raw if isinstance(raw, dict) else json.loads(raw or "{}")
+
+
+def _works_in(payload: dict) -> dict[str, dict]:
+    """Per work in one OpenAlex author payload: the institutions THIS author
+    put on it, and what the work cites.
+
+    Not the person's affiliations as a whole — the ones attached to their own
+    authorship line, paper by paper. That is how author disambiguation is
+    really done, and OpenAlex hands it to us inside the payload already on
+    disk. Semantic Scholar and Europe PMC records carry neither, so people
+    known only through those come back empty, which reads as unknown rather
+    than as evidence of anything.
+    """
+    mine = _tail((payload.get("author") or {}).get("id"))
+    if not mine:
+        return {}
+    out = {}
+    for work in payload.get("works") or []:
+        named = set()
+        for line in work.get("authorships") or []:
+            if _tail((line.get("author") or {}).get("id")) != mine:
+                continue
+            named |= {i.get("display_name") for i in line.get("institutions") or []
+                      if i.get("display_name")}
+        out[_tail(work.get("id"))] = {
+            "institutions": named,
+            "references": {_tail(r) for r in work.get("referenced_works") or []},
+        }
+    return out
+
+
+def _learn_hierarchy(payload: dict, into: dict) -> None:
+    for work in payload.get("works") or []:
+        for topic in work.get("topics") or []:
+            if topic.get("display_name"):
+                into.setdefault(topic["display_name"], tuple(
+                    (topic.get(level) or {}).get("display_name")
+                    for level in ("subfield", "field", "domain")))
+
+
+def topic_hierarchy(session: Session) -> dict[str, tuple]:
+    """OpenAlex topic name -> (subfield, field, domain), from the payloads on disk.
+
+    Publication rows keep only topic NAMES; where each sits in OpenAlex's
+    taxonomy is in the payloads, and a topic seen on anybody's work is placed
+    for everybody's. Topics no payload mentions have no place and simply say
+    nothing about distance.
+    """
+    into: dict[str, tuple] = {}
+    for (raw,) in session.execute(
+            select(SourceRecord.raw).where(SourceRecord.source == "openalex")):
+        _learn_hierarchy(_as_payload(raw), into)
+    return into
+
+
+def _openalex_works(session: Session, person_id: str | None = None) -> dict[str, dict]:
+    """person id -> work id -> its evidence (see _works_in). Everybody when
+    PERSON_ID is None, in one pass, because candidates() needs everybody."""
+    query = (select(IdentityLink.person_id, SourceRecord.raw)
+             .join(SourceRecord, SourceRecord.id == IdentityLink.source_record_id)
+             .where(SourceRecord.source == "openalex"))
+    if person_id is not None:
+        query = query.where(IdentityLink.person_id == person_id)
+    out: dict[str, dict] = {}
+    for owner, raw in session.execute(query):
+        out.setdefault(owner, {}).update(_works_in(_as_payload(raw)))
+    return out
+
+
+def _foreign(papers: dict[int, dict], hierarchy: dict) -> dict[int, str]:
+    """Papers in bodies of work foreign to the career. See FOREIGN_WEIGHTS."""
+    groups = _group({pid: paper["links"] for pid, paper in papers.items()})
+    if len(groups) < 2:
+        return {}
+
+    def subjects(group, index) -> set:
+        return {hierarchy[t][index] for pid in group for t in papers[pid]["topics"]
+                if t in hierarchy and hierarchy[t][index]}
+
+    career, out = groups[0], {}
+    # nearest first, so a paper foreign at several levels keeps the farthest
+    for index, level in enumerate(("subfield", "field", "domain")):
+        theirs = subjects(career, index)
+        if not theirs:
+            continue
+        for group in groups[1:]:
+            if all(papers[pid]["authors"] > MAX_AUTHORS for pid in group):
+                continue            # a consortium paper links to nothing by construction
+            mine = subjects(group, index)
+            if mine and not (mine & theirs):
+                out.update(dict.fromkeys(group, level))
+    return out
+
+
+def _build(person_id: str, name: str | None, rows, works: dict, hierarchy: dict) -> Split:
+    """ROWS: (publication id, external id, topics, raw authors, date)."""
+    surname = (name or "").lower().split()[-1] if name else ""
+    marks, papers, years = {}, {}, []
+    for pub_id, external_id, topics, raw, when in rows:
+        topics = _as_list(topics)
+        with_ = _coauthors(raw, surname)
+        marks[pub_id] = {("topic", t) for t in topics} | {("with", c) for c in with_}
+        links = {("with", c) for c in with_}
+        key = _tail(external_id)
+        if key in works:
+            links |= {("at", i) for i in works[key]["institutions"]}
+            links |= {("cites", r) for r in works[key]["references"]}
+            links.add(("cites", key))           # another paper here cites this one
+        papers[pub_id] = {"links": links, "topics": topics, "authors": len(_as_list(raw))}
+        years.extend(_year(when))
+    return Split(person_id=person_id, name=name, papers=len(marks),
+                 groups=_group(marks), years=years,
+                 foreign=_foreign(papers, hierarchy))
+
+
+_PAPER_COLUMNS = (Publication.id, Publication.external_id, Publication.topics,
+                  Publication.raw_authors, Publication.published_date)
+
+
+def split_of(session: Session, person_id: str, name: str | None = None,
+             hierarchy: dict | None = None) -> Split:
+    """How one person's papers group. See the module docstring for the rule.
+
+    HIERARCHY is topic_hierarchy(session); pass it when calling this for many
+    people, because building it reads every OpenAlex payload.
+    """
     if name is None:
         person = session.get(Person, person_id)
         name = person.canonical_name if person else None
-    surname = (name or "").lower().split()[-1] if name else ""
+    if hierarchy is None:
+        hierarchy = topic_hierarchy(session)
     rows = session.execute(
-        select(Publication.id, Publication.topics, Publication.raw_authors,
-               Publication.published_date)
+        select(*_PAPER_COLUMNS)
         .join(Authorship, Authorship.publication_id == Publication.id)
         .where(Authorship.person_id == person_id)
     ).all()
-    papers, years = {}, []
-    for pub_id, topics, raw, when in rows:
-        marks = {("topic", t) for t in _as_list(topics)}
-        marks |= {("with", c) for c in _coauthors(raw, surname)}
-        papers[pub_id] = marks
-        years.extend(_year(when))
-    return Split(person_id=person_id, name=name, papers=len(papers),
-                 groups=_group(papers), years=years)
+    works = _openalex_works(session, person_id).get(person_id, {})
+    return _build(person_id, name, rows, works, hierarchy)
 
 
-def candidates(session: Session, above: float = REPORT_ABOVE,
+def candidates(session: Session, above: float | None = None,
                min_papers: int = MIN_PAPERS,
                check_employer: bool = True) -> list[Split]:
-    """Every person whose work falls into two comparable halves.
+    """Every person reported by foreign work or a temporal break, and by the
+    group ratio as well when ABOVE is given.
 
-    CHECK_EMPLOYER drops the ones whose halves share an institution the author
-    put on their own papers, because one person takes their affiliation with
-    them across a change of subject. Measured on the hand-labelled set that
-    lifts precision from 50% to 60% and costs no recall — the only refinement
-    of four tried that did anything. It reads stored OpenAlex payloads, so it
-    runs over the shortlist rather than over everybody.
+    CHECK_EMPLOYER drops records reported by the ratio ALONE whose halves share
+    an institution the author put on their own papers, because one person
+    takes their affiliation with them across a change of subject. It has
+    nothing to say about the other two signals: foreign work shares no
+    institution with the career by construction, and a paper fifty years from
+    anything else is not rescued by a university name.
 
-    One pass over authorships rather than a query per person: the whole corpus
-    is a few thousand rows, and doing it per person made this too slow to run
-    over everybody, which is the only way it finds anything.
+    One pass over authorships and one over payloads rather than queries per
+    person: doing it per person made this too slow to run over everybody,
+    which is the only way it finds anything.
     """
     names = dict(session.execute(
         select(Person.id, Person.canonical_name).where(Person.merged_into.is_(None))
     ).all())
     rows = session.execute(
-        select(Authorship.person_id, Publication.id, Publication.topics,
-               Publication.raw_authors, Publication.published_date)
+        select(Authorship.person_id, *_PAPER_COLUMNS)
         .join(Publication, Publication.id == Authorship.publication_id)
     ).all()
+    per_person: dict[str, list] = {}
+    for person_id, *paper in rows:
+        if person_id in names:
+            per_person.setdefault(person_id, []).append(paper)
 
-    per_person: dict[str, dict[int, set]] = {}
-    per_years: dict[str, list[int]] = {}
-    for person_id, pub_id, topics, raw, when in rows:
-        if person_id not in names:
-            continue
-        surname = (names[person_id] or "").lower().split()[-1] if names[person_id] else ""
-        marks = {("topic", t) for t in _as_list(topics)}
-        marks |= {("with", c) for c in _coauthors(raw, surname)}
-        per_person.setdefault(person_id, {})[pub_id] = marks
-        per_years.setdefault(person_id, []).extend(_year(when))
+    hierarchy: dict[str, tuple] = {}
+    works: dict[str, dict] = {}
+    for owner, raw in session.execute(
+            select(IdentityLink.person_id, SourceRecord.raw)
+            .join(SourceRecord, SourceRecord.id == IdentityLink.source_record_id)
+            .where(SourceRecord.source == "openalex")):
+        payload = _as_payload(raw)
+        _learn_hierarchy(payload, hierarchy)
+        works.setdefault(owner, {}).update(_works_in(payload))
 
     out = []
     for person_id, papers in per_person.items():
-        if len(papers) < min_papers:
+        if len({p[0] for p in papers}) < min_papers:
             continue
-        split = Split(person_id=person_id, name=names.get(person_id),
-                      papers=len(papers), groups=_group(papers),
-                      years=per_years.get(person_id, []))
-        # Either signal. ABOVE tunes the score only, so asking for a lower
-        # score never hides a record the temporal break found.
-        if split.score >= above or split.break_years > 0:
-            out.append(split)
-    if check_employer:
-        out = [s for s in out if shares_an_employer(session, s) is not True]
-    # Score first, then the size of the temporal hole, so a record found only
-    # by the break is ordered by how implausible its gap is rather than
-    # arriving at the bottom with every other 0.00.
-    out.sort(key=lambda s: (-s.score, -s.break_years, -s.papers))
+        split = _build(person_id, names.get(person_id), papers,
+                       works.get(person_id, {}), hierarchy)
+        reasons = split.reasons(above)
+        if not reasons:
+            continue
+        if (check_employer and reasons == ["ratio"]
+                and shares_an_employer(session, split) is True):
+            continue
+        out.append(split)
+    # Farthest foreign work first, then the size of the temporal hole, then
+    # the ratio: a reading order, most implausible first.
+    out.sort(key=lambda s: (-s.foreign_score, -s.break_years, -s.score, -s.papers))
     return out
 
 
 def _own_affiliations(session: Session, person_id: str) -> dict[str, set]:
-    """Per paper, the institutions THIS author put on it.
-
-    Not the person's affiliations as a whole — the ones attached to their own
-    authorship line, paper by paper. That is how author disambiguation is
-    really done, and OpenAlex hands it to us inside the payload already on
-    disk. Only OpenAlex: Semantic Scholar and Europe PMC records carry no
-    per-paper institutions, so people known only through those come back empty
-    and are reported as unknown rather than as evidence of anything.
-    """
-    rows = session.execute(
-        select(SourceRecord.raw)
-        .join(IdentityLink, IdentityLink.source_record_id == SourceRecord.id)
-        .where(IdentityLink.person_id == person_id, SourceRecord.source == "openalex")
-    ).all()
-    out: dict[str, set] = {}
-    for (raw,) in rows:
-        payload = raw if isinstance(raw, dict) else json.loads(raw or "{}")
-        mine = ((payload.get("author") or {}).get("id") or "").rsplit("/", 1)[-1]
-        if not mine:
-            continue
-        for work in payload.get("works") or []:
-            key = (work.get("id") or "").rsplit("/", 1)[-1]
-            for line in work.get("authorships") or []:
-                who = ((line.get("author") or {}).get("id") or "").rsplit("/", 1)[-1]
-                if who != mine:
-                    continue
-                named = {i.get("display_name") for i in line.get("institutions") or []
-                         if i.get("display_name")}
-                if named:
-                    out.setdefault(key, set()).update(named)
-    return out
+    """Per paper, the institutions THIS author put on it (see _works_in)."""
+    works = _openalex_works(session, person_id).get(person_id, {})
+    return {key: work["institutions"] for key, work in works.items() if work["institutions"]}
 
 
 def shares_an_employer(session: Session, split: Split) -> bool | None:
@@ -465,6 +625,30 @@ def break_evidence(session: Session, split: Split) -> dict:
 
     return {"lonely": sorted(lonely, key=lambda r: -r["alone_by"]),
             "split_at": split_at}
+
+
+def foreign_evidence(session: Session, split: Split) -> list[dict]:
+    """The foreign papers, farthest first, in terms a reader can check.
+
+    Like an intruder in time, foreign work is often a single paper, which
+    describe() never prints; without this a record reported for it would
+    reach the review page showing only the career it does not belong to.
+    """
+    if not split.foreign:
+        return []
+    rows = session.execute(
+        select(Publication.id, Publication.title, Publication.published_date,
+               Publication.topics)
+        .where(Publication.id.in_(split.foreign))
+    ).all()
+    farthest = {"domain": 0, "field": 1, "subfield": 2}
+    out = [{"publication_id": pub_id, "title": title,
+            "year": next(iter(_year(when)), None),
+            "distance": split.foreign[pub_id],
+            "topics": _as_list(topics)[:2]}
+           for pub_id, title, when, topics in rows]
+    return sorted(out, key=lambda r: (farthest[r["distance"]], r["year"] or 0,
+                                      r["publication_id"]))
 
 
 def describe(session: Session, split: Split, per_group: int = 4) -> list[dict]:
