@@ -261,8 +261,20 @@ class OpenAlexConnector(BaseConnector):
         # one large topic under Radiology is their whole route in. Counting
         # topics cannot tell a specialist's one big topic from a generalist's
         # one small one; the topic `count` (works per topic) can, as a share.
-        # Choosing that share needs a threshold designed on one set and
-        # judged on another, which this was not.
+        #
+        # Tried 2026-09-27 as a share, with the threshold chosen on half the
+        # judged queries and judged once on the other half
+        # (evaluation/field_shelf_split.json), and NOT kept either. Keeping a
+        # shelf at 20% of topic work fixed a-physicists (recall 0.818 ->
+        # 0.848) and failed on the judge half: recall@50 -0.015 overall and
+        # h-radiologists nDCG 0.858 -> 0.642 again. The people it drops are
+        # the ones graded relevant for a radiology topic that is 8-19% of
+        # their work -- tumour-registry epidemiologists, digital pathologists
+        # -- and the shelf is their only way in. Stored payloads carry 5
+        # topics, not 15, so a share moves in coarse steps. Whether those
+        # people SHOULD answer "radiologists" is a question for the
+        # judgments, and deciding it after seeing this result would fit the
+        # benchmark to the ranker.
         filed: dict[str, tuple[str, float]] = {}
         for topic in topics:
             for level, confidence in (("subfield", 0.45), ("field", 0.35)):
