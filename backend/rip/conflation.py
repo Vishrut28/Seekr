@@ -43,14 +43,24 @@ This finds 4 of 11 (36%), and 4 of the 6 records it flags there are
 conflated; it flags 11% of people with six or more papers. Eleven positives
 make that 4 a wide estimate, somewhere between a sixth and two thirds.
 
+ROUND 2, 2026-09-27, 120 further records from the same order, unopened until
+then (17 conflated): at the old threshold of 2 this found 8 of 17 (47%) with
+67% of its flags right -- a second, independent reading of the same design.
+At the threshold of 1 now in force it finds 10 of 17 (59%), 53% of its
+flags right (counting the one unsure record it flags as wrong), queuing 17%
+of people with six or more papers. That is the
+figure to quote; round 1 chose the threshold and can no longer judge it.
+
 What it still misses, and why, so nobody rediscovers it:
-  a single paper foreign only at subfield level scores 1 and is not
-  reported -- four of the seven misses. Reporting at 1 would have found 8
-  of 11 on the judging set, but that was seen after scoring, so it is not
-  evidence; it wants a fresh draw.
+  a record with NO topic in OpenAlex's taxonomy -- people known only from
+  Semantic Scholar, Europe PMC or ORCID. Foreign work compares subjects, so
+  it is blind there: 5 of round 2's 7 misses, and 27% of people with six or
+  more papers. Only the temporal break can see them.
   a broad career already touches the intruder's subfield (a Monte Carlo
   statistician's control-engineering work covers a power-systems paper).
   a spurious link pulls the intruder into the career group.
+  an intruder that is a consortium paper, skipped by design (a JET fusion
+  overview on a Sandia chemist).
 
 HOW WELL, EXACTLY (the group ratio and the break, before foreign work)
 
@@ -180,17 +190,23 @@ REPORT_ABOVE = 0.5
 # Trager share one), and then no group separates them.
 #
 # Each foreign paper scores by how far away it is -- the weights below -- and
-# a record is reported at FOREIGN_REPORT_AT, so one paper whose only
-# difference is a subfield (often a mis-tagged topic) is not enough, but a
-# single paper in another field is. Groups made only of papers with more than
-# MAX_AUTHORS names are skipped: a consortium paper links to nothing by
-# construction, and Global Burden of Disease papers span every disease.
+# the weights ORDER the queue, farthest first. A record is reported at
+# FOREIGN_REPORT_AT = 1: a single paper foreign only by subfield is enough.
+# It was 2 until 2026-09-27, on the worry that one subfield is often a
+# mis-tagged topic; round 1 of the judging draw showed four of seven misses
+# were exactly such papers, and round 2 -- 120 records nobody had opened --
+# judged the change: 10 of 17 conflations found instead of 8, 53% of flags
+# right instead of 67%, 17% of the corpus queued instead of 11%. The worry
+# was real (five more false alarms) and smaller than the misses.
+# Groups made only of papers with more than MAX_AUTHORS names are skipped: a
+# consortium paper links to nothing by construction, and Global Burden of
+# Disease papers span every disease.
 #
-# Designed 2026-09-26 on conflation_labels.json and nothing else; judged once
-# on evaluation/conflation_judge_draw.json, which was drawn and committed
-# before this was written. See scripts/measure_conflation.py.
+# Designed 2026-09-26 on conflation_labels.json and nothing else; judged on
+# evaluation/conflation_judge_draw.json, drawn and committed before any of
+# this was written, one round per decision. See scripts/measure_conflation.py.
 FOREIGN_WEIGHTS = {"subfield": 1, "field": 2, "domain": 3}
-FOREIGN_REPORT_AT = 2
+FOREIGN_REPORT_AT = 1
 
 # A TEMPORAL BREAK, which is the other half of the job. The score above is a
 # ratio of group sizes, so it cannot see the commonest conflation in this

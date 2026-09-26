@@ -194,7 +194,8 @@ def main() -> None:
                 "default": split.reportable,
                 "name": person.canonical_name,
             })
-        judged = judge_draw_rows(session, conflation)
+        judged_design = judge_draw_rows(session, conflation, "round1")
+        judged = judge_draw_rows(session, conflation, "round2")
 
     positives = len(raw["conflated"])
     print(f"labelled {positives} conflated, {len(raw['one_person'])} one_person, "
@@ -269,6 +270,8 @@ def main() -> None:
           f"finds {sum(1 for r in true_independent if r.get('default'))} of "
           f"{len(true_independent)} independently found conflations")
 
+    report_judge_draw(judged_design, "JUDGING DRAW, round 1 -- it chose today's threshold, "
+                      "so this shows the fit")
     report_judge_draw(judged)
 
     if not (can_measure or can_recall):
@@ -280,11 +283,13 @@ def main() -> None:
                  "corpus before using this to judge a change")
 
 
-def judge_draw_rows(session, conflation) -> list[dict]:
-    """The judging draw's labelled records, and whether the default reports them.
+def judge_draw_rows(session, conflation, round_: str = "round2") -> list[dict]:
+    """One round of the judging draw's labels, and whether the default reports them.
 
-    Runs candidates() itself rather than rebuilding its logic here, so the
-    figure is for exactly what the review queue shows.
+    ROUND_ is "round1" (the draw's top-level labels, which chose today's
+    threshold and so no longer judge it) or "round2" (the labels that judged
+    it). Runs candidates() itself rather than rebuilding its logic here, so
+    the figure is for exactly what the review queue shows.
     """
     if not os.path.exists(JUDGE_DRAW):
         return []
@@ -292,7 +297,9 @@ def judge_draw_rows(session, conflation) -> list[dict]:
     from sqlalchemy import select
 
     with open(JUDGE_DRAW, encoding="utf-8") as fh:
-        labels = json.load(fh).get("labels", {})
+        draw = json.load(fh)
+    labels = (draw.get("labels", {}) if round_ == "round1"
+              else draw.get(round_, {}).get("labels", {}))
     reported = {s.person_id[:8] for s in conflation.candidates(session)}
     out = []
     for short, entry in labels.items():
@@ -305,10 +312,11 @@ def judge_draw_rows(session, conflation) -> list[dict]:
     return out
 
 
-def report_judge_draw(judged: list[dict]) -> None:
-    """Precision and recall on the draw fixed before the detector was built."""
+def report_judge_draw(judged: list[dict],
+                      title: str = "JUDGING DRAW, round 2 -- the figure to quote") -> None:
+    """Precision and recall on draws fixed before what they judge was built."""
     positives = [r for r in judged if r["label"]]
-    print("\nJUDGING DRAW (evaluation/conflation_judge_draw.json) -- the figure to quote")
+    print(f"\n{title}")
     if len(positives) < MIN_POSITIVES:
         print(f"  not scored: {len(positives)} of its conflated records are in this "
               f"database, too few to mean anything")

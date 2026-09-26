@@ -265,24 +265,25 @@ export function Review() {
         </h2>
         {/* Sources disambiguate authors themselves and get it wrong, and a
             record that holds two people's work answers searches with the wrong
-            half. Judged 2026-09-26 on 120 records drawn before the detector
-            was built: two thirds of what it reports there are real, and it
-            finds about a third of the conflations -- so the papers are printed
-            rather than a verdict, and the queue is a reading order. */}
+            half. Judged 2026-09-27 on 120 records nobody had opened: about
+            half of what it reports there is real, and it finds about three
+            in five of the conflations -- so the papers are printed rather
+            than a verdict, and the queue is a reading order. */}
         {conflations === null ? (
           <Loading message="Reading publication records…" />
         ) : conflations.length === 0 ? (
           <EmptyState
             title="Nothing to look at"
-            /* Not "nothing is wrong". On a blind draw this found 4 of 11
-               conflated records: an intruder on a neighbouring subject, or
-               one tied to the career by a stray link, is invisible to it.
-               Saying so here is cheaper than somebody inferring a clean
-               corpus from an empty list. */
+            /* Not "nothing is wrong". On a blind draw this found 10 of 17
+               conflated records, and it cannot see people whose papers carry
+               no OpenAlex topic at all -- a quarter of the corpus. Saying so
+               here is cheaper than somebody inferring a clean corpus from an
+               empty list. */
             body="No record holds work foreign to its career or a gap in time
                   no career explains. That is not a clean bill of health: on a
-                  blind draw this found about a third of the records that
-                  were really several people."
+                  blind draw this found about three in five of the records
+                  that were really several people, and it cannot judge people
+                  whose papers carry no subject classification."
           />
         ) : (
           conflations.map((c) => (

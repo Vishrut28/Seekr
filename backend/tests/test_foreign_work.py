@@ -172,16 +172,18 @@ def test_a_stray_paper_on_the_same_subject_is_not_foreign(session):
     assert conflation.split_of(session, who.id).foreign == {}
 
 
-def test_one_paper_foreign_only_by_subfield_is_not_enough(session):
-    """Same field, different subfield: often one mis-tagged topic. It is
-    recorded, and it is not reported on its own."""
+def test_one_paper_foreign_only_by_subfield_is_enough(session):
+    """Same field, different subfield. It was once held back as probably a
+    mis-tagged topic; on 120 unopened records, reporting it found 10 of 17
+    conflations instead of 8 for five more false alarms, and it was adopted.
+    It is reported, and it sits BELOW farther foreign work in the queue."""
     optics = work("A laser paper", "Laser Optics", coauthors=("Cal Visitor",),
                   institution="Somewhere Else")
     who = openalex_person(session, "sub", "Ann Range", career() + [optics])
     split = conflation.split_of(session, who.id)
     assert list(split.foreign.values()) == ["subfield"]
-    assert split.foreign_score < conflation.FOREIGN_REPORT_AT
-    assert not found(session, who)
+    assert split.foreign_score == conflation.FOREIGN_REPORT_AT == 1
+    assert found(session, who)
 
 
 def test_one_paper_in_another_field_is_enough(session):

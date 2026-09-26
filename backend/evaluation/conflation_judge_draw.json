@@ -1064,7 +1064,9 @@
    "5. Anything changed after step 3 is marked tuned.",
    "",
    "LABELLED 2026-09-27, positions 120-239, blind, before any score: 17 conflated,",
-   "101 one_person, 2 unsure. Ten or more conflated, so no extension."
+   "101 one_person, 2 unsure. Ten or more conflated, so no extension.",
+   "",
+   "JUDGED 2026-09-27, once: all four criteria met; see `judged`."
   ],
   "fixed_at": "2026-09-27",
   "first_position": 120,
@@ -1672,6 +1674,37 @@
     "note": "Anna Grodecka-Messi - macroeconomics and banking."
    }
   },
-  "labelled_at": "2026-09-27"
+  "labelled_at": "2026-09-27",
+  "judged": {
+   "judged_at": "2026-09-27",
+   "at_2": {
+    "flagged_here": 12,
+    "conflated": 8,
+    "one_person": 3,
+    "unsure": 1,
+    "of": 17,
+    "corpus_flag_rate": "51/461"
+   },
+   "at_1": {
+    "flagged_here": 19,
+    "conflated": 10,
+    "one_person": 8,
+    "unsure": 1,
+    "of": 17,
+    "corpus_flag_rate": "77/461"
+   },
+   "criteria": {
+    "a": "10 > 8, met",
+    "b": "10 of 19 = 53% (unsure counted wrong), met",
+    "c": "17%, met",
+    "d": "7 flagged by 1 only, 2 conflated = 29%, met"
+   },
+   "decision": "adopted: FOREIGN_REPORT_AT = 1",
+   "misses_at_1": [
+    "5 of 7 have no topic in OpenAlex's taxonomy (Semantic Scholar/Europe PMC/ORCID-only), which foreign work cannot see; 27% of people with 6+ papers are like this",
+    "1 intruder is a consortium paper, skipped by design",
+    "1 intruder shares a subfield with the career"
+   ]
+  }
  }
 }
