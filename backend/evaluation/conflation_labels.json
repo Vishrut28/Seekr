@@ -49,7 +49,20 @@
   "independent arm, found by dedupe's co-author overlap and missed by the detector.",
   "labelled_at is left at 2026-09-21. 945c7f07 was split after that date, but",
   "the repair rule applies only to conflated labels, so as one_person it is",
-  "measured on what it holds now; the other changed records were not repaired."
+  "measured on what it holds now; the other changed records were not repaired.",
+  "",
+  "ADDED 2026-09-26, independent arm: every living, unlabelled person with six or",
+  "more papers who meets the arm's own rule -- career span of 45 years or more, or",
+  "work in three OpenAlex domains or six OpenAlex fields, counted against OpenAlex's",
+  "26 fields and 4 domains (research_field rows mix fields with subfields, and",
+  "counting those as fields selected 136 people instead of 18). All 18 were labelled",
+  "from titles, years and per-paper institutions BEFORE any detector score was",
+  "looked at: 11 conflated, 6 one_person, 1 unsure.",
+  "CAVEAT: the 45-year span half of the rule now overlaps a detector signal. When",
+  "this arm was defined the detector had no temporal-break signal; it has one now",
+  "(see the note above), and 9 of these 18 were chosen on span. Recall over this arm",
+  "is therefore optimistic by an unknown amount for those nine. The domain/field",
+  "half of the rule does not share that problem."
  ],
  "labelled_at": "2026-09-21",
  "corpus": {
@@ -292,6 +305,60 @@
   ],
   "45c81cf8": [
    "independent"
+  ],
+  "78d0ed52": [
+   "independent"
+  ],
+  "27310f8e": [
+   "independent"
+  ],
+  "dc92a3fd": [
+   "independent"
+  ],
+  "90a11e15": [
+   "independent"
+  ],
+  "e4fabb53": [
+   "independent"
+  ],
+  "236687e4": [
+   "independent"
+  ],
+  "72224ff1": [
+   "independent"
+  ],
+  "41147a64": [
+   "independent"
+  ],
+  "ef922b38": [
+   "independent"
+  ],
+  "1f18021f": [
+   "independent"
+  ],
+  "da4d55bb": [
+   "independent"
+  ],
+  "9d5f10ba": [
+   "independent"
+  ],
+  "9cb0cb46": [
+   "independent"
+  ],
+  "b3d808b9": [
+   "independent"
+  ],
+  "8e08ee5d": [
+   "independent"
+  ],
+  "01e1832e": [
+   "independent"
+  ],
+  "f8c8c992": [
+   "independent"
+  ],
+  "506e96e4": [
+   "independent"
   ]
  },
  "conflated": {
@@ -319,7 +386,18 @@
   "6912e0bc": "Joel Veness - a 1982 paper on gully development in New South Wales, then AIXI and deep reinforcement learning",
   "5f87e2e6": "Vishesh Khanna - 1992 nosocomial C. difficile, 2012 cranial neural crest development, 2012 lichen planus, 2017-20 neuro-oncology incidence. What is left after an earlier split, still several people",
   "b830ec4f": "Rahul Gupta - 1995 trace radionuclide analysis, a wall of Global Burden of Disease studies, and a 2023 paper on social media brand communities",
-  "45c81cf8": "Karan Singh - heterocyclic chemistry and agricultural science (ORCID 0000-0001-8956-5558, SRM University / Banaras Hindu University), plus four 2018-2021 online-control and optimisation papers co-written with Elad Hazan, Cyril Zhang and Naman Agarwal (provable control, full-matrix adaptive regularization, non-stochastic control, ventilation control), which are the Princeton ML Karan Singh's. Found 2026-09-24 through dedupe's co-author overlap with a split-off fragment, NOT by the detector, which does not flag it."
+  "45c81cf8": "Karan Singh - heterocyclic chemistry and agricultural science (ORCID 0000-0001-8956-5558, SRM University / Banaras Hindu University), plus four 2018-2021 online-control and optimisation papers co-written with Elad Hazan, Cyril Zhang and Naman Agarwal (provable control, full-matrix adaptive regularization, non-stochastic control, ventilation control), which are the Princeton ML Karan Singh's. Found 2026-09-24 through dedupe's co-author overlap with a split-off fragment, NOT by the detector, which does not flag it.",
+  "78d0ed52": "I Scher - 1975-80 X-linked B-cell immune defect in mice and Salmonella genetics at NIAID/NIDR (Irwin Scher), then 1998-2022 headache and migraine epidemiology at Johns Hopkins and USUHS (Ann I. Scher). Disjoint institutions, 18-year gap.",
+  "27310f8e": "Jes Olesen - headache science at Glostrup throughout, plus 2005 'Body size in ecological networks' from Aarhus University, which is Jens M. Olesen the ecologist. One intruder.",
+  "dc92a3fd": "Joseph G. Strauch - 1963-1988 shorebird natural history and Charadriiform phylogeny (Michigan, Boulder), plus a 2015 German paediatric child-protection report. One intruder.",
+  "90a11e15": "Karan Singh - at least five people: 1977 scabies epidemiology (Goa Medical College), farm machinery (Central Institute of Agricultural Engineering), Drosophila sexual selection (IISER), aerosol and air pollution (HNB Garhwal), TGF-beta binding proteins (NYU).",
+  "e4fabb53": "Marius S. Wasbauer - 1955-2026 spider-wasp and tiphiid taxonomy, plus 2014-2016 corporate-social-responsibility papers on the bumble-bee trade.",
+  "236687e4": "Raghav Agarwal - enterprise-IT practitioner papers (SAP Ariba, Teradata, Oracle HCM; CCS University), VIT medical-imaging deep learning, image watermarking, and a 2024 child-neurodevelopment trial.",
+  "72224ff1": "Richard A. Berger - many people: 1960s strength-training research (Texas Tech), 1965 atomic transition probabilities (Michigan), Washington University biochemistry, Mayo wrist and hand surgery, Rush knee arthroplasty, and LAMMPS/LIGGGHTS simulation software.",
+  "41147a64": "V D Sharma - 1966 metal-ATP complex chemistry (ANU), 1975 canine otitis microbiology, the ICMR/JALMA mycobacteriology programme 2000-2014, plus endophytic fungi, Listeria, and 2022 carbon-dot synthesis.",
+  "ef922b38": "Vishrut Deshpande - 1971-78 neutron slowing-down, special functions and substructure analysis (IIT Bombay), against 2019-2025 kirigami and bistable-composite mechanics at Clemson and Virginia Tech.",
+  "1f18021f": "Vivek Gupta - a 2019 efflux-pump-inhibitor paper (IIT Roorkee) and autophagy guidelines, against a run of Global Burden of Disease consortium papers.",
+  "da4d55bb": "William Trager - the Rockefeller parasitologist who first cultured Plasmodium falciparum (1934-2005), and William F. Trager, the University of Washington medicinal chemist of warfarin stereochemistry and CYP2C9 (1974-2003)."
  },
  "one_person": {
   "1a768d1f": "Vivek Podder - diabetes and mental health in South Asia, with Global Burden of Disease collaborations. One global-health researcher",
@@ -367,7 +445,13 @@
   "f7d8b235": "Ram Karan Singh - agricultural economics and on-farm water management. What remains after the 2026-09 split",
   "cc175355": "Amano - Tibetan and Sanskrit Buddhist philology throughout, the Abhisamayalamkara manuscripts. The 1960 paper is the same field as the 1985-2008 work: a 25-year gap inside one career, and the clearest false positive the temporal break produces",
   "15b2b2f9": "Karan P. Singh - biostatistics and cancer-bench co-authorship. Was unsure from titles alone; resolved 2026-09-24 on per-paper institutions: BOTH subjects are published from BOTH employers (University of North Texas 2004-2010 and the University of Alabama at Birmingham 1995-2021), which is a statistician on everything, not two people. Previously: Karan P. Singh - public-health biostatistics across many fields, plus cancer-chemoprevention bench papers. A biostatistician may or may not span both",
-  "945c7f07": "M. Gori - Marco Gori, University of Siena. Was unsure from titles alone; resolved 2026-09-24: the 2025 NOX gas-turbine paper's own author line names the University of Siena, as do all seven dated GNN papers, and its first author (Kamyar Zeinalipour) is a Siena student. The 2026-09-21 split that moved that paper to 4511c5b9 was therefore wrong. Previously: M. Gori - 1997-2008 recursive and graph neural networks, then 2025 NOX forecasting for gas turbines. Marco Gori is prolific and an applied paper is not impossible"
+  "945c7f07": "M. Gori - Marco Gori, University of Siena. Was unsure from titles alone; resolved 2026-09-24: the 2025 NOX gas-turbine paper's own author line names the University of Siena, as do all seven dated GNN papers, and its first author (Kamyar Zeinalipour) is a Siena student. The 2026-09-21 split that moved that paper to 4511c5b9 was therefore wrong. Previously: M. Gori - 1997-2008 recursive and graph neural networks, then 2025 NOX forecasting for gas turbines. Marco Gori is prolific and an applied paper is not impossible",
+  "9d5f10ba": "Arjen M. Dondorp - artemisinin resistance and severe malaria, Mahidol-Oxford throughout.",
+  "9cb0cb46": "Michael G. Aman - developmental-disability psychopharmacology and the Aberrant Behavior Checklist; Auckland, then Ohio State.",
+  "b3d808b9": "Turker Ince - UMass atmospheric-radar turbulence, then 1D CNNs and ECG classification at Izmir; the 2009 radio-acoustic forest-fire paper bridges the two.",
+  "8e08ee5d": "V Cherviakova - Ukrainian enterprise economics and transport-industry business throughout.",
+  "01e1832e": "Vishesh K. Kapur - sleep medicine at the University of Washington throughout.",
+  "f8c8c992": "Vitor Werneck Krauss Silva - pathology at MSK, then AI pathology at Hospital das Clinicas, Sao Paulo."
  },
  "unsure": {
   "4e2abb9b": "V. Mishra - coal geochemistry throughout, plus one soil-microbial-remediation chapter. One paper is not enough to call it [2026-09-26: the PAH/esophageal-carcinoma paper is his -- Jin-Xi Wang co-wrote it and a Laoyaogou coal-geochemistry paper, and it concerns coal-derived PAHs. The soil-remediation chapter, which is the doubt, shares no co-author with anything else (Medunic, Fiket, Sabar appear only there) and carries no institutions. Still unsure.]",
@@ -375,7 +459,8 @@
   "2f2b1cac": "Abigail Fraser - neutropenia antibiotic meta-analyses and cardiovascular/liver epidemiology. Two programmes, both clinical epidemiology [2026-09-26: no per-paper institutions on any paper, and the 12 antibiotic/neutropenia meta-analyses share no co-author with the 36 epidemiology papers. Absence of a bridge is not evidence of two people across what may be a move. Still unsure.]",
   "7e430dae": "Aparna Lal - enteric-disease and climate epidemiology, plus tsunami tide-gauge data and green-turtle ecology. Cannot tell if the marine work is hers [2026-09-26: tsunami paper Geological Survey of India 2006, turtle paper Nature Conservation Foundation 2010, then Otago 2012-13 and ANU 2016-23 -- sequential; the three marine/geology papers share no co-author with the epidemiology. Still unsure.]",
   "621360ef": "V. Mishra - 1983 IgA deposits in alcoholic liver disease, then 2013-14 dermatology. IgA in skin is dermatology-adjacent, so a 30-year gap in one career is possible [2026-09-24: its odd paper was split off on 2026-09-21 on the temporal break. Neither the moved paper nor the ones that stayed carry per-paper institutions, so the split can be neither confirmed nor undone on evidence.] [2026-09-26: the moved 1983 paper shares no co-author with what stayed.]",
-  "6c37bfe1": "V. Mishra - 1994-97 brachytherapy dosimetry, then a 2020 paper on mobile-phone electromagnetic radiation. Both are radiation; the 23-year silence between them is the only oddity [2026-09-24: its odd paper was split off on 2026-09-21 on the temporal break. Neither the moved paper nor the ones that stayed carry per-paper institutions, so the split can be neither confirmed nor undone on evidence.] [2026-09-26: the moved 2020 paper shares no co-author with what stayed.]"
+  "6c37bfe1": "V. Mishra - 1994-97 brachytherapy dosimetry, then a 2020 paper on mobile-phone electromagnetic radiation. Both are radiation; the 23-year silence between them is the only oddity [2026-09-24: its odd paper was split off on 2026-09-21 on the temporal break. Neither the moved paper nor the ones that stayed carry per-paper institutions, so the split can be neither confirmed nor undone on evidence.] [2026-09-26: the moved 2020 paper shares no co-author with what stayed.]",
+  "506e96e4": "Matthew G. Hanna - digital pathology at MSK and UPMC 2017-2025, plus the 2010 GATK paper from the Broad. Software before an MD in computational pathology is a plausible single career; nothing on the record settles it."
  },
  "not_a_person": {
   "d6800ca5": "Verlag Hans Huber - a Swiss medical PUBLISHER that OpenAlex lists as an author with 73 works. Not a conflation; a personhood failure. Closed 2026-09-21 by adding 'verlag' to ENTITY_WORDS, and the record itself was then purged with scripts/purge_person.py, so it is no longer in the corpus. Kept here as the reason the rule exists"
