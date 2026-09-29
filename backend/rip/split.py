@@ -88,7 +88,8 @@ def _as_list(value) -> list:
     if isinstance(value, list):
         return value
     try:
-        return json.loads(value or "[]")
+        parsed: list = json.loads(value or "[]")
+        return parsed
     except (TypeError, ValueError):
         return []
 

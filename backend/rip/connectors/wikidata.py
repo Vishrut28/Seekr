@@ -9,6 +9,8 @@ keys, letting us link profiles that would otherwise never match on name —
 including Google Scholar identifiers, which have no API we may fetch.
 """
 
+from typing import cast
+
 from ..normalize import (
     EvidenceItem,
     NormalizedProfile,
@@ -43,7 +45,8 @@ class WikidataConnector(BaseConnector):
     min_request_interval = 1.0
 
     def _get(self, params: dict) -> dict:
-        return self.get_json(API, params={"format": "json", **params})
+        data: dict = self.get_json(API, params={"format": "json", **params})
+        return data
 
     def search_people(self, name: str, limit: int = 10) -> list[dict]:
         data = self._get(
@@ -117,7 +120,8 @@ class WikidataConnector(BaseConnector):
             out = []
             for claim in claims.get(prop, []):
                 value = (claim.get("mainsnak", {}).get("datavalue", {}).get("value") or {})
-                if isinstance(value, dict) and labels.get(value.get("id")):
+                # labels are keyed by Q-id, so "" finds nothing, as a missing id did
+                if isinstance(value, dict) and labels.get(value.get("id", "")):
                     out.append(labels[value["id"]])
             return out
 
@@ -139,7 +143,7 @@ class WikidataConnector(BaseConnector):
                     websites.append(value)
                 elif kind == "github":
                     usernames.append(f"github:{value.lower()}")
-                    linked.append(template.format(value))
+                    linked.append(cast(str, template).format(value))  # P2037 has one
                 elif template:
                     # scholar/dblp/semanticscholar profile URLs become strong keys,
                     # which is how a Wikidata record links sources we cannot crawl

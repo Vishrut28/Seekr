@@ -68,8 +68,8 @@ _NICKNAMES = {
 }
 
 
-def _index(groups) -> dict[str, frozenset]:
-    out: dict[str, set] = {}
+def _index(groups) -> dict[str, frozenset[str]]:
+    out: dict[str, set[str]] = {}
     for group in groups:
         for word in group:
             out.setdefault(word, set()).update(group)
@@ -93,7 +93,7 @@ def spelling_key(word: str) -> str:
     return min(group) if group else w
 
 
-def search_forms(word: str) -> frozenset:
+def search_forms(word: str) -> frozenset[str]:
     """Every way to write WORD that a search should accept: its spellings and
     its nicknames, or the full names a nickname stands for."""
     w = fold(word)

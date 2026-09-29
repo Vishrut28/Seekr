@@ -63,7 +63,9 @@ _UNSPACED = re.compile(
 
 def is_unspaced(text: str | None) -> bool:
     """Is TEXT written in a script without spaces between words?"""
-    return bool(text) and bool(_UNSPACED.search(text))
+    if not text:
+        return False
+    return bool(_UNSPACED.search(text))
 
 
 def _split_unspaced(token: str) -> list[str]:

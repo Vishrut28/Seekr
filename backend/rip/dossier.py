@@ -30,10 +30,17 @@ from .models import (
     SourceRecord,
 )
 
-MARK = re.search(
-    r'd="([^"]+)"',
-    (Path(__file__).resolve().parents[2] / "frontend/assets/mark.svg").read_text(),
-).group(1) if (Path(__file__).resolve().parents[2] / "frontend/assets/mark.svg").exists() else ""
+
+def _mark() -> str:
+    """The logo's path data, or "" when the built frontend is not there."""
+    svg = Path(__file__).resolve().parents[2] / "frontend/assets/mark.svg"
+    if not svg.exists():
+        return ""
+    found = re.search(r'd="([^"]+)"', svg.read_text())
+    return found.group(1) if found else ""
+
+
+MARK = _mark()
 
 
 def _esc(v) -> str:
@@ -73,9 +80,9 @@ def collect(session: Session, person: Person) -> dict:
         "role": any(e.attribute_type == "role" for e in evidence),
         "location": bool(person.location or person.country),
         "expertise": any(e.attribute_type in ("skill", "research_interest") for e in evidence),
-        "output": session.scalar(
+        "output": (session.scalar(
             select(func.count()).select_from(Authorship).where(Authorship.person_id == person.id)
-        ) > 0,
+        ) or 0) > 0,
         "profiles": bool(person.profile_urls),
         "corroboration": bool(corroborated),
     }

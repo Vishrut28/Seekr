@@ -70,22 +70,23 @@ class WebConnector(BaseConnector):
         parsed = urlparse(url)
         site = f"{parsed.scheme}://{parsed.netloc}"
         # one robots.txt per site per connector, not one per page
-        cache = self.__dict__.setdefault("_robots_cache", {})
+        cache: dict[str, urllib.robotparser.RobotFileParser | None] = (
+            self.__dict__.setdefault("_robots_cache", {}))
         if site not in cache:
-            parser = urllib.robotparser.RobotFileParser()
+            parser: urllib.robotparser.RobotFileParser | None = urllib.robotparser.RobotFileParser()
             try:
                 resp = self._client.get(f"{site}/robots.txt", timeout=10.0)
                 if resp.status_code >= 400:
                     parser = None  # no robots.txt published -> crawling permitted
-                else:
+                elif parser is not None:
                     parser.parse(resp.text.splitlines())
             except Exception:
                 parser = None
             cache[site] = parser
-        parser = cache[site]
-        if parser is None:
+        cached = cache[site]
+        if cached is None:
             return True
-        return parser.can_fetch(self.default_headers()["User-Agent"], url)
+        return cached.can_fetch(self.default_headers()["User-Agent"], url)
 
     def fetch(self, identifier: str) -> NormalizedProfile:
         url = identifier if "://" in identifier else f"https://{identifier}"

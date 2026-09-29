@@ -21,7 +21,7 @@ from ..textnorm import contains_phrase, words
 from .base import BaseConnector
 
 
-def _names_self(keyword: str, names: list[str]) -> bool:
+def _names_self(keyword: str, names: list[list[str]]) -> bool:
     """Is this keyword the person advertising their own name?
 
     ORCID keywords are free text, and some records use them for search-engine

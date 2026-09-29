@@ -56,15 +56,14 @@ def search(
     if location:
         params["location"] = location
     own = client is None
-    if own:
-        client = httpx.Client(timeout=TIMEOUT)
+    http = httpx.Client(timeout=TIMEOUT) if client is None else client
     try:
-        resp = client.get(SEARCH_URL, headers=_headers(), params=params, timeout=TIMEOUT)
+        resp = http.get(SEARCH_URL, headers=_headers(), params=params, timeout=TIMEOUT)
         resp.raise_for_status()
         rows = (resp.json() or {}).get("results") or []
     finally:
         if own:
-            client.close()
+            http.close()
     out = []
     for row in rows:
         url = row.get("url")
@@ -87,10 +86,9 @@ def fetch_html(url: str, client: httpx.Client | None = None) -> str:
     if not configured() or not url:
         return ""
     own = client is None
-    if own:
-        client = httpx.Client(timeout=TIMEOUT)
+    http = httpx.Client(timeout=TIMEOUT) if client is None else client
     try:
-        resp = client.post(
+        resp = http.post(
             FETCH_URL,
             headers=_headers(),
             json={"urls": [url], "format": "html", "purpose": PURPOSE_FETCH},
@@ -100,7 +98,7 @@ def fetch_html(url: str, client: httpx.Client | None = None) -> str:
         data = resp.json() or {}
     finally:
         if own:
-            client.close()
+            http.close()
     errors = data.get("errors") or []
     if errors:
         logger.info("tinyfish fetch errors for %s: %s", url, errors[0])

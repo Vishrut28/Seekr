@@ -789,23 +789,23 @@ def _store_results(session: Session | None, raw_items: list[dict], fetched: list
             item["stored"] = False
             item["store_error"] = f"{type(exc).__name__}: {exc}"
 
-    for item, profile, exc in fetched:
-        if exc is not None:
+    for item, profile, error in fetched:
+        if error is not None:
             item["stored"] = False
-            item["store_error"] = f"{type(exc).__name__}: {exc}"
-            logger.warning("could not fetch %s result: %s", item.get("source"), exc)
+            item["store_error"] = f"{type(error).__name__}: {error}"
+            logger.warning("could not fetch %s result: %s", item.get("source"), error)
             # Every connector shares BaseConnector and so raises the SAME
             # RateLimitedError on a genuine rate limit, so this backoff
             # applies uniformly to every source's fetch step.
-            if isinstance(exc, RateLimitedError) and item.get("source"):
-                _note_source_throttled(session, item["source"], exc.retry_after)
+            if isinstance(error, RateLimitedError) and item.get("source"):
+                _note_source_throttled(session, item["source"], error.retry_after)
             continue
         _keep(item, profile)
     return stored
 
 
 def discovery_suggestions(
-    session: Session | None = None, parsed: NLQuery = None, limit: int = 10,
+    session: Session, parsed: NLQuery, limit: int = 10,
     allow_paid: bool = True, on_source=None, persist: bool = True,
 ) -> list[dict]:
     """Live author search across sources for terms the local corpus lacks.
@@ -854,19 +854,19 @@ def discovery_suggestions(
     # person ids from cached searches: found before, still the right answer
     replayed: list[str] = []
 
-    def check_cache_or_skip(source: str) -> tuple[str, str] | None:
-        """Cache/paid/skip gate for one source. Returns (query, mode) to
-        actually search with, or None if the source was fully handled here
-        (skipped or answered from cache) and needs no network call."""
+    def check_cache_or_skip(source: str) -> bool:
+        """Cache/paid/skip gate for one source. True when it still needs a
+        network call; False if it was fully handled here (skipped or
+        answered from cache)."""
         if _source_throttled(session, source):
             report(source, "skipped", reason="rate limited, backing off")
-            return None
+            return False
         if len(out) >= MIN_USEFUL_SUGGESTIONS and not _always_run(source):
             report(source, "skipped", reason="enough found already")
-            return None
+            return False
         if not allow_paid and source in PAID_SOURCES:
             report(source, "skipped", reason="metered source, not enabled for this search")
-            return None
+            return False
         # Already bought this answer recently? The people are in the graph, so
         # do not pay for it again. Keyed on the USER'S query, not the derived
         # search string: once new people are stored the residual string
@@ -880,8 +880,8 @@ def discovery_suggestions(
             session.commit()
             report(source, "cached", found=cached.result_count or 0,
                    people=len(cached.person_ids or []))
-            return None
-        return "ok"
+            return False
+        return True
 
     def run_search(source: str, searcher, uses_full_query: bool):
         """The network call only — no session access, safe to run off-thread."""
@@ -992,7 +992,7 @@ def discovery_suggestions(
             if _time.monotonic() > search_deadline:
                 report(source, "skipped", reason="live search budget spent")
                 continue
-            if check_cache_or_skip(source) is None:
+            if not check_cache_or_skip(source):
                 continue
             search_for, found, exc = run_search(source, searcher, uses_full_query)
             apply_result(source, search_for, found, exc)
@@ -1006,7 +1006,7 @@ def discovery_suggestions(
     # runs — so they start NOW, in the background, and are answered while
     # phase A works. Their cache/throttle gates touch the session, so those
     # are decided here on this thread before anything is submitted.
-    runnable = [(s, fn, full) for s, fn, full in phase_b if check_cache_or_skip(s) is not None]
+    runnable = [(s, fn, full) for s, fn, full in phase_b if check_cache_or_skip(s)]
     b_order = [s for s, _fn, _full in phase_b if s in {r[0] for r in runnable}]
     # GitHub with a token (and not backing off) is always fetched, so its
     # profiles can be pulled ahead too. Without a token its budget depends on
@@ -1070,7 +1070,7 @@ def discovery_suggestions(
 
         if ahead is not None:
             plans, results = ahead.result()
-            prepared = []           # (source, keep, raw_items, to_fetch)
+            prepared: list[tuple[str, list[dict], list[dict], list[dict]]] = []  # (source, keep, raw_items, to_fetch)
             planned_before = 0      # fetchable candidates from earlier sources
             late: list[dict] = []
             for s in b_order:

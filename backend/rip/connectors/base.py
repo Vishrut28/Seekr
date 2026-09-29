@@ -8,6 +8,7 @@ import os
 import threading
 import time
 from abc import ABC, abstractmethod
+from typing import Any
 
 import httpx
 
@@ -90,7 +91,9 @@ class BaseConnector(ABC):
     def default_headers(self) -> dict:
         return {"User-Agent": "resource-intelligence-platform/0.1 (research aggregator)"}
 
-    def get_json(self, url: str, params: dict | None = None) -> dict | list:
+    def get_json(self, url: str, params: dict | None = None) -> Any:
+        """The parsed body. Any, not dict | list: its shape is the endpoint's,
+        which the calling connector knows and this method does not."""
         return self._request(url, params).json()
 
     def get_text(self, url: str, params: dict | None = None) -> str:
@@ -121,7 +124,7 @@ class BaseConnector(ABC):
     def _is_rate_limited(self, resp: httpx.Response) -> bool:
         if resp.status_code == 429:
             return True
-        return resp.headers.get("x-ratelimit-remaining") == "0"
+        return bool(resp.headers.get("x-ratelimit-remaining") == "0")
 
     def _retry_after_seconds(self, resp: httpx.Response) -> float | None:
         if resp.headers.get("retry-after"):

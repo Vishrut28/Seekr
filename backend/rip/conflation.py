@@ -332,7 +332,8 @@ def _as_list(value) -> list:
     if isinstance(value, list):
         return value
     try:
-        return json.loads(value or "[]")
+        parsed: list = json.loads(value or "[]")
+        return parsed
     except (TypeError, ValueError):
         return []
 
@@ -543,7 +544,7 @@ def candidates(session: Session, above: float | None = None,
     """
     names = dict(session.execute(
         select(Person.id, Person.canonical_name).where(Person.merged_into.is_(None))
-    ).all())
+    ).tuples().all())
     rows = session.execute(
         select(Authorship.person_id, *_PAPER_COLUMNS)
         .join(Publication, Publication.id == Authorship.publication_id)

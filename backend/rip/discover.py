@@ -10,8 +10,13 @@ Discovered people become DiscoveryLead rows (a queue), drained separately by
 `ingest-leads` so discovery volume never outruns rate limits.
 """
 
+from typing import TYPE_CHECKING, Any, cast
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+
+if TYPE_CHECKING:
+    from sqlalchemy.engine import CursorResult
 
 from .connectors import get_connector
 from .ingest import run_connector
@@ -193,12 +198,12 @@ def claim_leads(
     # populate_existing: the UPDATEs above bypassed the session, so lead objects
     # it already holds (a worker reuses its session across batches) would keep
     # showing whoever claimed them before
-    return session.execute(
+    return list(session.execute(
         select(DiscoveryLead)
         .where(DiscoveryLead.claimed_by == worker, DiscoveryLead.status == "claimed")
         .order_by(DiscoveryLead.created_at, DiscoveryLead.id)
         .execution_options(populate_existing=True)
-    ).scalars().all()
+    ).scalars().all())
 
 
 def release_leads(session: Session, worker: str) -> int:
@@ -206,12 +211,12 @@ def release_leads(session: Session, worker: str) -> int:
     from sqlalchemy import update
 
     session.rollback()
-    released = session.execute(
+    released = cast("CursorResult[Any]", session.execute(
         update(DiscoveryLead)
         .where(DiscoveryLead.claimed_by == worker, DiscoveryLead.status == "claimed")
         .values(status="pending", claimed_by=None, claimed_at=None)
         .execution_options(synchronize_session=False)
-    ).rowcount
+    )).rowcount
     session.commit()
     return released
 

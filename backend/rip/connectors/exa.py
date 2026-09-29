@@ -55,7 +55,8 @@ class ExaConnector(BaseConnector):
                 time.sleep(2**attempt)
                 continue
             resp.raise_for_status()
-            return resp.json()
+            data: dict = resp.json()
+            return data
         raise RuntimeError("exa: retries exhausted")
 
     def search_people(self, query: str, limit: int = 10) -> list[dict]:

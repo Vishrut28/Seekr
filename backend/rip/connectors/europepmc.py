@@ -168,7 +168,8 @@ class EuropePmcConnector(BaseConnector):
         agreed = keys.most_common(1)[0][0] if keys else None
         mine = [(a, au) for a, au in mine if _name_key(au) == agreed]
 
-        names = Counter(_display_name(author) for _, author in mine)
+        # every author in `mine` has a display name: it was chosen for one
+        names = Counter(n for _, author in mine if (n := _display_name(author)))
         name = names.most_common(1)[0][0] if names else None
         aliases = sorted(n for n in names if n != name)
 

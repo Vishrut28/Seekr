@@ -2,6 +2,7 @@ import contextlib
 import os
 import threading
 
+from .base import BaseConnector
 from .dblp import DblpConnector
 from .europepmc import EuropePmcConnector
 from .exa import ExaConnector
@@ -14,7 +15,7 @@ from .stackoverflow import StackOverflowConnector
 from .web import WebConnector
 from .wikidata import WikidataConnector
 
-CONNECTORS = {
+CONNECTORS: dict[str, type[BaseConnector]] = {
     "web": WebConnector,
     "wikidata": WikidataConnector,
     "dblp": DblpConnector,

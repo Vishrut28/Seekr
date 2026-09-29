@@ -42,7 +42,8 @@ class PublicationData:
     doi: str | None = None
     citations: int | None = None
     topics: list[str] = field(default_factory=list)
-    raw_authors: list[str] = field(default_factory=list)
+    # None where a source lists an author with no name, so positions still line up
+    raw_authors: list[str | None] = field(default_factory=list)
     author_position: int | None = None
 
 

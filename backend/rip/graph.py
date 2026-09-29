@@ -117,7 +117,7 @@ def _coauthor_pairs(session: Session, frontier: list[str], expanding: bool) -> d
     live = dict(session.execute(
         select(Person.id, Person.canonical_name)
         .where(Person.id.in_({dst for _, dst, _, _ in rows}), Person.merged_into.is_(None))
-    ).all()) if rows else {}
+    ).tuples().all()) if rows else {}
     out: dict[str, list] = defaultdict(list)
     for src, dst, shared, via in rows:
         if dst in live:

@@ -1370,6 +1370,26 @@ that were not:
 - Duplicate entries in half a dozen set literals, and three re-imports
   shadowing a module-level name.
 
+Both now run clean: `ruff check .` and `mypy` report nothing (they stood at
+88 and 202 on 2026-09-29). Nearly all of the fixes were annotations. Four
+were not, because mypy had found something true:
+
+- **`GET /v1/persons/{id}` returned 500 for a tombstone whose target is
+  gone.** `merged_into` has no foreign key, so a dangling one is possible;
+  it is now a 404.
+- **`discovery_suggestions` declared `session=None` as allowed** and then
+  called `session.execute` on it unguarded. Both arguments are now required,
+  which is how every caller already used it.
+- **A gate annotated as returning `(query, mode)` returned the string
+  `"ok"`.** Callers only tested it against None, so nothing broke; it
+  returns a bool now.
+- **Europe PMC author lists can hold None** (an author with no name) where
+  the type said `list[str]`. The type now says so, rather than the data being
+  changed to fit it.
+
+The `type: ignore`s that remain are each commented, and `warn_unused_ignores`
+fails the run if one stops being needed.
+
 Coverage is **69%** overall. The honest part of that number is where the
 zeroes are: `rip/dossier.py` 0%, `rip/harvest.py` 0%, `rip/cli.py` 13%.
 `pip-audit` reports no vulnerability in any runtime dependency.

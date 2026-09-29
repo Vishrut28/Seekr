@@ -16,6 +16,7 @@ import logging
 import os
 import time
 from dataclasses import dataclass
+from typing import Any
 
 import httpx
 
@@ -64,10 +65,11 @@ def harvest_openalex(
     with httpx.Client(timeout=60.0, headers=headers) as client, opener(
         out_file, "wt", encoding="utf-8"
     ) as sink:
+        position: str | None = cursor
         while result.fetched < limit:
-            params = {
+            params: dict[str, Any] = {
                 "per-page": min(PER_PAGE, limit - result.fetched),
-                "cursor": cursor,
+                "cursor": position,
                 "select": AUTHOR_SELECT,
             }
             if filter_expr:
@@ -107,11 +109,11 @@ def harvest_openalex(
                 )
             result.fetched += len(rows)
             result.pages += 1
-            cursor = (payload.get("meta") or {}).get("next_cursor")
-            result.next_cursor = cursor
+            position = (payload.get("meta") or {}).get("next_cursor")
+            result.next_cursor = position
             if result.pages % 10 == 0:
                 progress(f"  harvested {result.fetched:,} authors ({result.pages} pages)")
-            if not cursor:
+            if not position:
                 break
 
     progress(f"harvested {result.fetched:,} authors -> {out_file}")

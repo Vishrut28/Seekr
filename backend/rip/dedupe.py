@@ -434,7 +434,8 @@ def strength(j: Judgement) -> float:
     # which is a lower bound on it.
     pool = s.get("coauthor_pool", s.get("shared_coauthors", 0)) or 0
     ratio = s["coauthor_overlap"] * min(1.0, pool / COAUTHOR_POOL_FOR_FULL_WEIGHT)
-    return s["shared_publications"] + 3 * ratio + 0.5 * s["shared_organizations"]
+    total: float = s["shared_publications"] + 3 * ratio + 0.5 * s["shared_organizations"]
+    return total
 
 
 def _torn(record, target, pair, j, ids, judged, vetoed, cluster_of) -> bool:
@@ -468,7 +469,9 @@ def merge_pair(session: Session, keep: str, gone: str, reason: str) -> bool:
     merge_persons(session, keep, gone)
     session.add(ChangeLog(person_id=keep, field="dedupe", old_value=f"person:{gone}",
                           new_value=reason[:500]))
-    sync_name_tokens(session, session.get(Person, keep))
+    kept = session.get(Person, keep)
+    if kept is not None:  # checked above; the merge does not remove it
+        sync_name_tokens(session, kept)
     session.commit()
     return True
 
