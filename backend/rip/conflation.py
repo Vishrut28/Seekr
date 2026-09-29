@@ -55,7 +55,8 @@ What it still misses, and why, so nobody rediscovers it:
   a record with NO topic in OpenAlex's taxonomy -- people known only from
   Semantic Scholar, Europe PMC or ORCID. Foreign work compares subjects, so
   it is blind there: 5 of round 2's 7 misses, and 27% of people with six or
-  more papers. Only the temporal break can see them.
+  more papers. SPREAD (added 2026-09-29, see SPREAD_CONFIDENCE) reads their
+  titles instead, and is judged on round 3.
   a broad career already touches the intruder's subfield (a Monte Carlo
   statistician's control-engineering work covers a power-systems paper).
   a spurious link pulls the intruder into the career group.
@@ -208,6 +209,34 @@ REPORT_ABOVE = 0.5
 FOREIGN_WEIGHTS = {"subfield": 1, "field": 2, "domain": 3}
 FOREIGN_REPORT_AT = 1
 
+# SPREAD, for the records foreign work cannot see: people whose papers carry
+# no topic in OpenAlex's taxonomy at all, known only from Semantic Scholar,
+# Europe PMC or ORCID -- 27% of people with six or more papers. Their titles
+# are all there is, so each title is placed in one of OpenAlex's four domains
+# by a naive Bayes model trained on this corpus's own OpenAlex-placed papers
+# (cross-validated at 90% right, 97% when at least 0.9 sure). A record whose
+# papers fall confidently into SPREAD_REPORT_AT domains or more, with at least
+# SPREAD_PER_DOMAIN papers in each, is reported: one career rarely publishes
+# steadily in physical, life, health AND social science at once.
+#
+# Designed 2026-09-29 on the 83 such records among all labels then held
+# (7 conflated): it flags 9, of which 3 are conflated. Linking papers by
+# co-author and comparing against the largest group -- the foreign-work rule
+# -- failed there first: without institutions or citations nearly every
+# paper is its own group, and 30 of 36 flags were one person. Judged on
+# round 3 of evaluation/conflation_judge_draw.json.
+SPREAD_CONFIDENCE = 0.9
+SPREAD_PER_DOMAIN = 2
+SPREAD_REPORT_AT = 3
+_SMOOTHING = 0.5
+_TITLE_STOP = frozenset((
+    "a", "an", "the", "of", "in", "on", "for", "and", "or", "to", "with", "by",
+    "from", "at", "as", "is", "are", "be", "via", "using", "use", "based", "new",
+    "study", "analysis", "towards", "toward", "approach", "method", "methods",
+    "case", "effect", "effects", "role", "its", "their", "into", "between", "among",
+    "under", "over", "after", "before", "during", "versus", "vs",
+))
+
 # A TEMPORAL BREAK, which is the other half of the job. The score above is a
 # ratio of group sizes, so it cannot see the commonest conflation in this
 # corpus: one or two intruder papers sharing no topic and no co-author with
@@ -250,10 +279,18 @@ class Split:
     years: list[int] = field(default_factory=list)          # one per dated paper
     # publication id -> how far it is from the career: subfield, field, domain
     foreign: dict[int, str] = field(default_factory=dict)
+    # records with no topic in OpenAlex's taxonomy only: inferred domain ->
+    # the papers whose titles place them there confidently (see SPREAD_*)
+    spread: dict[str, list[int]] = field(default_factory=dict)
 
     @property
     def sizes(self) -> list[int]:
         return [len(g) for g in self.groups]
+
+    @property
+    def spread_domains(self) -> int:
+        """Domains holding at least SPREAD_PER_DOMAIN papers, by their titles."""
+        return sum(1 for ids in self.spread.values() if len(ids) >= SPREAD_PER_DOMAIN)
 
     @property
     def foreign_score(self) -> int:
@@ -267,6 +304,8 @@ class Split:
             out.append("foreign")
         if self.break_years > 0:
             out.append("break")
+        if self.spread_domains >= SPREAD_REPORT_AT:
+            out.append("spread")
         if above is not None and self.score >= above:
             out.append("ratio")
         return out
@@ -425,6 +464,80 @@ def topic_hierarchy(session: Session) -> dict[str, tuple]:
     return into
 
 
+def _title_tokens(title) -> list[str]:
+    from .textnorm import stems
+
+    return [t for t in stems(title or "") if len(t) > 2 and t not in _TITLE_STOP
+            and not t.isdigit()]
+
+
+class TitleDomains:
+    """Title -> OpenAlex domain, learned from this corpus's placed papers.
+
+    Multinomial naive Bayes, stdlib only. Every placed paper contributes its
+    title once per domain its topics sit in. Nothing outside the corpus is
+    read, and nothing about any person's label is.
+    """
+
+    def __init__(self, examples) -> None:
+        from collections import Counter
+
+        self.prior: Counter = Counter()
+        self.count: dict[str, Counter] = {}
+        self.total: Counter = Counter()
+        vocab: set[str] = set()
+        for tokens, domains in examples:
+            for domain in domains:
+                self.prior[domain] += 1
+                self.count.setdefault(domain, Counter()).update(tokens)
+                self.total[domain] += len(tokens)
+                vocab.update(tokens)
+        self.vocab = len(vocab)
+        self.n = sum(self.prior.values())
+
+    def place(self, title) -> tuple[str | None, float]:
+        """(domain, probability), or (None, 0.0) when the title says nothing."""
+        import math
+
+        tokens = _title_tokens(title)
+        if not tokens or not self.n:
+            return None, 0.0
+        scores = {}
+        for domain, prior in self.prior.items():
+            score = math.log(prior / self.n)
+            for token in tokens:
+                score += math.log((self.count[domain][token] + _SMOOTHING)
+                                  / (self.total[domain] + _SMOOTHING * self.vocab))
+            scores[domain] = score
+        top = max(scores.values())
+        norm = sum(math.exp(v - top) for v in scores.values())
+        best = max(scores, key=lambda d: scores[d])
+        return best, 1.0 / norm
+
+
+def title_domains(session: Session, hierarchy: dict) -> TitleDomains:
+    """Train TitleDomains on every placed paper. HIERARCHY is topic_hierarchy()."""
+    examples = []
+    for title, topics in session.execute(select(Publication.title, Publication.topics)):
+        domains = {hierarchy[t][2] for t in _as_list(topics)
+                   if t in hierarchy and hierarchy[t][2]}
+        if title and domains:
+            examples.append((_title_tokens(title), domains))
+    return TitleDomains(examples)
+
+
+def _spread(rows, hierarchy: dict, model: TitleDomains | None) -> dict[str, list[int]]:
+    """Only for records with no placed topic: domain -> confidently placed papers."""
+    if model is None or any(t in hierarchy for row in rows for t in _as_list(row[2])):
+        return {}
+    out: dict[str, list[int]] = {}
+    for row in rows:
+        domain, probability = model.place(row[5])
+        if domain and probability >= SPREAD_CONFIDENCE:
+            out.setdefault(domain, []).append(row[0])
+    return out
+
+
 def _openalex_works(session: Session, person_id: str | None = None) -> dict[str, dict]:
     """person id -> work id -> its evidence (see _works_in). Everybody when
     PERSON_ID is None, in one pass, because candidates() needs everybody."""
@@ -464,11 +577,12 @@ def _foreign(papers: dict[int, dict], hierarchy: dict) -> dict[int, str]:
     return out
 
 
-def _build(person_id: str, name: str | None, rows, works: dict, hierarchy: dict) -> Split:
-    """ROWS: (publication id, external id, topics, raw authors, date)."""
+def _build(person_id: str, name: str | None, rows, works: dict, hierarchy: dict,
+           model: TitleDomains | None = None) -> Split:
+    """ROWS: (publication id, external id, topics, raw authors, date, title)."""
     surname = (name or "").lower().split()[-1] if name else ""
     marks, papers, years = {}, {}, []
-    for pub_id, external_id, topics, raw, when in rows:
+    for pub_id, external_id, topics, raw, when, _title in rows:
         topics = _as_list(topics)
         with_ = _coauthors(raw, surname)
         marks[pub_id] = {("topic", t) for t in topics} | {("with", c) for c in with_}
@@ -482,32 +596,38 @@ def _build(person_id: str, name: str | None, rows, works: dict, hierarchy: dict)
         years.extend(_year(when))
     return Split(person_id=person_id, name=name, papers=len(marks),
                  groups=_group(marks), years=years,
-                 foreign=_foreign(papers, hierarchy))
+                 foreign=_foreign(papers, hierarchy),
+                 spread=_spread(rows, hierarchy, model))
 
 
 _PAPER_COLUMNS = (Publication.id, Publication.external_id, Publication.topics,
-                  Publication.raw_authors, Publication.published_date)
+                  Publication.raw_authors, Publication.published_date,
+                  Publication.title)
 
 
 def split_of(session: Session, person_id: str, name: str | None = None,
-             hierarchy: dict | None = None) -> Split:
+             hierarchy: dict | None = None,
+             model: TitleDomains | None = None) -> Split:
     """How one person's papers group. See the module docstring for the rule.
 
-    HIERARCHY is topic_hierarchy(session); pass it when calling this for many
-    people, because building it reads every OpenAlex payload.
+    HIERARCHY is topic_hierarchy(session) and MODEL title_domains(session,
+    hierarchy); pass both when calling this for many people, because building
+    them reads every OpenAlex payload and every placed paper.
     """
     if name is None:
         person = session.get(Person, person_id)
         name = person.canonical_name if person else None
     if hierarchy is None:
         hierarchy = topic_hierarchy(session)
+    if model is None:
+        model = title_domains(session, hierarchy)
     rows = session.execute(
         select(*_PAPER_COLUMNS)
         .join(Authorship, Authorship.publication_id == Publication.id)
         .where(Authorship.person_id == person_id)
     ).all()
     works = _openalex_works(session, person_id).get(person_id, {})
-    return _build(person_id, name, rows, works, hierarchy)
+    return _build(person_id, name, rows, works, hierarchy, model)
 
 
 def candidates(session: Session, above: float | None = None,
@@ -548,13 +668,14 @@ def candidates(session: Session, above: float | None = None,
         payload = _as_payload(raw)
         _learn_hierarchy(payload, hierarchy)
         works.setdefault(owner, {}).update(_works_in(payload))
+    model = title_domains(session, hierarchy)
 
     out = []
     for person_id, papers in per_person.items():
         if len({p[0] for p in papers}) < min_papers:
             continue
         split = _build(person_id, names.get(person_id), papers,
-                       works.get(person_id, {}), hierarchy)
+                       works.get(person_id, {}), hierarchy, model)
         reasons = split.reasons(above)
         if not reasons:
             continue
@@ -564,7 +685,8 @@ def candidates(session: Session, above: float | None = None,
         out.append(split)
     # Farthest foreign work first, then the size of the temporal hole, then
     # the ratio: a reading order, most implausible first.
-    out.sort(key=lambda s: (-s.foreign_score, -s.break_years, -s.score, -s.papers))
+    out.sort(key=lambda s: (-s.foreign_score, -s.break_years, -s.spread_domains,
+                            -s.score, -s.papers))
     return out
 
 
@@ -679,6 +801,21 @@ def foreign_evidence(session: Session, split: Split) -> list[dict]:
            for pub_id, title, when, topics in rows]
     return sorted(out, key=lambda r: (farthest[r["distance"]], r["year"] or 0,
                                       r["publication_id"]))
+
+
+def spread_evidence(session: Session, split: Split, per_domain: int = 3) -> list[dict]:
+    """The domains a record's titles fall into, largest first, with titles.
+
+    Only for records reported by SPREAD, which have no OpenAlex topic to show:
+    what a reader checks is whether one person plausibly wrote all of it.
+    """
+    out = []
+    for domain, ids in sorted(split.spread.items(), key=lambda kv: (-len(kv[1]), kv[0])):
+        titles = [t for (t,) in session.execute(
+            select(Publication.title).where(Publication.id.in_(ids))
+            .order_by(Publication.id).limit(per_domain))]
+        out.append({"domain": domain, "papers": len(ids), "titles": titles})
+    return out
 
 
 def describe(session: Session, split: Split, per_group: int = 4) -> list[dict]:

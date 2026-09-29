@@ -1102,6 +1102,7 @@ def review_conflations(
         describe,
         foreign_evidence,
         shares_an_employer,
+        spread_evidence,
     )
     from .models import ConflationReview, PersonSplit
 
@@ -1142,6 +1143,8 @@ def review_conflations(
             # `groups` never shows
             "foreign_score": split.foreign_score,
             "foreign": foreign_evidence(db, split),
+            # records with no OpenAlex topic: the domains their titles fall in
+            "spread": spread_evidence(db, split) if "spread" in reasons else [],
             "shares_an_employer": employer,
             "split_already": split.person_id in started,
             # A record can be here on the group ratio, on a hole in time, or

@@ -49,6 +49,7 @@ def main() -> None:
             wanted = dict.fromkeys(raw["conflated"], 1) | dict.fromkeys(raw["one_person"], 0)
             splits = []
             hierarchy = conflation.topic_hierarchy(session)
+            model = conflation.title_domains(session, hierarchy)
             for short, label in wanted.items():
                 person = session.execute(
                     select(Person).where(Person.id.like(short + "%"))
@@ -58,7 +59,7 @@ def main() -> None:
                     continue
                 truth[person.id] = label
                 splits.append(conflation.split_of(session, person.id, person.canonical_name,
-                                                  hierarchy=hierarchy))
+                                                  hierarchy=hierarchy, model=model))
         else:
             splits = conflation.candidates(session, above=args.above)
         if args.limit:
