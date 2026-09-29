@@ -16,6 +16,7 @@ import json
 import logging
 import secrets
 import time
+from collections.abc import Sequence
 from datetime import datetime, timezone
 from ipaddress import ip_address
 from socket import gethostbyname
@@ -84,7 +85,7 @@ def _event_type_for(change: ChangeLog) -> str:
     return EVENT_CONFLICT if change.field.startswith("conflict") else EVENT_PERSON_UPDATED
 
 
-def enqueue_for_changes(session: Session, changes: list[ChangeLog]) -> int:
+def enqueue_for_changes(session: Session, changes: Sequence[ChangeLog]) -> int:
     """Queue one delivery per (active subscription, matching change)."""
     if not changes:
         return 0
@@ -128,7 +129,7 @@ def health(session: Session) -> dict:
         session.execute(
             select(WebhookDelivery.status, func.count(WebhookDelivery.id))
             .group_by(WebhookDelivery.status)
-        ).all()
+        ).tuples().all()
     )
     last = session.execute(select(func.max(WebhookDelivery.delivered_at))).scalar()
     oldest_pending = session.execute(

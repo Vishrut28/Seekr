@@ -155,11 +155,13 @@ def merge_persons(session: Session, keep_id: str, merge_id: str) -> Person:
         raise ValueError("cannot merge a person into itself")
 
     # rows without cross-person uniqueness risk: move directly
-    for model in (IdentityLink, PersonKey, Evidence):
+    moved: tuple[type[IdentityLink] | type[PersonKey] | type[Evidence], ...] = (
+        IdentityLink, PersonKey, Evidence)
+    for model in moved:
         for row in session.execute(
             select(model).where(model.person_id == merge_id)
         ).scalars():
-            row.person_id = keep_id
+            row.person_id = keep_id  # type: ignore[attr-defined]  # each model above has it
 
     # rows where the keeper may already hold an equivalent (same publication,
     # project, or affiliation): move only if absent, else drop the duplicate
@@ -416,6 +418,8 @@ def split_link(session: Session, link_id: int) -> Person:
     if link is None:
         raise ValueError(f"identity link {link_id} not found")
     record = session.get(SourceRecord, link.source_record_id)
+    if record is None:  # the foreign key rules this out; say so if it happens
+        raise ValueError(f"identity link {link_id} points at missing source record {link.source_record_id}")
     old_person_id = link.person_id
 
     new_person = Person(canonical_name=_raw_name(record), profile_urls=[record.url])
@@ -427,7 +431,9 @@ def split_link(session: Session, link_id: int) -> Person:
     link.match_confidence = 1.0
     link.review_state = "split"
 
-    for model in (PersonKey, Evidence, Affiliation):
+    carried: tuple[type[PersonKey] | type[Evidence] | type[Affiliation], ...] = (
+        PersonKey, Evidence, Affiliation)
+    for model in carried:
         rows = session.execute(
             select(model).where(
                 model.person_id == old_person_id,
@@ -435,7 +441,7 @@ def split_link(session: Session, link_id: int) -> Person:
             )
         ).scalars().all()
         for row in rows:
-            row.person_id = new_person.id
+            row.person_id = new_person.id  # type: ignore[attr-defined]  # each model above has it
 
     pub_ids = session.execute(
         select(Publication.id).where(Publication.source_record_id == record.id)

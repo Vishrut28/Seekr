@@ -45,16 +45,19 @@ import os
 import time
 import weakref
 from collections import defaultdict
+from collections.abc import Sequence
 from dataclasses import dataclass
 from dataclasses import field as dc_field
 from datetime import datetime, timezone
 from itertools import pairwise
+from typing import Any, cast
 
 from sqlalchemy import (
     Float,
     ForeignKey,
     Integer,
     String,
+    Table,
     and_,
     delete,
     desc,
@@ -67,7 +70,8 @@ from sqlalchemy import (
     or_,
     select,
 )
-from sqlalchemy.orm import Mapped, Session, aliased, mapped_column
+from sqlalchemy.orm import InstanceState, Mapped, Session, aliased, mapped_column
+from sqlalchemy.sql.elements import ColumnElement
 
 from .db import Base
 from .textnorm import (
@@ -174,7 +178,7 @@ def _multiword_place_pairs() -> frozenset:
         from .geo import PLACES
         from .textnorm import words
 
-        pairs = set()
+        pairs: set[str] = set()
         for key in PLACES:
             ws = words(key)
             pairs.update(f"{a} {b}" for a, b in pairwise(ws))
@@ -426,7 +430,7 @@ def index_people(session: Session, person_ids) -> int:
 
 # Bumped whenever this process re-indexes anyone: corpus-level caches (facet
 # counts) key on it, so a write made here is visible on the very next read.
-_generation: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
+_generation: weakref.WeakKeyDictionary[Any, int] = weakref.WeakKeyDictionary()
 
 
 def generation(session: Session) -> int:
@@ -456,8 +460,9 @@ def rebuild(session: Session, batch: int = 1000, progress=None) -> int:
         if inspect(bind).has_table("search_term") else set()
     if columns and "id" in columns:
         session.close()
-        SearchTerm.__table__.drop(bind)
-        SearchTerm.__table__.create(bind)
+        table = cast(Table, SearchTerm.__table__)
+        table.drop(bind)
+        table.create(bind)
     session.execute(delete(SearchTerm))
     session.execute(delete(SearchDoc))
     session.commit()
@@ -529,7 +534,8 @@ def _bind_key(session: Session):
 
 
 def _memo(session: Session) -> dict:
-    return session.info.setdefault(_MEMO, {})
+    memo: dict = session.info.setdefault(_MEMO, {})
+    return memo
 
 
 @event.listens_for(Session, "after_flush")
@@ -543,7 +549,7 @@ def _track_changes(session: Session, _ctx) -> None:
         elif isinstance(obj, (Evidence, Affiliation, Contribution, IdentityLink)):
             dirty.add(obj.person_id)
             # a row moved from one person to another (merge/split) changes both
-            hist = inspect(obj).attrs.person_id.history
+            hist = cast("InstanceState[Any]", inspect(obj)).attrs.person_id.history
             dirty.update(v for v in (hist.deleted or ()) if v)
     dirty.discard(None)
 
@@ -571,7 +577,7 @@ def _after_rollback(session: Session) -> None:
     session.info.pop(_MEMO, None)
 
 
-_tables_cache: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
+_tables_cache: weakref.WeakKeyDictionary[Any, bool] = weakref.WeakKeyDictionary()
 _ready_cache: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
 READY_TTL_SECONDS = 30.0
 
@@ -645,7 +651,8 @@ def exact_alt(fld: str, key: str | None) -> Alt | None:
     return Alt(fld, (key,)) if key else None
 
 
-_df_cache: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
+_df_cache: weakref.WeakKeyDictionary[Any, tuple[float, dict[tuple[str, str], int]]] = (
+    weakref.WeakKeyDictionary())
 DF_TTL_SECONDS = float(os.environ.get("RIP_VOCAB_TTL", "60"))
 
 
@@ -680,7 +687,7 @@ def corpus_size(session: Session) -> int:
     memo = _memo(session)
     if "N" not in memo:
         memo["N"] = session.execute(select(func.count()).select_from(SearchDoc)).scalar_one()
-    return memo["N"]
+    return cast(int, memo["N"])
 
 
 def _alt_estimate(alt: Alt, counts) -> int:
@@ -812,7 +819,7 @@ def count(session: Session, constraints: list[Constraint],
     key = ("count", tuple(c.key() for c in constraints), restrict.key() if restrict else None)
     memo = _memo(session)
     if key in memo:
-        return memo[key]
+        return cast(int, memo[key])
     counts, possible = _prepare(session, constraints, restrict)
     if not possible:
         n = 0
@@ -839,19 +846,20 @@ def candidates(
            restrict.key() if restrict else None)
     memo = _memo(session)
     if key in memo:
-        return memo[key]
+        return cast(list[str], memo[key])
     counts, possible = _prepare(session, constraints, restrict)
     if not possible:
         memo[key] = []
         return []
     stmt, _ = _match_stmt(constraints, counts, restrict)
     total = count(session, constraints, restrict)
+    ids: Sequence[str]
     if total <= pool:
         ids = sorted(session.execute(stmt).scalars().all())
     else:
         sub = stmt.subquery()
         pid = sub.c.person_id
-        order = func.coalesce(SearchDoc.prior, 0.0)
+        order: ColumnElement[float] = func.coalesce(SearchDoc.prior, 0.0)
         topical = [(a.field, a.terms[0]) for a in (score_alts or []) if len(a.terms) == 1]
         if topical:
             s = aliased(SearchTerm)
@@ -873,15 +881,15 @@ def candidates(
             .limit(pool)
         ).scalars().all()
     memo[key] = list(ids)
-    return memo[key]
+    return cast(list[str], memo[key])
 
 
-def any_match(session: Session, alt: Alt) -> bool:
+def any_match(session: Session, alt: Alt | None) -> bool:
     """Does anybody at all satisfy ALT?"""
     return bool(people_with(session, alt, limit=1))
 
 
-def people_with(session: Session, alt: Alt, limit: int = 20) -> list[str]:
+def people_with(session: Session, alt: Alt | None, limit: int = 20) -> list[str]:
     """Some person ids satisfying ALT (for existence checks that must also
     look at the matched record)."""
     if alt is None:

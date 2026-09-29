@@ -16,13 +16,16 @@ import re
 import shutil
 import weakref as _weakref
 from collections import OrderedDict
+from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from sqlalchemy import String as SAString
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
+from sqlalchemy.sql.elements import ColumnElement
 
 from .db import READ_ONLY, SessionLocal, init_db
 from .models import (
@@ -78,7 +81,7 @@ RATE_WINDOW = 60.0
 # costs them nothing and costs us nothing either, because a bucket that has
 # been idle longest is the one least likely to be mid-flood.
 RATE_MEMORY = 4096
-_buckets: "OrderedDict[str, list]" = OrderedDict()
+_buckets: "OrderedDict[str, list[float]]" = OrderedDict()
 
 
 def _over_rate_limit(address: str, now: float) -> float:
@@ -154,7 +157,9 @@ def _is_loopback(request) -> bool:
     hand the write endpoints to whoever asks.
     """
     client = getattr(request, "client", None)
-    return bool(client) and (client.host or "") in LOOPBACK
+    if not client:
+        return False
+    return (client.host or "") in LOOPBACK
 
 
 @app.middleware("http")
@@ -366,7 +371,8 @@ def list_persons(
                 constraints.append(si.Constraint(name, alts))
                 indexed.add(name)
         if country and country.strip():
-            constraints.append(si.Constraint("country", [si.exact_alt("c", country.strip().lower())]))
+            alt = si.exact_alt("c", country.strip().lower())
+            constraints.append(si.Constraint("country", [alt] if alt else []))
             indexed.add("country")
         if constraints:
             matched = si.match_select(db, constraints)
@@ -474,10 +480,11 @@ def list_persons(
         )
     ).scalar_one()
 
-    order = {
+    orders: dict[str, ColumnElement[Any]] = {
         "recent": Person.updated_at.desc(),
         "name": Person.canonical_name.asc(),
-    }.get(sort)
+    }
+    order = orders.get(sort)
     # `sort="relevance"` deliberately means "no fitness ranking" here — that
     # judgement belongs to /v1/query, not this endpoint — but paging still
     # has to be reproducible: without ANY order_by, which rows land on which
@@ -508,7 +515,7 @@ def list_persons(
         select(Person).where(Person.id.in_(ids))).scalars()} if ids else {}
     persons = [rows[i] for i in ids if i in rows]
 
-    response = {
+    response: dict[str, Any] = {
         "count": len(persons),
         "total_matches": total,
         "has_more": offset + len(persons) < total,
@@ -547,24 +554,26 @@ def list_persons(
         def _count(subset: dict) -> int | None:
             reset = _DIAGNOSING.set(True)
             try:
-                return list_persons(
+                total: int = list_persons(
                     **{**_ALL_FILTERS_NONE, **subset, "db": db}
                 )["total_matches"]
+                return total
             except Exception:
                 return None
             finally:
                 _DIAGNOSING.reset(reset)
 
-        alone, blockers = [], []
-        for name, value in active.items():
-            on_its_own = _count({name: value})
-            alone.append({"filter": name, "value": value, "matches": on_its_own})
+        alone: list[dict[str, Any]] = []
+        blockers: list[dict[str, Any]] = []
+        for filter_name, setting in active.items():
+            on_its_own = _count({filter_name: setting})
+            alone.append({"filter": filter_name, "value": setting, "matches": on_its_own})
             if on_its_own == 0:
                 continue
             if len(active) > 1:
-                without = _count({k: v for k, v in active.items() if k != name})
+                without = _count({k: v for k, v in active.items() if k != filter_name})
                 if without:
-                    blockers.append({"filter": name, "value": value, "without_it": without})
+                    blockers.append({"filter": filter_name, "value": setting, "without_it": without})
 
         dead = [a for a in alone if a["matches"] == 0]
         if dead:
@@ -644,6 +653,7 @@ _FACET_TTL = float(os.environ.get("RIP_VOCAB_TTL", "60"))
 
 
 def _facets_uncached(field: str, limit: int, db: Session) -> dict:
+    rows: Sequence[Any]
     if field == "country":
         # A menu entry is a promise about what picking it returns, so it has
         # to count the people the FILTER matches. Counting the stated country
@@ -735,10 +745,8 @@ def _facets_uncached(field: str, limit: int, db: Session) -> dict:
                 t = str(t).strip()
                 if t:
                     by_tech.setdefault(t, set()).add(pid)
-        values = sorted(
-            ({"value": t, "people": len(pids)} for t, pids in by_tech.items()),
-            key=lambda v: -v["people"],
-        )[:limit]
+        ranked = sorted(by_tech.items(), key=lambda kv: -len(kv[1]))[:limit]
+        values = [{"value": t, "people": len(pids)} for t, pids in ranked]
         return {"field": field, "values": values}
     else:
         raise HTTPException(422, "field must be country, source, organization, skill, role or technology")
@@ -753,6 +761,8 @@ def get_person(person_id: str, db: Session = Depends(get_db)):
     if person.merged_into:
         # tombstone: old IDs stay resolvable and point at the canonical person
         canonical = db.get(Person, person.merged_into)
+        if canonical is None:  # merged_into has no foreign key; a dangling one is not a 500
+            raise HTTPException(404, "person not found")
         out = _person_summary(canonical)
         out["requested_id"] = person_id
         return out
@@ -1265,7 +1275,8 @@ def review_duplicate_defer(candidate_id: int, payload: dict | None = None,
 
 @app.get("/v1/query")
 def nl_query(
-    request: Request = None,
+    # None only when a test calls the function directly; FastAPI injects it
+    request: Request = None,  # type: ignore[assignment]
     q: str = Query(..., min_length=2, description="natural-language query"),
     limit: int = Query(0, ge=0, le=500, description="override the page size (0 = query default)"),
     offset: int = Query(0, ge=0, description="skip this many matches (paging)"),
@@ -1925,7 +1936,8 @@ def person_dossier_pdf(person_id: str, db: Session = Depends(get_db)):
 
 @app.get("/v1/query/stream")
 def query_stream(
-    request: Request = None,
+    # None only when a test calls the function directly; FastAPI injects it
+    request: Request = None,  # type: ignore[assignment]
     q: str = Query(..., description="the question, in plain language"),
     limit: int = Query(50, ge=1, le=200),
     discover: str = Query(

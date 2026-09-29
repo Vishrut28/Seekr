@@ -262,7 +262,7 @@ def correct_spelling(value: str) -> tuple[str, str | None]:
     re-applies it. Nothing is lost either way -- the source record still
     holds the payload as it arrived, and the row records what was typed.
     """
-    def repair(match: re.Match) -> str:
+    def repair(match: re.Match[str]) -> str:
         word = match.group()
         fixed = MISSPELLINGS.get(word.casefold())
         if fixed is None:
@@ -488,16 +488,20 @@ def ingest_profile(session: Session, profile: NormalizedProfile) -> Person:
         select(IdentityLink).where(IdentityLink.source_record_id == record.id)
     ).scalar_one_or_none()
     if link is not None:
-        person = session.get(Person, link.person_id)
+        linked = session.get(Person, link.person_id)
+        if linked is None:  # the foreign key rules this out; say so if it happens
+            raise LookupError(f"identity link {link.id} points at missing person {link.person_id}")
+        person = linked
     else:
         # one blocked candidate enumeration shared by both passes
         candidates, org_map = _fuzzy_candidates(session, profile)
-        person, method, confidence, signals = resolve(session, profile, candidates, org_map)
-        if person is None:
+        resolved, method, confidence, signals = resolve(session, profile, candidates, org_map)
+        if resolved is None:
             near_misses = find_near_misses(session, profile, candidates, org_map)
-            person = Person()  # fields filled below so creation lands in the change feed
-            session.add(person)
+            resolved = Person()  # fields filled below so creation lands in the change feed
+            session.add(resolved)
             session.flush()
+        person = resolved
         session.add(
             IdentityLink(
                 person_id=person.id,

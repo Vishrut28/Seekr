@@ -14,6 +14,7 @@ import json
 import pathlib
 import sys
 from datetime import datetime, timedelta, timezone
+from typing import TYPE_CHECKING, Any, cast
 
 from sqlalchemy import select
 
@@ -22,6 +23,9 @@ from .connectors.openalex import OpenAlexConnector
 from .db import SessionLocal, init_db
 from .ingest import run_connector
 from .models import SourceRecord
+
+if TYPE_CHECKING:
+    from sqlalchemy.engine import CursorResult
 
 
 def warn_missing_tokens(enriching: bool = True) -> None:
@@ -63,6 +67,9 @@ def cmd_ingest(args) -> None:
         person = run_connector(
             session, connector, args.identifier, enrich_chain=not args.no_enrich
         )
+        if person is None:  # only a keep= filter skips, and none is passed here
+            print("skipped: nothing ingested")
+            return
         print(f"ingested -> person {person.id} ({person.canonical_name})")
 
 
@@ -149,7 +156,7 @@ def cmd_refresh(args) -> None:
             stmt = stmt.where(SourceRecord.id % total == index)
         stale = session.execute(stmt).scalars().all()
         print(f"{len(stale)} stale source records")
-        connectors = {}
+        connectors: dict[str, Any] = {}
         failures = 0
         for record in stale:
             connectors.setdefault(record.source, get_connector(record.source))
@@ -270,7 +277,7 @@ def cmd_reparse(args) -> None:
         if args.source:
             stmt = stmt.where(SourceRecord.source == args.source)
         records = session.execute(stmt).scalars().all()
-        connectors = {}
+        connectors: dict[str, Any] = {}
         ok = skipped = failed = 0
         for record in records:
             connectors.setdefault(record.source, get_connector(record.source))
@@ -387,7 +394,8 @@ def cmd_find_homepages(args) -> None:
                 .join(Affiliation, Affiliation.organization_id == Organization.id)
                 .where(Affiliation.person_id == person.id).limit(1)
             ).scalar()
-            candidates = find_homepage(person.canonical_name, org, limit=args.candidates)
+            # the query above excludes people with no name
+            candidates = find_homepage(cast(str, person.canonical_name), org, limit=args.candidates)
             if not candidates:
                 continue
             found += 1
@@ -520,6 +528,8 @@ def cmd_purge_nonpersons(args) -> None:
 
     for pid, old, new, aliases in renames:
         person = session.get(M.Person, pid)
+        if person is None:  # gone since the plan was printed
+            continue
         person.canonical_name = new
         # "Rahul M Mulajkar,Rahul Mukundrao Mulajkar,RMM" keeps its other
         # spellings as aliases, as the same name does at ingest
@@ -543,14 +553,15 @@ def cmd_purge_nonpersons(args) -> None:
 
         model = getattr(M, name, None) or getattr(SI, name, None)
         col = getattr(model, "person_id", None) if model else None
-        if col is None:
+        if model is None or col is None:
             continue
-        n = session.execute(delete(model).where(col.in_(ids))).rowcount
+        n = cast("CursorResult[Any]", session.execute(delete(model).where(col.in_(ids)))).rowcount
         if n:
             print(f"  {model.__tablename__}: {n}")
     # the other side of a proposed duplicate pair points at them too
     session.execute(delete(M.MergeCandidate).where(M.MergeCandidate.candidate_person_id.in_(ids)))
-    print(f"  person: {session.execute(delete(M.Person).where(M.Person.id.in_(ids))).rowcount}")
+    gone = cast("CursorResult[Any]", session.execute(delete(M.Person).where(M.Person.id.in_(ids))))
+    print(f"  person: {gone.rowcount}")
     session.commit()
 
 
@@ -633,7 +644,8 @@ def cmd_dedupe(args) -> None:
             .join(IdentityLink, IdentityLink.source_record_id == SourceRecord.id)
             .where(IdentityLink.person_id == pid)
         ).all()
-        return f"{person.canonical_name} [{', '.join(f'{s}:{e}' for s, e in sources)}]"
+        name = person.canonical_name if person is not None else pid
+        return f"{name} [{', '.join(f'{s}:{e}' for s, e in sources)}]"
 
     planned = dedupe.plan(session)
     print(f"examined {planned.groups_examined} names held by more than one record")

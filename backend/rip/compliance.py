@@ -18,6 +18,7 @@ and society" — a topic, not a family.
 from __future__ import annotations
 
 import re
+from typing import overload
 
 # Asking for people BY a protected attribute. Stored text is screened above;
 # a query needs the same rule: "women in robotics" became a filter on the
@@ -159,6 +160,10 @@ def scan(text: str | None) -> list[dict]:
     return out
 
 
+@overload
+def redact(text: str) -> tuple[str, list[str]]: ...
+@overload
+def redact(text: None) -> tuple[None, list[str]]: ...
 def redact(text: str | None) -> tuple[str | None, list[str]]:
     """Replace protected spans, keeping the rest of the text usable.
 

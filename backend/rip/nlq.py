@@ -16,6 +16,7 @@ import re
 import weakref
 from dataclasses import dataclass, field
 from functools import lru_cache
+from typing import Any, TypeGuard
 
 from rapidfuzz import fuzz
 from sqlalchemy import and_, case, desc, func, literal, or_, select
@@ -222,8 +223,8 @@ for _k, _v in geo.DEMONYMS.items():
     DEMONYMS.setdefault(_k, _v)
 for _k, _v in geo.PLACES.items():
     PLACES.setdefault(_k, _v)
-for _k, _v in geo.PLACE_SYNONYMS.items():
-    PLACE_SYNONYMS.setdefault(_k, _v)
+for _k, _spellings in geo.PLACE_SYNONYMS.items():
+    PLACE_SYNONYMS.setdefault(_k, _spellings)
 
 # A word occurring in more than this share of vocabulary values is too generic
 # to match on: "systems" appears in 147 topics, "robotics" in 7.
@@ -618,7 +619,7 @@ def _token_frequency(skills: dict) -> dict:
     return df
 
 
-def _is_generic(term: str, df: dict, vocab_size: int) -> bool:
+def _is_generic(term: str, df: dict[str, int], vocab_size: int) -> bool:
     """Would matching this term sweep in unrelated topics?"""
     words = term.split()
     if len(words) > 1:
@@ -670,7 +671,9 @@ VOCAB_MIN_INTERVAL = float(os.environ.get("RIP_VOCAB_MIN_INTERVAL", "5"))
 # process can legitimately talk to more than one database (the test suite
 # builds a fresh in-memory engine per test), and a shared entry would hand
 # one database's vocabulary to another.
-_vocab_cache: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary()
+# {bind: (stamp, (skills, orgs, locations), aux, fingerprint, census)}
+_vocab_cache: "weakref.WeakKeyDictionary[Any, tuple[float, tuple[dict, dict, dict], VocabAux, Any, Any]]" = (
+    weakref.WeakKeyDictionary())
 
 
 @dataclass
@@ -770,12 +773,14 @@ def _contained(phrase: str, skills: dict, aux: VocabAux) -> list[str]:
     pieces = stems(phrase)
     if not pieces:
         return []
-    candidates = None
+    candidates: set[str] | None = None
     for piece in pieces:
         keys = aux.word_index.get(piece, set())
         candidates = keys if candidates is None else candidates & keys
         if not candidates:
             return []
+    if candidates is None:
+        return []
     if is_unspaced(phrase):
         # no word boundaries to respect in a script without spaces
         hits = [k for k in candidates if phrase in k]
@@ -1003,14 +1008,14 @@ def _rescue_phrase(parts: list[str], skills: dict, aux: VocabAux, df: dict, voca
             return values, expanded, "abbreviation"
 
     if len(content) >= 2:
-        keys = None
+        shared: set[str] | None = None
         for piece in {singular(w) for w in content}:
             found = aux.word_index.get(piece, set())
-            keys = found if keys is None else keys & found
-            if not keys:
+            shared = found if shared is None else shared & found
+            if not shared:
                 break
-        if keys:
-            ordered = sorted(keys, key=lambda k: aux.ordinal.get(k, 0))
+        if shared:
+            ordered = sorted(shared, key=lambda k: aux.ordinal.get(k, 0))
             if len(ordered) <= 12:
                 return [skills[k] for k in ordered], " + ".join(content), "all words"
 
@@ -1576,7 +1581,9 @@ def parse(session: Session, query: str | None, _nested: bool = False) -> NLQuery
         if i in consumed or fold(token) in NOISE_WORDS or len(token) < 4:
             continue
         t = fold(token)
-        best_kind, best_value, best_score = None, None, 0.0
+        best_kind: str | None = None
+        best_value: Any = None
+        best_score = 0.0
         for kind, blocks in (("skill", skill_blocks), ("org", org_blocks), ("location", loc_blocks)):
             candidates = blocks.get(t[:2], ())
             hit = max(candidates, key=lambda kv: _typo_score(t, kv[0]), default=None)
@@ -1863,7 +1870,7 @@ def _nearest_name_beside(session: Session, tokens: list[str], i: int, token: str
         if not ids:
             continue
         near_neighbour = fold(neighbour)
-        candidates = set()
+        candidates: set[str] = set()
         for name in session.execute(
             select(Person.canonical_name).where(Person.id.in_(ids))
         ).scalars():
@@ -2196,7 +2203,8 @@ def _constraints(parsed: NLQuery) -> list:
         alts = [si.exact_alt("o", org_key(o)) for o in names]
         out.append(si.Constraint(f"org:{i}", [a for a in alts if a]))
     if parsed.countries:
-        out.append(si.Constraint("country", [si.exact_alt("c", c.lower()) for c in parsed.countries]))
+        alts = [si.exact_alt("c", c.lower()) for c in parsed.countries]
+        out.append(si.Constraint("country", [a for a in alts if a]))
     if parsed.locations:
         alts = [si.phrase_alt("p", needle)
                 for loc in parsed.locations for needle in location_needles(loc)]
@@ -2357,7 +2365,7 @@ def _recency_score(now, when, half_life_days: float) -> float | None:
     if when is None:
         return None
     age_days = max(0.0, (now - when).total_seconds() / 86400.0)
-    return 0.5 ** (age_days / half_life_days)
+    return float(0.5 ** (age_days / half_life_days))
 
 
 # A bio saying "I work on machine learning" is real evidence, but it is a
@@ -2533,7 +2541,8 @@ def _concept_weights(session: Session, parsed: NLQuery) -> list[float] | None:
     return weights
 
 
-def _depth_component(per_group: list[float] | None, total: float, weights) -> float:
+def _depth_component(per_group: list[float] | None, total: float,
+                     weights: list[float] | None) -> float:
     """Depth for the whole query.
 
     One concept: the log-scaled evidence behind it, exactly as before.
@@ -2765,7 +2774,8 @@ FIELD_FACTOR_DAMPING = 0.5
 # Pseudo-people at the global median added to every field's sample, so a field
 # with three researchers in the graph does not set its own norm.
 FIELD_BASELINE_PRIOR = 10
-_field_baseline_cache: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary()
+_field_baseline_cache: "weakref.WeakKeyDictionary[Any, tuple[float, tuple[dict[str, float], float]]]" = (
+    weakref.WeakKeyDictionary())
 
 
 def _field_citation_factors(session: Session, ids: list[str]) -> dict[str, float]:
@@ -2824,11 +2834,11 @@ def _field_baselines(session: Session) -> tuple[dict[str, float], float]:
     cached = _field_baseline_cache.get(key)
     if cached is not None and (time.monotonic() - cached[0]) < VOCAB_TTL_SECONDS:
         return cached[1]
-    totals = dict(session.execute(
+    totals: dict[str, int] = dict(session.execute(
         select(Authorship.person_id, func.sum(func.coalesce(Publication.citations, 0)))
         .join(Publication, Publication.id == Authorship.publication_id)
         .group_by(Authorship.person_id)
-    ).all())
+    ).tuples().all())
     result: tuple[dict, float] = ({}, 0.0)
     if totals:
         primary = _primary_fields(session, list(totals))
@@ -3101,12 +3111,12 @@ def relevance_scores(
 
 def _fill_clause_order(tokens: list[str], result: NLQuery) -> None:
     """Record constraints left-to-right as the user typed them."""
-    order = []
+    order: list[dict[str, Any]] = []
     used: set[tuple] = set()
     i = 0
     low = [t.lower() for t in tokens]
     while i < len(low):
-        hit = None
+        hit: dict[str, Any] | None = None
         width = 1
         for n in range(min(3, len(low) - i), 0, -1):
             gram = " ".join(low[i : i + n])
@@ -3334,7 +3344,8 @@ def execute_progressive(session: Session, parsed: NLQuery) -> tuple[list, NLQuer
         half = _half_a_name(parsed)
         if half:
             for person in rows:
-                person.partial_match = {"missing": half}
+                # a transient flag on the instance, read back by api.py
+                person.partial_match = {"missing": half}  # type: ignore[attr-defined]
         if not clauses or len(clauses) < 2 and rows:
             return rows, parsed, []
         wanted = parsed.limit
@@ -3361,11 +3372,11 @@ def execute_progressive(session: Session, parsed: NLQuery) -> tuple[list, NLQuer
                 trial.limit = wanted - len(rows) + len(have)
                 extra = [p for p in execute(session, trial) if p.id not in have]
                 for person in extra:
-                    person.partial_match = {"missing": missing}
+                    person.partial_match = {"missing": missing}  # type: ignore[attr-defined]
                 return rows + extra[: wanted - len(rows)], parsed, []
             relaxed = execute(session, trial)
             for person in relaxed:
-                person.partial_match = {"missing": missing}
+                person.partial_match = {"missing": missing}  # type: ignore[attr-defined]
             return relaxed, trial, missing
         if rows:
             return rows, parsed, []
@@ -3431,13 +3442,13 @@ def execute(session: Session, parsed: NLQuery) -> list[Person]:
         .correlate(Person)
         .scalar_subquery()
     )
-    ids = session.execute(
+    pool = session.execute(
         stmt.with_only_columns(Person.id)
         .group_by(Person.id)
         .order_by(desc(evidence_richness), Person.id)
         .limit(pool_size)
     ).scalars().all()
-    return _rank_and_page(session, parsed, list(ids))
+    return _rank_and_page(session, parsed, list(pool))
 
 
 def _rank_and_page(session: Session, parsed: NLQuery, ids: list[str]) -> list[Person]:
@@ -3461,7 +3472,8 @@ def _rank_and_page(session: Session, parsed: NLQuery, ids: list[str]) -> list[Pe
         person = rows.get(pid)
         if person is None:
             continue
-        person.relevance = scored.get(pid, {"score": 0.0, "components": {}})
+        # transient, like partial_match: the score behind this page position
+        person.relevance = scored.get(pid, {"score": 0.0, "components": {}})  # type: ignore[attr-defined]
         out.append(person)
     return out
 
@@ -3486,7 +3498,7 @@ NOT_A_PERSON = re.compile(
 )
 
 
-def _looks_like_a_person(name: str | None) -> bool:
+def _looks_like_a_person(name: str | None) -> TypeGuard[str]:
     """Filter index entities out of author search results."""
     if not name or len(name) > 60:
         return False
