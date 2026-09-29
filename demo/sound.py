@@ -48,7 +48,7 @@ def struck(freq: float, seconds: float, decay: float = 3.2,
     """
     n = int(SR * seconds)
     out = [0.0] * n
-    for p, wgt in zip(partials, weights):
+    for p, wgt in zip(partials, weights, strict=True):
         w = 2 * math.pi * freq * p
         d = decay * (1 + 0.55 * (p - 1))          # higher partials die sooner
         for i in range(n):
@@ -161,7 +161,7 @@ if __name__ == "__main__":
     seconds = min(c["length"], 60.0)
     air = bed(seconds + 1.0)
     harmony = progression(seconds + 1.0)
-    mixed = [a * 0.55 + h for a, h in zip(air, harmony)]
+    mixed = [a * 0.55 + h for a, h in zip(air, harmony, strict=True)]
     fade = int(SR * 3.0)
     for i in range(min(fade, len(mixed))):
         mixed[i] *= i / fade

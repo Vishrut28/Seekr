@@ -64,6 +64,9 @@ ignore = [
 # function on purpose to keep module import time honest.
 "backend/tests/*" = ["E402", "B011"]
 "backend/scripts/*" = ["E402"]
+# The film drives the browser with JavaScript written inline, braces and all;
+# % formatting leaves those braces alone, where an f-string would double every one.
+"demo/*" = ["UP031"]
 
 [tool.mypy]
 python_version = "3.10"

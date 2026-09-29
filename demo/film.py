@@ -47,7 +47,7 @@ def main():
         with urllib.request.urlopen(UI, timeout=10) as r:
             assert r.status == 200
     except Exception as exc:
-        raise SystemExit(f"the app is not answering at {UI}: {exc}")
+        raise SystemExit(f"the app is not answering at {UI}: {exc}") from exc
 
     shutil.rmtree(OUT, ignore_errors=True)
     OUT.mkdir(parents=True)
