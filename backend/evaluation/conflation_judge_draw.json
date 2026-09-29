@@ -1706,5 +1706,39 @@
     "1 intruder shares a subfield with the career"
    ]
   }
+ },
+ "round3": {
+  "_comment": [
+   "Fixed 2026-09-29, before any record at these positions was opened and before",
+   "any design work on the question.",
+   "QUESTION: can the detector see people whose papers carry no topic in",
+   "OpenAlex's taxonomy (27% of people with six or more papers)? Candidate: infer",
+   "a paper's OpenAlex field from its title, using the corpus's own OpenAlex-placed",
+   "papers as training data, and apply the existing foreign-work rule to the",
+   "inferred subjects of records that have no placed topic at all.",
+   "PROTOCOL:",
+   "1. Design uses conflation_labels.json and rounds 1 and 2 only. The candidate",
+   "   is frozen in a commit before any round-3 record is opened.",
+   "2. Label ALL remaining positions, 240-366 (127 records, 36 of them with no",
+   "   placed topic), blind, exactly as rounds 1 and 2. There is nothing left to",
+   "   extend with, so no stopping rule.",
+   "3. Commit the labels. Then score the current default and the candidate once",
+   "   each on one snapshot.",
+   "4. ADOPT only if, on these labels: (a) the candidate finds at least one more",
+   "   conflated record than the current default; (b) of the records only the",
+   "   candidate flags, at least 30% are conflated; (c) at least 30% of all it",
+   "   flags here are conflated; (d) it flags no more than 20% of living people",
+   "   with six or more papers.",
+   "5. Anything changed after step 3 is marked tuned. With perhaps five to eight",
+   "   conflations among the 36 blind records, this can reject a bad signal but",
+   "   can only weakly confirm a good one; the report must say so."
+  ],
+  "fixed_at": "2026-09-29",
+  "positions": [
+   240,
+   366
+  ],
+  "blind_records": 36,
+  "labels": {}
  }
 }
