@@ -196,6 +196,7 @@ def main() -> None:
             })
         judged_design = judge_draw_rows(session, conflation, "round1")
         judged = judge_draw_rows(session, conflation, "round2")
+        judged3 = judge_draw_rows(session, conflation, "round3")
 
     positives = len(raw["conflated"])
     print(f"labelled {positives} conflated, {len(raw['one_person'])} one_person, "
@@ -272,7 +273,9 @@ def main() -> None:
 
     report_judge_draw(judged_design, "JUDGING DRAW, round 1 -- it chose today's threshold, "
                       "so this shows the fit")
-    report_judge_draw(judged)
+    report_judge_draw(judged, "JUDGING DRAW, round 2 -- unopened when the threshold was judged")
+    report_judge_draw(judged3, "JUDGING DRAW, round 3 -- unopened, a second independent reading")
+    report_judge_draw(judged + judged3, "JUDGING DRAW, rounds 2 and 3 together -- the figure to quote")
 
     if not (can_measure or can_recall):
         # Nothing was measured, so exiting 0 would let a caller read the run as

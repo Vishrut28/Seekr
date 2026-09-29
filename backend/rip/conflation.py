@@ -48,14 +48,27 @@ then (17 conflated): at the old threshold of 2 this found 8 of 17 (47%) with
 67% of its flags right -- a second, independent reading of the same design.
 At the threshold of 1 now in force it finds 10 of 17 (59%), 53% of its
 flags right (counting the one unsure record it flags as wrong), queuing 17%
-of people with six or more papers. That is the
-figure to quote; round 1 chose the threshold and can no longer judge it.
+of people with six or more papers. Round 1 chose the threshold and can no
+longer judge it.
+
+ROUND 3, 2026-09-29, the last 127 records of the order (19 conflated), a
+third unopened reading: 11 of 19 found (58%), 11 of its 18 flags right.
+Rounds 2 and 3 together are the figure to quote: 21 of 36 conflations
+found (58%), 21 of 37 flags right (57%) counting the three unsure records it
+flags as wrong -- 62% leaving them out, which is what the harness prints.
 
 What it still misses, and why, so nobody rediscovers it:
   a record with NO topic in OpenAlex's taxonomy -- people known only from
   Semantic Scholar, Europe PMC or ORCID. Foreign work compares subjects, so
   it is blind there: 5 of round 2's 7 misses, and 27% of people with six or
-  more papers. Only the temporal break can see them.
+  more papers. Only the temporal break can see them. TRIED 2026-09-29 and
+  not kept: placing each title in an OpenAlex domain with a naive Bayes model
+  trained on the corpus's placed papers, and reporting records whose titles
+  sit steadily in three domains. It met its bar on the labels it was designed
+  on and, judged on round 3, found none of the blind conflations there while
+  flagging one person. Those records are small, or one career plus a stray
+  paper, and their titles never fill three domains; looser rules had
+  already failed on the design labels. See round3 in the draw file.
   a broad career already touches the intruder's subfield (a Monte Carlo
   statistician's control-engineering work covers a power-systems paper).
   a spurious link pulls the intruder into the career group.

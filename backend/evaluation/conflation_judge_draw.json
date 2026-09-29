@@ -1734,7 +1734,9 @@
    "   can only weakly confirm a good one; the report must say so.",
    "",
    "LABELLED 2026-09-29, positions 240-366, blind, before any score: 19 conflated,",
-   "105 one_person, 3 unsure."
+   "105 one_person, 3 unsure.",
+   "",
+   "JUDGED 2026-09-29, once: failed criteria (a) and (b); SPREAD reverted. See `judged`."
   ],
   "fixed_at": "2026-09-29",
   "positions": [
@@ -2379,6 +2381,34 @@
     "note": "Vishrut Jain - vehicle platooning and motion cueing, Delft."
    }
   },
-  "labelled_at": "2026-09-29"
+  "labelled_at": "2026-09-29",
+  "judged": {
+   "judged_at": "2026-09-29",
+   "current_default": {
+    "flagged_here": 18,
+    "conflated": 11,
+    "one_person": 5,
+    "unsure": 2,
+    "of": 19,
+    "corpus_flag_rate": "77/461"
+   },
+   "with_spread": {
+    "flagged_here": 19,
+    "conflated": 11,
+    "one_person": 6,
+    "unsure": 2,
+    "of": 19,
+    "corpus_flag_rate": "89/461"
+   },
+   "criteria": {
+    "a": "11 = 11, no additional conflated record found: FAILED",
+    "b": "the one record only SPREAD flags is one_person (0%): FAILED",
+    "c": "11 of 19 = 58%, met",
+    "d": "19%, met"
+   },
+   "decision": "not adopted; SPREAD reverted (af87a82)",
+   "diagnosis": "of the 7 blind conflations here, none has titles in three domains with two papers each: they are small records or one career plus a stray paper (S. Aman 1/3/1/4 across domains, A. Aman 3/1/2).",
+   "bonus": "round 3 is a third unopened reading of the current default: 11 of 19 (58%); with round 2, 21 of 36 (58%) found and 21 of 37 flags right (57%)."
+  }
  }
 }
