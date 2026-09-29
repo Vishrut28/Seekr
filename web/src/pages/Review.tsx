@@ -298,17 +298,6 @@ export function Review() {
                   work and a hole in time are usually SINGLE papers, which the
                   groups below never print — so without these the queue looks
                   broken. */}
-              {/* No OpenAlex topic at all, so no foreign work to show: the
-                  titles are placed by domain instead, and one career rarely
-                  publishes steadily in three or four of them. Judged as a
-                  reading aid, not a verdict -- the groups below still hold
-                  the split buttons. */}
-              {(c.spread || []).map((d) => (
-                <div className="idline" key={`s${d.domain}`}>
-                  <b>{d.domain}</b> · {d.papers} papers by title
-                  {d.titles.length ? ` · ${d.titles.slice(0, 2).join(" · ")}` : ""}
-                </div>
-              ))}
               {(c.foreign || []).slice(0, 4).map((p) => (
                 <div className="idline" key={`f${p.publication_id}`}>
                   {p.year ?? "undated"} · another {p.distance}

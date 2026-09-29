@@ -298,9 +298,6 @@ export interface Conflation {
   papers: number;
   foreign_score?: number;
   foreign?: ForeignPaper[];
-  /** records with no OpenAlex topic: the domains their titles fall into,
-   *  largest first -- present when "spread" is among the reasons. */
-  spread?: { domain: string; papers: number; titles: string[] }[];
   /** size of the hole in time, 0 if there is none. A record can be queued on
    *  this alone, with a score of 0.00 — an intruder paper is a singleton, and
    *  the score is the second-LARGEST group over the largest. */

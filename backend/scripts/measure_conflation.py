@@ -167,7 +167,6 @@ def main() -> None:
         verdicts = {row.person_id: row.verdict
                     for row in session.execute(select(ConflationReview)).scalars()}
         hierarchy = conflation.topic_hierarchy(session)
-        model = conflation.title_domains(session, hierarchy)
         for short, label in wanted.items():
             person = session.execute(
                 select(Person).where(Person.id.like(short + "%"))
@@ -183,7 +182,7 @@ def main() -> None:
             if state == "disputed":
                 disputed.append(f"{short} {note}")
             split = conflation.split_of(session, person.id, person.canonical_name,
-                                        hierarchy=hierarchy, model=model)
+                                        hierarchy=hierarchy)
             big = [g for g in split.groups if len(g) >= conflation.MIN_GROUP]
             rows.append({
                 "short": short, "label": label,
