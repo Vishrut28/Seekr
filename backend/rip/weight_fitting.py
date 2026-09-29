@@ -53,8 +53,8 @@ def fit_logistic_regression(
     w = [0.0] * k
     for _ in range(iterations):
         grad = [0.0] * k
-        for xi, yi in zip(X, y):
-            pred = sigmoid(sum(wj * xij for wj, xij in zip(w, xi)))
+        for xi, yi in zip(X, y, strict=True):
+            pred = sigmoid(sum(wj * xij for wj, xij in zip(w, xi, strict=True)))
             err = pred - yi
             for j in range(k):
                 grad[j] += err * xi[j]
@@ -78,8 +78,8 @@ def coefficients_to_weights(names: list, coefs: list) -> tuple:
     Returns ({component: suggested_weight}, [components with a negative
     coefficient]).
     """
-    negative = [n for n, c in zip(names, coefs) if c < 0]
-    positive = {n: max(0.0, c) for n, c in zip(names, coefs)}
+    negative = [n for n, c in zip(names, coefs, strict=True) if c < 0]
+    positive = {n: max(0.0, c) for n, c in zip(names, coefs, strict=True)}
     total = sum(positive.values())
     if total <= 0:
         return dict.fromkeys(names, 0.0), negative

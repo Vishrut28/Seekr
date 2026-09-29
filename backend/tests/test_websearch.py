@@ -36,9 +36,9 @@ def test_backend_failure_falls_through(monkeypatch):
     monkeypatch.setenv("TAVILY_API_KEY", "x")
     monkeypatch.setenv("SERPAPI_API_KEY", "y")
     monkeypatch.setattr(websearch, "_tavily",
-                        lambda q, l: (_ for _ in ()).throw(RuntimeError("down")))
+                        lambda q, limit: (_ for _ in ()).throw(RuntimeError("down")))
     monkeypatch.setattr(websearch, "_serpapi",
-                        lambda q, l: [{"url": "https://ok.example", "title": "t",
+                        lambda q, limit: [{"url": "https://ok.example", "title": "t",
                                        "snippet": "", "backend": "serpapi"}])
     monkeypatch.setattr(websearch, "BACKENDS",
                         (("tavily", websearch._tavily), ("serpapi", websearch._serpapi)))

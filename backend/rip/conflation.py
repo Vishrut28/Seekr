@@ -167,6 +167,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass, field
+from itertools import pairwise
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -310,7 +311,7 @@ class Split:
             if nearest >= LONELY_PAPER_YEARS:
                 worst = max(worst, nearest)
         ordered = sorted(years)
-        widest = max(b - a for a, b in zip(ordered, ordered[1:]))
+        widest = max(b - a for a, b in pairwise(ordered))
         if widest >= SPLIT_CAREER_YEARS:
             worst = max(worst, widest)
         return worst
@@ -662,7 +663,7 @@ def break_evidence(session: Session, split: Split) -> dict:
     split_at = None
     ordered = sorted(years)
     if len(ordered) >= 2:
-        before, after = max(zip(ordered, ordered[1:]), key=lambda ab: ab[1] - ab[0])
+        before, after = max(pairwise(ordered), key=lambda ab: ab[1] - ab[0])
         if after - before >= SPLIT_CAREER_YEARS:
             split_at = {"before": before, "after": after, "gap": after - before}
 

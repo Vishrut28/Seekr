@@ -134,7 +134,8 @@ def main() -> None:
 
     from rip import conflation
 
-    raw = json.load(open(LABELS, encoding="utf-8"))
+    with open(LABELS, encoding="utf-8") as fh:
+        raw = json.load(fh)
     arms = raw.get("arms", {})
     # No date means every repair looks later than the labelling, which is the
     # safe direction: it under-counts positives rather than scoring a record

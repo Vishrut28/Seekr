@@ -23,6 +23,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from functools import lru_cache
+from itertools import pairwise
 
 # letters NFKD does not decompose into base + accent
 _EXTRA = str.maketrans({
@@ -169,13 +170,13 @@ def stem_text_terms(text: str | None) -> set[str]:
 def _phrase(ws: list[str]) -> list[str]:
     if len(ws) <= 1:
         return [w for w in ws if len(w) <= MAX_TERM_LEN]
-    pairs = [f"{a} {b}" for a, b in zip(ws, ws[1:])]
+    pairs = [f"{a} {b}" for a, b in pairwise(ws)]
     return [p for p in dict.fromkeys(pairs) if len(p) <= MAX_TERM_LEN]
 
 
 def _terms(ws: list[str]) -> set[str]:
     terms = {w for w in ws if len(w) <= MAX_TERM_LEN}
-    terms.update(f"{a} {b}" for a, b in zip(ws, ws[1:]) if len(a) + len(b) < MAX_TERM_LEN)
+    terms.update(f"{a} {b}" for a, b in pairwise(ws) if len(a) + len(b) < MAX_TERM_LEN)
     return terms
 
 

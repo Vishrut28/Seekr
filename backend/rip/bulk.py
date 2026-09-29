@@ -126,7 +126,8 @@ def bulk_ingest(
                     session.rollback()
                     result.failed += 1
                     if failures is None:
-                        failures = open(failures_path, "w", encoding="utf-8")
+                        # opened only on the first failure; closed in the finally below
+                        failures = open(failures_path, "w", encoding="utf-8")  # noqa: SIM115
                     failures.write(
                         json.dumps({"line": line_no, "error": f"{type(exc).__name__}: {exc}",
                                     "raw": line[:2000]}) + "\n"

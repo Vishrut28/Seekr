@@ -50,8 +50,8 @@ def test_technology_facet_counts_distinct_people_not_raw_projects(session):
     """Two DIFFERENT people each with a project using "Rust" must count as
     2 — not 2 projects counted separately, and not double-counted if the
     same person contributes to more than one Rust project."""
-    p1 = _person_with_project(session, name="Person One", external_id="p1",
-                              technologies=["Rust"])
+    _person_with_project(session, name="Person One", external_id="p1",
+                         technologies=["Rust"])
     _person_with_project(session, name="Person Two", external_id="p2",
                          technologies=["Rust"])
 
@@ -90,12 +90,12 @@ def test_technology_facet_matches_the_actual_person_filter(session):
     result = facets(field="technology", limit=10, db=session)
     assert any(v["value"] == "Kubernetes" for v in result["values"])
 
-    base = dict(q=None, skill=None, organization=None, current_organization=None,
-                education=None, role=None, country=None, location=None, source=None,
-                technology="Kubernetes", min_publications=None, min_citations=None,
-                min_sources=None, active_since=None, updated_since=None,
-                has_cv=None, has_email=None, sort="relevance", limit=10, offset=0,
-                db=session)
+    base = {"q": None, "skill": None, "organization": None, "current_organization": None,
+                "education": None, "role": None, "country": None, "location": None, "source": None,
+                "technology": "Kubernetes", "min_publications": None, "min_citations": None,
+                "min_sources": None, "active_since": None, "updated_since": None,
+                "has_cv": None, "has_email": None, "sort": "relevance", "limit": 10, "offset": 0,
+                "db": session}
     found = list_persons(**base)
     assert found["total_matches"] == 1
     assert found["results"][0]["canonical_name"] == "Filter Match Person"

@@ -236,11 +236,11 @@ def test_faceted_filters_on_the_index_match_the_sql_filters(session, monkeypatch
                                    organizations=[OrgAffiliation(name="Globex", role="Data Engineer",
                                                                  is_current=True)],
                                    evidence=[EvidenceItem(attribute_type="skill", value="Go")]))
-    cases = [dict(skill="distributed"), dict(skill="go"), dict(skill="systems distributed"),
-             dict(organization="acme"), dict(education="iit"), dict(education="acme"),
-             dict(current_organization="globex"), dict(role="engineer"), dict(role="principal engineer"),
-             dict(location="berlin"), dict(technology="rust"), dict(q="rao"), dict(country="CA"),
-             dict(skill="go", location="toronto", role="data engineer"), dict(skill="co*")]
+    cases = [{"skill": "distributed"}, {"skill": "go"}, {"skill": "systems distributed"},
+             {"organization": "acme"}, {"education": "iit"}, {"education": "acme"},
+             {"current_organization": "globex"}, {"role": "engineer"}, {"role": "principal engineer"},
+             {"location": "berlin"}, {"technology": "rust"}, {"q": "rao"}, {"country": "CA"},
+             {"skill": "go", "location": "toronto", "role": "data engineer"}, {"skill": "co*"}]
 
     def run():
         return [

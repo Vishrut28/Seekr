@@ -252,10 +252,11 @@ def from_env_file() -> str | None:
     path = os.path.join(os.path.dirname(__file__), "..", "..", ".env")
     if not os.path.exists(path):
         return None
-    for raw in open(path, encoding="utf-8"):
-        line = raw.strip()
-        if line.startswith("RIP_TEST_POSTGRES_URL="):
-            return line.split("=", 1)[1].strip().strip("\"'") or None
+    with open(path, encoding="utf-8") as fh:
+        for raw in fh:
+            line = raw.strip()
+            if line.startswith("RIP_TEST_POSTGRES_URL="):
+                return line.split("=", 1)[1].strip().strip("\"'") or None
     return None
 
 

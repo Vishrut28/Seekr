@@ -35,7 +35,7 @@ def test_the_queue_names_who_each_side_is_now(session):
     a = person(session, "a", "Ann Example")
     b = person(session, "b", "Ann Example")
     c = person(session, "c", "Ann Example")
-    mc = queue(session, a, b)
+    queue(session, a, b)
     # b is folded into c after the pair was queued
     merge_persons(session, c.id, b.id)
     session.commit()

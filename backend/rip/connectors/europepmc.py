@@ -206,7 +206,7 @@ class EuropePmcConnector(BaseConnector):
         ]
 
         publications = []
-        for article, author in mine:
+        for article, _author in mine:
             title = (article.get("title") or "").strip().rstrip(".")
             if not title:
                 continue

@@ -8,6 +8,7 @@ cannot be opened on a read-only filesystem, because SQLite must create the
 Usage: python scripts/build_snapshot.py [source.db] [dest.db]
 """
 
+import contextlib
 import os
 import shutil
 import sqlite3
@@ -38,10 +39,9 @@ def main() -> None:
         # (the blocking index alone is ~20 rows per person). Vercel rejects any
         # file over 100 MB, so shipping them would cap the corpus at ~8k people.
         for table in ("person_name_token", "discovery_lead"):
-            try:
+            # the table is not present in older snapshots
+            with contextlib.suppress(sqlite3.OperationalError):
                 con.execute(f"DELETE FROM {table}")
-            except sqlite3.OperationalError:
-                pass  # table not present in older snapshots
         # keep only recent operational history; /v1/health/sources needs a
         # sample, not the full log
         con.execute(

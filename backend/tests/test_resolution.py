@@ -4,15 +4,15 @@ from rip.normalize import EvidenceItem, NormalizedProfile, OrgAffiliation
 
 
 def make_profile(**overrides) -> NormalizedProfile:
-    base = dict(
-        source="github",
-        source_type="code_hosting",
-        external_id="jsmith",
-        url="https://github.com/jsmith",
-        raw={"login": "jsmith"},
-        name="John Smith",
-        usernames=["github:jsmith"],
-    )
+    base = {
+        "source": "github",
+        "source_type": "code_hosting",
+        "external_id": "jsmith",
+        "url": "https://github.com/jsmith",
+        "raw": {"login": "jsmith"},
+        "name": "John Smith",
+        "usernames": ["github:jsmith"],
+    }
     base.update(overrides)
     return NormalizedProfile(**base)
 
@@ -71,7 +71,7 @@ def test_orcid_merges_across_sources(session):
     assert p1.id == p2.id
     assert session.query(Person).count() == 1
     assert session.query(SourceRecord).count() == 2  # both raw records preserved
-    methods = {l.match_method for l in session.query(IdentityLink)}
+    methods = {link.match_method for link in session.query(IdentityLink)}
     assert "strong:orcid" in methods
 
 
@@ -110,7 +110,7 @@ def test_fuzzy_name_plus_org_merges(session):
         ),
     )
     assert p1.id == p2.id
-    methods = {l.match_method for l in session.query(IdentityLink)}
+    methods = {link.match_method for link in session.query(IdentityLink)}
     assert "fuzzy:name+org" in methods
 
 

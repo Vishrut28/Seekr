@@ -8,12 +8,12 @@ from rip.normalize import NormalizedProfile
 
 
 def gh_profile(**over) -> NormalizedProfile:
-    base = dict(
-        source="github", source_type="code_hosting", external_id="jdoe",
-        url="https://github.com/jdoe", raw={"login": "jdoe"}, name="Jane Doe",
-        usernames=["github:jdoe"], summary="ML researcher, ORCID 0000-0002-1111-2222",
-        websites=["https://janedoe.ai"],
-    )
+    base = {
+        "source": "github", "source_type": "code_hosting", "external_id": "jdoe",
+        "url": "https://github.com/jdoe", "raw": {"login": "jdoe"}, "name": "Jane Doe",
+        "usernames": ["github:jdoe"], "summary": "ML researcher, ORCID 0000-0002-1111-2222",
+        "websites": ["https://janedoe.ai"],
+    }
     base.update(over)
     return NormalizedProfile(**base)
 

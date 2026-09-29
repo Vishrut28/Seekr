@@ -1,3 +1,7 @@
+import contextlib
+import os
+import threading
+
 from .dblp import DblpConnector
 from .europepmc import EuropePmcConnector
 from .exa import ExaConnector
@@ -24,10 +28,6 @@ CONNECTORS = {
     "stackoverflow": StackOverflowConnector,
 }
 
-
-import os
-import threading
-
 # Credentials a connector reads when it is built. Part of the cache key, so
 # setting a token takes effect instead of being ignored by an instance built
 # before it existed.
@@ -47,7 +47,7 @@ def get_connector(source: str):
     try:
         cls = CONNECTORS[source]
     except KeyError:
-        raise ValueError(f"Unknown source '{source}'. Available: {sorted(CONNECTORS)}")
+        raise ValueError(f"Unknown source '{source}'. Available: {sorted(CONNECTORS)}") from None
     key = (source, tuple(os.environ.get(name) for name in _CONFIG_ENV))
     with _instances_lock:
         connector = _instances.get(key)
@@ -62,8 +62,6 @@ def reset_connectors() -> None:
         for connector in _instances.values():
             client = getattr(connector, "_client", None)
             if client is not None and hasattr(client, "close"):
-                try:
+                with contextlib.suppress(Exception):
                     client.close()
-                except Exception:
-                    pass
         _instances.clear()

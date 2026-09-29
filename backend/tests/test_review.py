@@ -76,9 +76,7 @@ def test_split_detaches_record_into_new_person(session):
     pub = session.query(Publication).filter_by(title="Some Paper").one()
     assert pub.authorships[0].person_id == new_person.id
     # original person keeps their github identity
-    github_links = [
-        l for l in session.query(IdentityLink).filter_by(person_id=person.id)
-    ]
+    github_links = list(session.query(IdentityLink).filter_by(person_id=person.id))
     assert len(github_links) == 1
     assert session.get(IdentityLink, link_id).review_state == "split"
     # split merge no longer in review queue

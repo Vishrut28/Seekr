@@ -47,7 +47,7 @@ def test_dblp_normalization_and_ingest(session):
     doi_pub = session.query(Publication).filter_by(doi="10.1234/abcd").one()
     assert doi_pub.venue == "MLSys"
     assert doi_pub.published_date == "2023"
-    awards = [e for e in session.query(Evidence).filter_by(attribute_type="award")]
+    awards = list(session.query(Evidence).filter_by(attribute_type="award"))
     assert awards and awards[0].value == "Test Prize (2024)"
     affs = session.query(Affiliation).all()
     assert affs[0].organization.name == "Acme AI"

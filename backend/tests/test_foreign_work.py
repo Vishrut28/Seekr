@@ -78,7 +78,7 @@ def openalex_person(session, tag, name, works):
 
 
 def intruder(**kw):
-    base = dict(coauthors=("Cal Birder",), institution="Uni Zoology", year=2009)
+    base = {"coauthors": ("Cal Birder",), "institution": "Uni Zoology", "year": 2009}
     base.update(kw)
     return work("Phylogeny of the shorebirds", "Bird Phylogeny", **base)
 

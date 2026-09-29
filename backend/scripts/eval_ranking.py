@@ -77,7 +77,9 @@ def main() -> None:
     summary["seconds"] = round(total_s, 2)
     print(f"\n{'id':16s} {'kind':12s} {'ret':>4s} {'rel':>4s} {'nDCG':>6s} {'P@10':>6s} {'R@50':>6s} {'ms':>6s}  query")
     for r in rows:
-        fmt = lambda v: f"{v:6.3f}" if v is not None else "     -"
+        def fmt(v):
+            return f"{v:6.3f}" if v is not None else "     -"
+
         print(f"{r['id']:16s} {r['kind']:12s} {r['returned']:4d} {r['relevant_in_corpus']:4d} "
               f"{fmt(r['ndcg_at_10'])} {fmt(r['p_at_10'])} {fmt(r['recall_at_50'])} {r['ms']:6.1f}  {r['query']}")
     print("\nsummary:", json.dumps({k: v for k, v in summary.items() if k != "by_kind"}))
@@ -104,7 +106,8 @@ def main() -> None:
                   f"score measures the subject only")
 
     if args.compare:
-        base = json.load(open(args.compare, encoding="utf-8"))
+        with open(args.compare, encoding="utf-8") as fh:
+            base = json.load(fh)
         before = {r["id"]: r for r in base["rows"]}
         print("\nchange against", args.compare)
         for key in ("ndcg_at_10", "p_at_10", "recall_at_50", "zero_results_with_relevant_people"):
@@ -117,7 +120,8 @@ def main() -> None:
                  if r["id"] in before and (r["ndcg_at_10"] or 0) + 1e-9 < (before[r["id"]]["ndcg_at_10"] or 0)]
         print("  queries that got worse:", worse or "none")
     if args.save:
-        json.dump({"summary": summary, "rows": rows}, open(args.save, "w", encoding="utf-8"), indent=1)
+        with open(args.save, "w", encoding="utf-8") as fh:
+            json.dump({"summary": summary, "rows": rows}, fh, indent=1)
         print("saved", args.save)
 
 

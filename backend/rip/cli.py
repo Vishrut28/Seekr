@@ -727,7 +727,7 @@ def cmd_audit_protected(args) -> None:
             by_kind[f["kind"]] = by_kind.get(f["kind"], 0) + 1
     for kind, n in sorted(by_kind.items(), key=lambda kv: -kv[1]):
         print(f"   {kind:22} {n}")
-    for e, findings in hits[:10]:
+    for e, _findings in hits[:10]:
         print(f"\n   person {e.person_id}  ({e.attribute_type}, {e.source})")
         print(f"     now:  {str(e.value)[:110]}")
         print(f"     ->    {str(redact(e.value)[0])[:110]}")

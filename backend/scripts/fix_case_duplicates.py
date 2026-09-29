@@ -53,7 +53,7 @@ def main() -> None:
     with SessionLocal() as session:
         found = groups(session)
         renamed = dropped = corroborated = 0
-        for (person_id, attribute_type, _folded), rows in sorted(found.items()):
+        for (_person_id, attribute_type, _folded), rows in sorted(found.items()):
             keep = rows[0].value
             print(f"  {attribute_type:18s} {sorted({r.value for r in rows})} -> {keep!r}")
             # one source record cannot claim the same thing twice: the second

@@ -268,7 +268,7 @@ def propagate(verdicts, known, living) -> list:
         pooled.setdefault(find(person_id), set()).update(data["orcids"])
 
     settled = []
-    for index, (verdict, pair, why) in enumerate(verdicts):
+    for index, (verdict, pair, _why) in enumerate(verdicts):
         if verdict != "hold":
             continue
         a, b = (find(side) for side in living[pair.id])

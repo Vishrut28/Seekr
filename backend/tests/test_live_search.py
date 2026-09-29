@@ -2,6 +2,7 @@
 
 import threading
 import time
+from itertools import pairwise
 
 from rip.normalize import NormalizedProfile
 
@@ -42,7 +43,7 @@ def test_one_connector_spaces_concurrent_requests():
     for t in threads:
         t.join()
     stamps.sort()
-    gaps = [b - a for a, b in zip(stamps, stamps[1:])]
+    gaps = [b - a for a, b in pairwise(stamps)]
     assert len(stamps) == 5
     assert min(gaps) >= 0.13, gaps
 

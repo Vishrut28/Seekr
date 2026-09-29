@@ -7,7 +7,8 @@ from rip import tinyfish
 
 def test_tinyfish_is_free():
     assert "tinyfish" not in PAID_SOURCES
-    src = open(tinyfish.__file__, encoding="utf-8").read()
+    with open(tinyfish.__file__, encoding="utf-8") as fh:
+        src = fh.read()
     assert "api.search.tinyfish.ai" in src
     assert "api.fetch.tinyfish.ai" in src
     assert "agent.tinyfish.ai/v1" not in src

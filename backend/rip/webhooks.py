@@ -49,7 +49,7 @@ def validate_url(url: str) -> str:
     try:
         resolved = ip_address(gethostbyname(parsed.hostname))
     except Exception as exc:
-        raise ValueError(f"webhook host does not resolve: {exc}")
+        raise ValueError(f"webhook host does not resolve: {exc}") from exc
     if (
         resolved.is_private or resolved.is_loopback or resolved.is_link_local
         or resolved.is_reserved or resolved.is_multicast

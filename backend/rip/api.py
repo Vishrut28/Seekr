@@ -14,6 +14,7 @@ import os
 import pathlib
 import re
 import shutil
+import weakref as _weakref
 from collections import OrderedDict
 from datetime import datetime
 from pathlib import Path
@@ -24,6 +25,22 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from .db import READ_ONLY, SessionLocal, init_db
+from .models import (
+    Affiliation,
+    Authorship,
+    ChangeLog,
+    Contribution,
+    Evidence,
+    IdentityLink,
+    IngestionRun,
+    Organization,
+    Person,
+    PersonKey,
+    Project,
+    Publication,
+    SourceRecord,
+)
+from .nlq import _word_match, place_mentioned  # whole-word matching, shared with the parser
 
 # Fewer results than this is a thin answer, and thin is worth topping up from
 # live sources even though it is not empty. Scaled down per applied filter —
@@ -42,22 +59,6 @@ def _applied_filter_count(parsed) -> int:
         parsed.skill_groups, parsed.organizations, parsed.locations,
         parsed.countries, parsed.name_terms, parsed.roles,
     ))
-from .models import (
-    Affiliation,
-    Authorship,
-    ChangeLog,
-    Contribution,
-    Evidence,
-    IdentityLink,
-    IngestionRun,
-    Organization,
-    Person,
-    PersonKey,
-    Project,
-    Publication,
-    SourceRecord,
-)
-from .nlq import _word_match, place_mentioned  # whole-word matching, shared with the parser
 
 app = FastAPI(
     title="Seekr",
@@ -638,8 +639,6 @@ def facets(
     return result
 
 
-import weakref as _weakref
-
 _FACET_CACHE: "_weakref.WeakKeyDictionary" = _weakref.WeakKeyDictionary()
 _FACET_TTL = float(os.environ.get("RIP_VOCAB_TTL", "60"))
 
@@ -1064,7 +1063,7 @@ def review_approve(link_id: int, db: Session = Depends(get_db)):
     try:
         link = approve_link(db, link_id)
     except ValueError as exc:
-        raise HTTPException(404, str(exc))
+        raise HTTPException(404, str(exc)) from exc
     return {"link_id": link.id, "review_state": link.review_state}
 
 
@@ -1075,7 +1074,7 @@ def review_split(link_id: int, db: Session = Depends(get_db)):
     try:
         person = split_link(db, link_id)
     except ValueError as exc:
-        raise HTTPException(404, str(exc))
+        raise HTTPException(404, str(exc)) from exc
     return {"new_person_id": person.id, "canonical_name": person.canonical_name}
 
 
@@ -1213,7 +1212,7 @@ def split_person(person_id: str, payload: dict, db: Session = Depends(get_db)):
                         note=(payload.get("note") or None))
     except ValueError as exc:
         # every refusal here is "that is not a split", not a server fault
-        raise HTTPException(400, str(exc))
+        raise HTTPException(400, str(exc)) from exc
     return {
         "from_person_id": out.from_person_id,
         "to_person_id": out.to_person_id,
@@ -1231,7 +1230,7 @@ def review_duplicate_merge(candidate_id: int, db: Session = Depends(get_db)):
     try:
         return resolve_duplicate(db, candidate_id, "merge")
     except ValueError as exc:
-        raise HTTPException(404, str(exc))
+        raise HTTPException(404, str(exc)) from exc
 
 
 @app.post("/v1/review/duplicates/{candidate_id}/reject")
@@ -1243,7 +1242,7 @@ def review_duplicate_reject(candidate_id: int, payload: dict | None = None,
         return resolve_duplicate(db, candidate_id, "reject",
                                  (payload or {}).get("note"))
     except ValueError as exc:
-        raise HTTPException(404, str(exc))
+        raise HTTPException(404, str(exc)) from exc
 
 
 @app.post("/v1/review/duplicates/{candidate_id}/defer")
@@ -1261,7 +1260,7 @@ def review_duplicate_defer(candidate_id: int, payload: dict | None = None,
         return resolve_duplicate(db, candidate_id, "defer",
                                  (payload or {}).get("note"))
     except ValueError as exc:
-        raise HTTPException(404, str(exc))
+        raise HTTPException(404, str(exc)) from exc
 
 
 @app.get("/v1/query")
@@ -1825,9 +1824,9 @@ def _find_chrome_binary() -> str | None:
         if found:
             return found
 
-    program_files = os.environ.get("ProgramFiles", r"C:\Program Files")
-    program_files_x86 = os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")
-    local_app_data = os.environ.get("LocalAppData", "")
+    program_files = os.environ.get("PROGRAMFILES", r"C:\Program Files")
+    program_files_x86 = os.environ.get("PROGRAMFILES(X86)", r"C:\Program Files (x86)")
+    local_app_data = os.environ.get("LOCALAPPDATA", "")
     candidates = [
         # macOS
         "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
@@ -2104,7 +2103,7 @@ def create_webhook(payload: dict, db: Session = Depends(get_db)):
             db, url, payload.get("event_types"), payload.get("description")
         )
     except ValueError as exc:
-        raise HTTPException(422, str(exc))
+        raise HTTPException(422, str(exc)) from exc
     return {
         "id": sub.id,
         "url": sub.url,

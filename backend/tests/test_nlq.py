@@ -356,12 +356,12 @@ def test_queue_lead_detects_already_ingested(session):
 def _filters(session, **kw):
     from rip.api import list_persons
 
-    base = dict(q=None, skill=None, organization=None, current_organization=None,
-                education=None, role=None, country=None, location=None, source=None,
-                technology=None, min_publications=None, min_citations=None,
-                min_sources=None, active_since=None, updated_since=None,
-                has_cv=None, has_email=None, sort="relevance", limit=50, offset=0,
-                db=session)
+    base = {"q": None, "skill": None, "organization": None, "current_organization": None,
+                "education": None, "role": None, "country": None, "location": None, "source": None,
+                "technology": None, "min_publications": None, "min_citations": None,
+                "min_sources": None, "active_since": None, "updated_since": None,
+                "has_cv": None, "has_email": None, "sort": "relevance", "limit": 50, "offset": 0,
+                "db": session}
     base.update(kw)
     return list_persons(**base)
 
@@ -724,16 +724,18 @@ def test_filters_match_whole_words_not_substrings(session):
     ingest_profile(session, person("Ari Rlang", "R"))
 
     def call(**kw):
-        base = dict(q=None, skill=None, organization=None, current_organization=None,
-                    education=None, role=None, country=None, location=None, source=None,
-                    technology=None, min_publications=None, min_citations=None,
-                    min_sources=None, active_since=None, updated_since=None,
-                    has_cv=None, has_email=None, sort="relevance", limit=20, offset=0,
-                    db=session)
+        base = {"q": None, "skill": None, "organization": None, "current_organization": None,
+                    "education": None, "role": None, "country": None, "location": None, "source": None,
+                    "technology": None, "min_publications": None, "min_citations": None,
+                    "min_sources": None, "active_since": None, "updated_since": None,
+                    "has_cv": None, "has_email": None, "sort": "relevance", "limit": 20, "offset": 0,
+                    "db": session}
         base.update(kw)
         return list_persons(**base)
 
-    names = lambda r: {p["canonical_name"] for p in r["results"]}
+    def names(r):
+        return {p["canonical_name"] for p in r["results"]}
+
     # "go" is a word in "Go", but only a fragment of "Cognitive"
     assert names(call(skill="go")) == {"Rae Gopher"}
     # a single letter is a real skill (the R language) and nothing else
@@ -761,12 +763,12 @@ def test_empty_filters_say_which_one_to_relax(session):
     ingest_profile(session, person("haskeller", "Ada Berlin", "DE", "Haskell"))
 
     def call(**kw):
-        base = dict(q=None, skill=None, organization=None, current_organization=None,
-                    education=None, role=None, country=None, location=None, source=None,
-                    technology=None, min_publications=None, min_citations=None,
-                    min_sources=None, active_since=None, updated_since=None,
-                    has_cv=None, has_email=None, sort="relevance", limit=5, offset=0,
-                    db=session)
+        base = {"q": None, "skill": None, "organization": None, "current_organization": None,
+                    "education": None, "role": None, "country": None, "location": None, "source": None,
+                    "technology": None, "min_publications": None, "min_citations": None,
+                    "min_sources": None, "active_since": None, "updated_since": None,
+                    "has_cv": None, "has_email": None, "sort": "relevance", "limit": 5, "offset": 0,
+                    "db": session}
         base.update(kw)
         return list_persons(**base)
 

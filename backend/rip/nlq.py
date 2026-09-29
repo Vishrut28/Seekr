@@ -2546,7 +2546,7 @@ def _depth_component(per_group: list[float] | None, total: float, weights) -> fl
         return _log_scale(total if not per_group else per_group[0], DEPTH_SATURATION)
     scaled = [_log_scale(d, DEPTH_SATURATION) for d in per_group]
     w = weights if weights and len(weights) == len(scaled) and sum(weights) > 0 else [1.0] * len(scaled)
-    return sum(a * b for a, b in zip(scaled, w)) / sum(w)
+    return sum(a * b for a, b in zip(scaled, w, strict=True)) / sum(w)
 
 
 def _query_terms(parsed: NLQuery) -> set[str]:
@@ -2638,9 +2638,8 @@ def _output_signals(
         if not relevant:
             return
         parsed_when = _parse_loose_date(when)
-        if parsed_when:
-            if pid not in latest or parsed_when > latest[pid]:
-                latest[pid] = parsed_when
+        if parsed_when and (pid not in latest or parsed_when > latest[pid]):
+            latest[pid] = parsed_when
 
     rows = session.execute(
         select(
@@ -2895,7 +2894,9 @@ def _name_fit_scores(
     # typed with or without the dot, or "José" typed as "jose", is the same
     # exact name — raw lowercase strings ranked the exact person below a
     # different spelling of the name.
-    norm = lambda text: " ".join(words(text))
+    def norm(text):
+        return " ".join(words(text))
+
     query_phrase = norm(" ".join(parsed.name_terms))
     terms = [norm(t) for t in parsed.name_terms if norm(t)]
     raw_terms = [t.lower() for t in parsed.name_terms]
@@ -2934,7 +2935,7 @@ def _name_fit_scores(
         # word by word, where a word also matches its nicknames and spellings:
         # "bill gates" is "william gates", but "samuel" is not "samantha"
         return len(typed) == len(stored) and all(
-            b in search_forms(a) for a, b in zip(typed, stored))
+            b in search_forms(a) for a, b in zip(typed, stored, strict=True))
 
     def contains(stored: list[str], typed: list[str]) -> bool:
         n = len(typed)

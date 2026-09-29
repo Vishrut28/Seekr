@@ -45,7 +45,8 @@ def main() -> None:
     truth: dict[str, int] = {}
     with SessionLocal() as session:
         if args.benchmark:
-            raw = json.load(open(LABELS, encoding="utf-8"))
+            with open(LABELS, encoding="utf-8") as fh:
+                raw = json.load(fh)
             wanted = dict.fromkeys(raw["conflated"], 1) | dict.fromkeys(raw["one_person"], 0)
             splits = []
             hierarchy = conflation.topic_hierarchy(session)

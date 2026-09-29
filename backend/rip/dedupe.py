@@ -299,7 +299,7 @@ def plan(session: Session, person_ids: list[str] | None = None) -> Plan:
     }
 
     result = Plan()
-    for key, ids in groups.items():
+    for ids in groups.values():
         if len(ids) < 2:
             continue
         result.groups_examined += 1

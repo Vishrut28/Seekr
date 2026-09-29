@@ -38,6 +38,7 @@ text is tokenised; bump INDEX_VERSION so databases rebuild on upgrade).
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import math
 import os
@@ -47,6 +48,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from dataclasses import field as dc_field
 from datetime import datetime, timezone
+from itertools import pairwise
 
 from sqlalchemy import (
     Float,
@@ -175,7 +177,7 @@ def _multiword_place_pairs() -> frozenset:
         pairs = set()
         for key in PLACES:
             ws = words(key)
-            pairs.update(f"{a} {b}" for a, b in zip(ws, ws[1:]))
+            pairs.update(f"{a} {b}" for a, b in pairwise(ws))
         _PLACE_PAIRS = frozenset(pairs)
     return _PLACE_PAIRS
 
@@ -317,10 +319,8 @@ def _postings_for(session: Session, person_ids: list[str]) -> tuple[list[dict], 
         for tech in techs or []:
             add(pid, "k", stem_text_terms(str(tech)))
         activity = activity or {}
-        try:
+        with contextlib.suppress(TypeError, ValueError, AttributeError):
             impact[pid] += float(activity.get("stars") or 0) + 0.5 * float(activity.get("forks") or 0)
-        except (TypeError, ValueError, AttributeError):
-            pass
         note_date(pid, last_active, PROJECT_HALF_LIFE_DAYS)
     publications: dict[str, int] = defaultdict(int)
     citations: dict[str, int] = defaultdict(int)

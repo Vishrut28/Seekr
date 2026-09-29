@@ -7,8 +7,8 @@ from rip.textnorm import stems, words
 
 
 def case(**kw):
-    base = dict(id="x", query="q", kind="topic", strong=[], related=[], country=None,
-                org=[], person_ids=[])
+    base = {"id": "x", "query": "q", "kind": "topic", "strong": [], "related": [], "country": None,
+                "org": [], "person_ids": []}
     base.update(kw)
     for key in ("strong", "related", "org"):
         base[key] = [tuple(stems(s)) for s in base[key]]

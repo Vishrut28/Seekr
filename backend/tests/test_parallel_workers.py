@@ -5,6 +5,7 @@ single worker."""
 import threading
 import time
 from datetime import datetime, timedelta, timezone
+from itertools import pairwise
 
 import pytest
 from rip.db import Base
@@ -187,7 +188,7 @@ def test_request_spacing_widens_with_the_number_of_worker_processes(monkeypatch)
         for _ in range(3):
             conn._wait_for_slot()
             stamps.append(time.monotonic())
-        return min(b - a for a, b in zip(stamps, stamps[1:]))
+        return min(b - a for a, b in pairwise(stamps))
 
     assert gaps(1) >= 0.045
     assert gaps(4) >= 0.19                     # four processes, four times apart

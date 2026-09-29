@@ -67,7 +67,8 @@ def test_bad_line_does_not_poison_the_rest(session, tmp_path):
     assert result.ingested == 2  # both good rows survived the bad ones
     assert result.failed == 2
     assert result.failure_file
-    failures = [json.loads(l) for l in open(result.failure_file)]
+    with open(result.failure_file) as fh:
+        failures = [json.loads(line) for line in fh]
     assert {f["line"] for f in failures} == {2, 3}
 
 

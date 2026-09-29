@@ -1034,7 +1034,7 @@ def discovery_suggestions(
             if source == "github" and not github_eager:
                 return source, plan, {}      # its budget depends on phase A
             fetched = _fetch_profiles(to_fetch, deadline)
-            return source, plan, dict(zip(map(id, to_fetch), fetched))
+            return source, plan, dict(zip(map(id, to_fetch), fetched, strict=True))
 
         from concurrent.futures import wait as _wait
 
@@ -1091,7 +1091,7 @@ def discovery_suggestions(
                     late.extend(to_fetch)
                 planned_before += len(raw_items) + len(to_fetch)
                 prepared.append((s, keep, raw_items, to_fetch))
-            results.update(zip(map(id, late), _fetch_profiles(late, deadline)))
+            results.update(zip(map(id, late), _fetch_profiles(late, deadline), strict=True))
             # Stored on this thread, in the ORIGINAL declared order — a
             # Session is not thread-safe, and order keeps results stable.
             for s, keep, raw_items, to_fetch in prepared:

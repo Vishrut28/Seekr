@@ -75,7 +75,7 @@ def rewrite_agents(tokens: list[str]) -> tuple[list[str], list[dict]]:
     """Tokens with person nouns replaced by their subjects, and what changed."""
     out: list[str] = []
     rewrites: list[dict] = []
-    for i, token in enumerate(tokens):
+    for token in tokens:
         low = token.lower()
         if low in ("scientist", "scientists") and out and out[-1].lower() in _SCIENCE_PREFIXES:
             rewrites.append({"typed": f"{out[-1]} {token}", "searched": f"{out[-1]} science",

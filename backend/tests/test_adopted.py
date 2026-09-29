@@ -87,7 +87,7 @@ def test_duplicate_merge_tombstones(session):
     assert merged.merged_into == keep.id  # tombstone, not deleted
     assert "Kathryn Johnson" in keep.aliases
     # all identity links now on the keeper
-    assert all(l.person_id == keep.id for l in keep.identities)
+    assert all(link.person_id == keep.id for link in keep.identities)
     # queue cleared
     assert list_suspicious(session)["possible_duplicates"] == []
 
@@ -235,12 +235,12 @@ def test_person_queries_avoid_distinct_on_json(session):
 
     # every filter combination must run without a row-level DISTINCT
     def call(**kw):
-        base = dict(q=None, skill=None, organization=None, current_organization=None,
-                    education=None, role=None, country=None, location=None, source=None,
-                    technology=None, min_publications=None, min_citations=None,
-                    min_sources=None, active_since=None, updated_since=None,
-                    has_cv=None, has_email=None, sort="relevance", limit=5, offset=0,
-                    db=session)
+        base = {"q": None, "skill": None, "organization": None, "current_organization": None,
+                    "education": None, "role": None, "country": None, "location": None, "source": None,
+                    "technology": None, "min_publications": None, "min_citations": None,
+                    "min_sources": None, "active_since": None, "updated_since": None,
+                    "has_cv": None, "has_email": None, "sort": "relevance", "limit": 5, "offset": 0,
+                    "db": session}
         base.update(kw)
         return list_persons(**base)
 
