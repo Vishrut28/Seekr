@@ -1,0 +1,22 @@
+{
+ "_comment": [
+  "Relevance labels for evaluation/relevance_pool.json. Grades: 2 clearly what",
+  "the query asks for, 1 partly or arguably, 0 not. Judged on what the card",
+  "shows, without the pool's arms, scores or ranks.",
+  "calibration.claude was written and committed BEFORE calibration.person",
+  "was read, as the pool's commit pre-registered."
+ ],
+ "calibration": {
+  "claude": {
+   "2616685f9db4": {"grade": 2, "note": "recommender-systems researcher: several core RS papers and the topic stated"},
+   "4897afc8a4a8": {"grade": 1, "note": "one paper on agricultural nanotechnologies in a plant-biotech and GMO career"},
+   "79a666442c0a": {"grade": 0, "note": "the card holds nothing: no topics, titles, bio or employer to judge on"},
+   "7cda0a32b919": {"grade": 1, "note": "quantum information theorist; quantum cryptography (BB84 security proof) is part of the work, not its centre"},
+   "a15b197c903e": {"grade": 1, "note": "malaria drug-resistance and therapy research; adjacent to drug discovery, not discovery itself"},
+   "d6aa0b0442ac": {"grade": 1, "note": "inorganic and bioinorganic chemistry, crystallography of metal complexes; arguably materials"},
+   "e4c5a04676fb": {"grade": 0, "note": "cloud, agile and predictive-analytics work; nothing on recommenders"}
+  },
+  "person": {}
+ },
+ "labels": {}
+}
