@@ -60,7 +60,8 @@ def main() -> None:
                     Evidence.source_record_id == row.source_record_id,
                 )
             ).scalars().first()
-            who = (person.canonical_name if person else row.person_id)[:28]
+            # a person may have no canonical name, and slicing None crashed
+            who = ((person.canonical_name if person else None) or row.person_id)[:28]
             if twin is not None:
                 dropped += 1
                 print(f"  drop    {who:<30} {mistyped!r} (already has {fixed!r})")

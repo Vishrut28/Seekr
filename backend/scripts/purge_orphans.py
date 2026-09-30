@@ -42,7 +42,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 def find(session) -> dict:
     """Read-only. Returns the two kinds, separately."""
-    from sqlalchemy import select
+    from sqlalchemy import select, true
 
     from rip.models import Authorship, IdentityLink, Publication, SourceRecord
     from scripts.purge_person import referencing_columns
@@ -61,7 +61,7 @@ def find(session) -> dict:
     attached = list(session.execute(
         select(Publication.id).where(
             ~Publication.id.in_(select(Authorship.publication_id)),
-            Publication.id.notin_(publications) if publications else True)
+            Publication.id.notin_(publications) if publications else true())
     ).scalars())
 
     dangling = {}
@@ -70,7 +70,7 @@ def find(session) -> dict:
         from rip.db import Base
 
         table = next(m.class_ for m in Base.registry.mappers
-                     if m.persist_selectable.name == model_of_target)
+                     if getattr(m.persist_selectable, "name", None) == model_of_target)
         key = table.__mapper__.primary_key[0]
         for model, column in referencing_columns(target):
             n = session.execute(
@@ -125,11 +125,12 @@ def main() -> None:
         print(f"source records no identity link names : {len(found['records'])}")
         for record_id in found["records"]:
             record = session.get(SourceRecord, record_id)
-            print(f"  {record_id:<6} {record.source}:{record.external_id}")
+            if record is not None:
+                print(f"  {record_id:<6} {record.source}:{record.external_id}")
         print(f"publications going with them          : {len(found['publications'])}")
         for publication_id in found["publications"]:
             pub = session.get(Publication, publication_id)
-            print(f"  {publication_id:<6} {(pub.title or '')[:62]}")
+            print(f"  {publication_id:<6} {((pub.title if pub else None) or '')[:62]}")
         if found["publications_kept"]:
             print(f"publications with no author whose record is ALIVE, kept "
                   f"({len(found['publications_kept'])}): "

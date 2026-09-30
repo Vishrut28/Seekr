@@ -21,7 +21,6 @@ import hashlib
 import json
 import os
 import sqlite3
-import sys
 
 HERE = os.path.dirname(__file__)
 LABELS = os.path.join(HERE, "..", "evaluation", "conflation_labels.json")
@@ -94,4 +93,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()

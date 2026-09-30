@@ -14,8 +14,9 @@ the read API is switched over.
 
 import os
 import sys
+from typing import cast
 
-from sqlalchemy import create_engine, func, insert, select
+from sqlalchemy import Table, create_engine, func, insert, select
 from sqlalchemy.orm import sessionmaker
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -74,7 +75,7 @@ def main() -> None:
     total = 0
     with SrcSession() as s, DstSession() as d:
         for model in ORDER:
-            table = model.__table__
+            table = cast(Table, model.__table__)
             pk = list(table.primary_key.columns)[0]
             existing = d.execute(select(func.count()).select_from(table)).scalar_one()
             if existing:

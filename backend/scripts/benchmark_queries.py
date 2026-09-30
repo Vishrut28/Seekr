@@ -135,7 +135,7 @@ def _pct(values, p: float) -> float:
         return 0.0
     s = sorted(values)
     k = max(0, min(len(s) - 1, int(round(p / 100 * (len(s) - 1)))))
-    return s[k]
+    return float(s[k])
 
 
 def _fmt_ms(seconds: float) -> str:

@@ -139,7 +139,8 @@ def main() -> None:
         for mc in rows:
             # a name is optional: a GitHub account with nothing on it but a
             # login ingests as a person with aliases and no canonical name
-            who = session.get(Person, mc.person_id).canonical_name or "(no name)"
+            person = session.get(Person, mc.person_id)
+            who = (person.canonical_name if person else None) or "(no name)"
             groups[who.lower()].append(mc)
         print(f"{len(rows)} pending pairs, in {len(groups)} name groups")
         for name in sorted(groups):

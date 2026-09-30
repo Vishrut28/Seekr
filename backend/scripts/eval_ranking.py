@@ -68,9 +68,10 @@ def main() -> None:
             if args.show == case.id:
                 print(f"\n{case.query!r}: {len(ranked)} returned")
                 for i, pid in enumerate(ranked[:10], 1):
-                    p = profiles.get(pid)
-                    print(f"  {i:2d}. grade {grade(case, p) if p else '?'}  "
-                          f"{(p.name if p else pid)[:40]:40s} {[' '.join(t) for t in p.topics][:3] if p else ''}")
+                    shown = profiles.get(pid)
+                    print(f"  {i:2d}. grade {grade(case, shown) if shown else '?'}  "
+                          f"{(shown.name if shown else pid)[:40]:40s} "
+                          f"{[' '.join(t) for t in shown.topics][:3] if shown else ''}")
         total_s = time.perf_counter() - started
 
     summary = summarize(rows)

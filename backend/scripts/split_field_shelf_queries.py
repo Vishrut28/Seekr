@@ -32,7 +32,8 @@ def split() -> tuple[list[str], list[str]]:
     by_kind = defaultdict(list)
     for case in cases:
         by_kind[case["kind"]].append(case["id"])
-    design, judge = [], []
+    design: list[str] = []
+    judge: list[str] = []
     for kind in sorted(by_kind):
         ordered = sorted(by_kind[kind],
                          key=lambda i: hashlib.sha256((SALT + i).encode()).hexdigest())

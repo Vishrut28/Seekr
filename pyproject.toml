@@ -79,7 +79,14 @@ ignore = [
 
 [tool.mypy]
 python_version = "3.10"
-files = ["backend/rip"]
+# The package and the scripts: several scripts write to the database. Not the
+# tests -- monkeypatched methods and fake clients are the point of them, and
+# typing them flagged idiom, not mistakes (105 errors, none a bug, 2026-09-30).
+files = ["backend/rip", "backend/scripts"]
+mypy_path = "backend"
+explicit_package_bases = true
+# the bodies of functions without annotations are checked too
+check_untyped_defs = true
 # Starting strict would produce thousands of errors nobody reads. These two
 # catch the mistakes that actually reach production: a function that says it
 # returns a value and does not, and a None flowing where it cannot.

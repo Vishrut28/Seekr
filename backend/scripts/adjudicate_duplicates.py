@@ -174,7 +174,7 @@ def facts(session, person_id: str) -> dict:
         select(PersonKey.key_type, PersonKey.key_value).where(
             PersonKey.person_id == person_id)
     ).all())
-    by_title = {}
+    by_title: dict[str, Publication] = {}
     for pub in papers:
         if pub.title:
             by_title.setdefault(normalise(pub.title), pub)
@@ -250,7 +250,7 @@ def adjudicate(session, pairs, living, verbose=False) -> tuple:
 
 def propagate(verdicts, known, living) -> list:
     """Re-test the held pairs once the proven merges have pooled their ORCIDs."""
-    parent = {}
+    parent: dict[str, str] = {}
 
     def find(x):
         parent.setdefault(x, x)
@@ -264,7 +264,7 @@ def propagate(verdicts, known, living) -> list:
             left, right = living[pair.id]
             parent[find(left)] = find(right)
 
-    pooled = {}
+    pooled: dict[str, set[str]] = {}
     for person_id, data in known.items():
         pooled.setdefault(find(person_id), set()).update(data["orcids"])
 
@@ -309,7 +309,8 @@ def main() -> None:
         for verdict, pair, why in sorted(verdicts, key=lambda v: (rank[v[0]], v[1].id)):
             left, right = living[pair.id]
             # a name is optional: a bare GitHub login ingests without one
-            name = session.get(Person, left).canonical_name or "(no name)"
+            person = session.get(Person, left)
+            name = (person.canonical_name if person else None) or "(no name)"
             print(f"{verdict.upper():<7} #{pair.id:<5} {name[:24]:<26}"
                   f"{left[:8]} x {right[:8]}  {why}")
         tally = {k: sum(1 for v, _p, _w in verdicts if v == k) for k in rank}
