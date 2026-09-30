@@ -240,7 +240,8 @@ def cmd_review_triage(session, triage, yes: bool) -> None:
     if yes:
         print(f"\ndone: {len(out['merged'])} merged, {len(out['rejected'])} rejected, "
               f"{len(out['deferred'])} deferred, {len(out['pending'])} left pending "
-              f"(every merge is reversible: rip.cli review split <link_id>)")
+              f"(a merge is not undone; a source record can be split back out "
+              f"as a new person: rip.cli review split <link_id>)")
     else:
         print("\nnothing written. re-run with --yes to carry this out")
 
@@ -662,7 +663,8 @@ def cmd_dedupe(args) -> None:
         return
     if not getattr(args, "yes", False):
         print("\nre-run with --yes to merge and queue them "
-              "(every merge is reversible: rip.cli review split <link_id>)")
+              "(a merge is not undone; a source record can be split back out as a "
+              "new person: rip.cli review split <link_id>)")
         return
     merged, queued = dedupe.apply(session, planned)
     # A merge pools evidence, which can surface new review pairs (or, rarely,
