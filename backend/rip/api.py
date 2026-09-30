@@ -9,6 +9,7 @@ for the best answers, not for every answer in insertion order — every result
 carries the score and the evidence components behind it.
 """
 
+import contextlib
 import contextvars
 import logging
 import os
@@ -68,10 +69,33 @@ def _applied_filter_count(parsed) -> int:
         parsed.countries, parsed.name_terms, parsed.roles,
     ))
 
+def _startup() -> None:
+    if not os.environ.get("RIP_API_TOKEN"):
+        logging.getLogger("rip").warning(
+            "RIP_API_TOKEN is not set: reads are open and writes are accepted only "
+            "from localhost. Behind a reverse proxy every request looks local, so "
+            "set RIP_API_TOKEN before deploying behind one.")
+    try:
+        init_db()
+    except Exception:
+        # read-only deployments serve a pre-built snapshot; if the DB is
+        # missing/immutable, let routes fail individually instead of
+        # killing the whole app at startup
+        logging.getLogger("rip").exception("init_db failed at startup")
+
+
+@contextlib.asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    # FastAPI deprecated @app.on_event("startup") in favour of this
+    _startup()
+    yield
+
+
 app = FastAPI(
     title="Seekr",
     description="Evidence-backed resource data layer. /v1/query ranks by evidence; /v1/persons filters without ordering.",
     version="0.1.0",
+    lifespan=_lifespan,
 )
 
 
@@ -220,27 +244,6 @@ def auth_required() -> dict:
     ask for a token. Unset, it answers plainly and the UI does not.
     """
     return {"required": False}
-
-
-@app.on_event("startup")
-def _startup() -> None:
-    import logging
-    import os
-
-    if not os.environ.get("RIP_API_TOKEN"):
-        logging.getLogger("rip").warning(
-            "RIP_API_TOKEN is not set: reads are open and writes are accepted only "
-            "from localhost. Behind a reverse proxy every request looks local, so "
-            "set RIP_API_TOKEN before deploying behind one.")
-    try:
-        init_db()
-    except Exception:
-        # read-only deployments serve a pre-built snapshot; if the DB is
-        # missing/immutable, let routes fail individually instead of
-        # killing the whole app at startup
-        import logging
-
-        logging.getLogger("rip").exception("init_db failed at startup")
 
 
 def get_db():
