@@ -116,6 +116,22 @@ def test_the_stream_reaches_a_result(client, spy):
     assert "error" not in kinds(response), events(response)
 
 
+def test_live_search_failing_still_streams_the_corpus_answer(client, monkeypatch):
+    """A failure inside discovery ended the stream with an error event before
+    the corpus was even searched: nothing came back at all."""
+    def boom(*_a, **_k):
+        raise RuntimeError("upstream down")
+
+    monkeypatch.setattr(discovery, "discovery_suggestions", boom)
+    response = client.get("/v1/query/stream", params={"q": "rust", "discover": "true"})
+    got = events(response)
+    assert "error" not in kinds(response), got
+    results = next(e for e in got if e["type"] == "results")
+    assert results["count"] == 2
+    assert {"type": "source", "source": "live", "state": "failed",
+            "reason": "RuntimeError"} in got
+
+
 def test_the_results_event_carries_the_people(client, spy):
     response = client.get("/v1/query/stream", params={"q": "rust"})
     results = next(e for e in events(response) if e["type"] == "results")

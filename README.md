@@ -1017,6 +1017,7 @@ These are infrastructure, not people sources: they find URLs and fetch pages.
 
 | Provider | Env var | Free tier | Used for |
 |---|---|---|---|
+| TinyFish | `TINYFISH_API_KEY` | Search + Fetch free, no credits | finding homepages first; rendering JS-heavy pages first. **Never Agent/Browser** |
 | Tavily | `TAVILY_API_KEY` | 1,000 credits/month | finding homepages |
 | SerpApi | `SERPAPI_API_KEY` | 250 searches/month | homepage search fallback |
 | Firecrawl | `FIRECRAWL_API_KEY` | 1,000 credits/month | rendering JS-heavy pages |

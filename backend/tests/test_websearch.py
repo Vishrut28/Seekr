@@ -8,7 +8,7 @@ from rip import websearch
 
 def test_no_keys_means_no_calls(monkeypatch):
     """A default install must make zero third-party calls."""
-    for var in ("TAVILY_API_KEY", "SERPAPI_API_KEY"):
+    for var in ("TINYFISH_API_KEY", "TAVILY_API_KEY", "SERPAPI_API_KEY"):
         monkeypatch.delenv(var, raising=False)
 
     def boom(*a, **k):
@@ -33,15 +33,20 @@ def test_aggregators_are_not_treated_as_homepages():
 
 
 def test_backend_failure_falls_through(monkeypatch):
+    monkeypatch.setenv("TINYFISH_API_KEY", "x")
     monkeypatch.setenv("TAVILY_API_KEY", "x")
     monkeypatch.setenv("SERPAPI_API_KEY", "y")
+    monkeypatch.setattr(websearch, "_tinyfish",
+                        lambda q, limit: (_ for _ in ()).throw(RuntimeError("down")))
     monkeypatch.setattr(websearch, "_tavily",
                         lambda q, limit: (_ for _ in ()).throw(RuntimeError("down")))
     monkeypatch.setattr(websearch, "_serpapi",
                         lambda q, limit: [{"url": "https://ok.example", "title": "t",
                                        "snippet": "", "backend": "serpapi"}])
     monkeypatch.setattr(websearch, "BACKENDS",
-                        (("tavily", websearch._tavily), ("serpapi", websearch._serpapi)))
+                        (("tinyfish", websearch._tinyfish),
+                         ("tavily", websearch._tavily),
+                         ("serpapi", websearch._serpapi)))
     assert websearch.search("q")[0]["backend"] == "serpapi"
 
 
@@ -49,7 +54,8 @@ def test_render_fallback_only_when_key_set(monkeypatch):
     connector = WebConnector.__new__(WebConnector)
     monkeypatch.setattr(WebConnector, "get_text",
                         lambda self, url: (_ for _ in ()).throw(RuntimeError("403")))
-    for var in ("FIRECRAWL_API_KEY", "ZENROWS_API_KEY", "SCRAPINGBEE_API_KEY"):
+    for var in ("TINYFISH_API_KEY", "FIRECRAWL_API_KEY", "ZENROWS_API_KEY",
+                "SCRAPINGBEE_API_KEY"):
         monkeypatch.delenv(var, raising=False)
     with pytest.raises(RuntimeError, match="could not fetch"):
         connector._fetch_html("https://blocked.example")
@@ -79,3 +85,34 @@ def test_thin_response_triggers_fallback(monkeypatch):
     monkeypatch.setattr(WebConnector, "_via_firecrawl",
                         lambda self, url: "<html>" + "y" * 600 + "</html>")
     assert "y" * 600 in connector._fetch_html("https://js-heavy.example")
+
+
+def test_the_free_services_are_tried_before_the_metered_ones(monkeypatch):
+    """TinyFish costs nothing, so it goes first for both jobs: finding a
+    homepage and rendering one. It was wired into live search only, and its
+    Fetch half had no caller at all."""
+    assert [name for name, _ in websearch.BACKENDS][0] == "tinyfish"
+
+    connector = WebConnector.__new__(WebConnector)
+    monkeypatch.setattr(WebConnector, "get_text", lambda self, url: "<html></html>")
+    for var in ("FIRECRAWL_API_KEY", "ZENROWS_API_KEY", "SCRAPINGBEE_API_KEY"):
+        monkeypatch.setenv(var, "k")
+    monkeypatch.setenv("TINYFISH_API_KEY", "k")
+    used = []
+    for name in ("tinyfish", "firecrawl", "zenrows", "scrapingbee"):
+        monkeypatch.setattr(WebConnector, f"_via_{name}",
+                            lambda self, url, n=name: used.append(n) or "<html>" + "z" * 600)
+    connector._fetch_html("https://js-heavy.example")
+    assert used == ["tinyfish"]
+
+
+def test_tinyfish_is_skipped_without_its_key(monkeypatch):
+    connector = WebConnector.__new__(WebConnector)
+    monkeypatch.setattr(WebConnector, "get_text", lambda self, url: "<html></html>")
+    for var in ("TINYFISH_API_KEY", "ZENROWS_API_KEY", "SCRAPINGBEE_API_KEY"):
+        monkeypatch.delenv(var, raising=False)
+    monkeypatch.setenv("FIRECRAWL_API_KEY", "k")
+    monkeypatch.setattr(WebConnector, "_via_tinyfish",
+                        lambda self, url: (_ for _ in ()).throw(AssertionError("called without a key")))
+    monkeypatch.setattr(WebConnector, "_via_firecrawl", lambda self, url: "<html>" + "f" * 600)
+    assert "f" * 600 in connector._fetch_html("https://js-heavy.example")

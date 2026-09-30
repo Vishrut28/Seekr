@@ -522,7 +522,7 @@ def _text_evidence_exists(session: Session, term: str) -> bool:
     return session.execute(
         select(Evidence.id).where(
             Evidence.attribute_type.in_(("bio", "role")),
-            func.lower(Evidence.value).like(f"%{term}%"),
+            func.lower(Evidence.value).like(f"%{like_escape(term)}%", escape="\\"),
         ).limit(1)
     ).first() is not None
 
@@ -854,6 +854,17 @@ def _org_index(orgs: dict) -> dict:
             if any(tuple(ws[i:i + n]) == target for i in range(len(ws) - n + 1)):
                 org_acronyms.setdefault(nick, set()).add(name)
     return {"org_words": org_words, "org_sequences": org_sequences, "org_acronyms": org_acronyms}
+
+
+def _follows_at(tokens: list[str], span: set) -> bool:
+    """Was this phrase typed as an employer -- "researchers at Oxford"?
+
+    "at" names where someone works; "in" names where they are. A word that is
+    both a place and part of an organization's name reads as the place unless
+    "at" says otherwise.
+    """
+    before = min(span) - 1 if span else -1
+    return before >= 0 and tokens[before].lower() == "at"
 
 
 def _org_matches(gram: str, gram_l: str, parts: list[str], span: set, tokens: list[str],
@@ -1376,6 +1387,20 @@ def parse(session: Session, query: str | None, _nested: bool = False) -> NLQuery
             # Kingdom, not the acronym of the University of Karachi.
             result.countries.append(COUNTRIES[gram_l])
             consumed |= span
+        elif (gram_l in locations or gram_l in PLACES) and not _follows_at(tokens, span):
+            # A place, before the organizations that merely contain it -- unless
+            # it was typed as an employer: "researchers at Oxford". After
+            # them, "people in bangalore" became "people at IISc Bangalore or
+            # Bangalore Medical College" and missed all four people whose
+            # stated location is Bangalore; "rust london" asked for ten London
+            # colleges. Nothing is lost by the order: a location filter also
+            # matches an affiliation whose name holds the place
+            # (location_anywhere, and the index's "p" field).
+            #
+            # Corpus spellings win: "Toronto" -> "Toronto, Canada" when that
+            # is what we stored; the gazetteer label when it is not.
+            result.locations.append(locations.get(gram_l) or PLACES[gram_l])
+            consumed |= span
         elif found_orgs := _org_matches(gram, gram_l, parts, span, tokens, aux, df):
             result.organizations.extend(found_orgs)
             result.org_terms.append({"term": gram, "orgs": found_orgs})
@@ -1383,15 +1408,6 @@ def parse(session: Session, query: str | None, _nested: bool = False) -> NLQuery
         elif gram_l in DEMONYMS:
             # "Indian researchers" is a place, not the topic "Indian History"
             result.countries.append(DEMONYMS[gram_l])
-            consumed |= span
-        elif gram_l in locations:
-            # Corpus spellings win: "Toronto" → "Toronto, Canada" when that
-            # is what we stored, rather than the bare gazetteer label.
-            result.locations.append(locations[gram_l])
-            consumed |= span
-        elif gram_l in PLACES:
-            # Gazetteer wins when the corpus has no stored spelling yet.
-            result.locations.append(PLACES[gram_l])
             consumed |= span
         elif (
             len(parts) > 1
@@ -1672,6 +1688,15 @@ def parse(session: Session, query: str | None, _nested: bool = False) -> NLQuery
 _WORD_EDGES = ",;/|()[]{}\"'-\u2013\u2014:.\t\n"
 
 
+def like_escape(text: str) -> str:
+    """TEXT with LIKE's own wildcards made literal, for use with escape="\\".
+
+    Without it a location filter of "%" matched everyone with a location and
+    "_erlin" matched Berlin: what the user typed was read as a pattern.
+    """
+    return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 def _word_match(column, value: str):
     """Match VALUE as a whole word or phrase inside COLUMN.
 
@@ -1705,13 +1730,13 @@ def _word_match(column, value: str):
         stem = v[:-1].strip()
         if not stem:
             return column.isnot(None)
-        return func.lower(column).like(f"%{stem}%")
+        return func.lower(column).like(f"%{like_escape(stem)}%", escape="\\")
 
     normalized = func.lower(column)
     for sep in _WORD_EDGES:
         normalized = func.replace(normalized, sep, " ")
     padded = literal(" ").concat(normalized).concat(literal(" "))
-    return padded.like(f"% {v} %")
+    return padded.like(f"% {like_escape(v)} %", escape="\\")
 
 
 LOCATION_TEXT_ATTRS = ("bio", "role", "location", "education")
@@ -1781,14 +1806,14 @@ def _name_clauses(column, token: str):
     t = token.lower()
     return (
         func.lower(column) == t,
-        func.lower(column).like(f"{t} %"),
-        func.lower(column).like(f"% {t}"),
-        func.lower(column).like(f"% {t} %"),
-        func.lower(column).like(f"{t}, %"),
-        func.lower(column).like(f"% {t}, %"),
+        func.lower(column).like(f"{like_escape(t)} %", escape="\\"),
+        func.lower(column).like(f"% {like_escape(t)}", escape="\\"),
+        func.lower(column).like(f"% {like_escape(t)} %", escape="\\"),
+        func.lower(column).like(f"{like_escape(t)}, %", escape="\\"),
+        func.lower(column).like(f"% {like_escape(t)}, %", escape="\\"),
         # Rahul's | Portfolio Website — apostrophe is a word edge
-        func.lower(column).like(f"{t}'%"),
-        func.lower(column).like(f"% {t}'%"),
+        func.lower(column).like(f"{like_escape(t)}'%", escape="\\"),
+        func.lower(column).like(f"% {like_escape(t)}'%", escape="\\"),
     )
 
 
@@ -1989,7 +2014,7 @@ def _full_name_exists(session: Session, phrase: str) -> bool:
         return False
     rows = session.execute(
         select(Person.canonical_name).where(
-            func.lower(Person.canonical_name).like(f"%{phrase}%"),
+            func.lower(Person.canonical_name).like(f"%{like_escape(phrase)}%", escape="\\"),
             Person.merged_into.is_(None),
         ).limit(20)
     ).scalars().all()
@@ -2063,14 +2088,14 @@ def _filtered_stmt(parsed: NLQuery):
         if group.get("pattern"):
             clauses.append(and_(
                 Evidence.attribute_type.in_(SKILL_ATTRS),
-                func.lower(Evidence.value).like(f"%{group['pattern'].lower()}%"),
+                func.lower(Evidence.value).like(f"%{like_escape(group['pattern'].lower())}%", escape="\\"),
             ))
         # the raw term as written, against free text (bio, job title)
         term = (group.get("term") or "").lower()
         if _meaningful(term, 4):
             clauses.append(and_(
                 Evidence.attribute_type.in_(("bio", "role")),
-                func.lower(Evidence.value).like(f"%{term}%"),
+                func.lower(Evidence.value).like(f"%{like_escape(term)}%", escape="\\"),
             ))
         if not clauses:
             continue
@@ -2126,7 +2151,7 @@ def _filtered_stmt(parsed: NLQuery):
         for term in parsed.name_terms:
             stmt = stmt.where(or_(
                 *_name_clauses(Person.canonical_name, term),
-                func.lower(func.cast(Person.aliases, SAString)).like(f"%\"{term.lower()}%"),
+                func.lower(func.cast(Person.aliases, SAString)).like(f"%\"{like_escape(term.lower())}%", escape="\\"),
             ))
     for sub in _excluded_queries(parsed):
         stmt = stmt.where(Person.id.not_in(
@@ -2410,7 +2435,7 @@ def _matched_evidence_clause(parsed: NLQuery):
         if group.get("pattern"):
             clauses.append(and_(
                 Evidence.attribute_type.in_(SKILL_ATTRS),
-                func.lower(Evidence.value).like(f"%{group['pattern'].lower()}%"),
+                func.lower(Evidence.value).like(f"%{like_escape(group['pattern'].lower())}%", escape="\\"),
             ))
         # The raw term against free text — the same clause the filter uses, so
         # anything that passed the filter can also be scored. Without this a
@@ -2419,7 +2444,7 @@ def _matched_evidence_clause(parsed: NLQuery):
         if _meaningful(term, 4):
             clauses.append(and_(
                 Evidence.attribute_type.in_(("bio", "role")),
-                func.lower(Evidence.value).like(f"%{term}%"),
+                func.lower(Evidence.value).like(f"%{like_escape(term)}%", escape="\\"),
             ))
     if not clauses:
         return None, None

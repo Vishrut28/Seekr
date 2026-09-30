@@ -10,6 +10,7 @@ carries the score and the evidence components behind it.
 """
 
 import contextvars
+import logging
 import os
 import pathlib
 import re
@@ -43,7 +44,11 @@ from .models import (
     Publication,
     SourceRecord,
 )
-from .nlq import _word_match, place_mentioned  # whole-word matching, shared with the parser
+from .nlq import (  # whole-word matching, shared with the parser
+    _word_match,
+    like_escape,
+    place_mentioned,
+)
 
 # Fewer results than this is a thin answer, and thin is worth topping up from
 # live sources even though it is not empty. Scaled down per applied filter —
@@ -381,7 +386,8 @@ def list_persons(
     if q and "q" not in indexed:
         stmt = stmt.where(
             _word_match(Person.canonical_name, q)
-            | func.lower(func.cast(Person.aliases, SAString)).like(f'%"{q.lower()}%')
+            | func.lower(func.cast(Person.aliases, SAString)).like(
+                f'%"{like_escape(q.lower())}%', escape="\\")
         )
     if skill and "skill" not in indexed:
         stmt = stmt.where(sa_exists().where(and_(
@@ -1482,8 +1488,17 @@ def nl_query(
         # payload: we already paid for that data, so keeping it means the same
         # query is answered from the graph next time instead of being re-bought.
         may_write = _may_write(request)
-        suggestions = discovery_suggestions(db, parsed, allow_paid=allow_paid,
-                                            persist=may_write)
+        try:
+            suggestions = discovery_suggestions(db, parsed, allow_paid=allow_paid,
+                                                persist=may_write)
+        except Exception as exc:
+            # Each source's own failure is already caught inside; this is the
+            # search itself failing. The corpus answer above stands without it
+            # rather than the whole query becoming a 500.
+            logging.getLogger("rip").exception("live discovery failed")
+            db.rollback()
+            response["discovery_error"] = f"{type(exc).__name__}: {exc}"
+            suggestions = []
         response["persisted"] = may_write
         stored = sum(1 for s in suggestions if s.get("stored"))
         # id-only entries replayed from a cached search: they belong in the
@@ -1774,26 +1789,34 @@ def list_feedback(
     since_id: int = Query(0, ge=0, description="cursor: return rows after this id"),
     limit: int = Query(200, ge=1, le=1000),
     person_id: str = Query("", description="only this person's judgements"),
+    newest_first: bool = Query(False, description="latest votes first, for reading "
+                               "rather than syncing; since_id still applies"),
     db: Session = Depends(get_db),
 ):
-    """The judgement log, for the ranking tool to train on."""
+    """The judgement log, for the ranking tool to train on -- and for a person to
+    read back what was judged (the Review page's match votes)."""
     from .models import MatchFeedback
 
-    stmt = select(MatchFeedback).where(MatchFeedback.id > since_id)
+    stmt = (select(MatchFeedback, Person.canonical_name)
+            .outerjoin(Person, Person.id == MatchFeedback.person_id)
+            .where(MatchFeedback.id > since_id))
     if person_id:
         stmt = stmt.where(MatchFeedback.person_id == person_id)
-    rows = db.execute(stmt.order_by(MatchFeedback.id).limit(limit)).scalars().all()
+    # `is True`: called as a plain function, the default is the Query() object,
+    # which is truthy
+    order = MatchFeedback.id.desc() if newest_first is True else MatchFeedback.id
+    rows = db.execute(stmt.order_by(order).limit(limit)).all()
     return {
         "count": len(rows),
-        "next_since_id": rows[-1].id if rows else since_id,
+        "next_since_id": max((r.id for r, _ in rows), default=since_id),
         "has_more": len(rows) == limit,
         "feedback": [
             {
-                "id": r.id, "person_id": r.person_id, "query": r.query_raw,
-                "verdict": r.verdict, "note": r.note, "voter": r.voter,
-                "created_at": r.created_at,
+                "id": r.id, "person_id": r.person_id, "person_name": name,
+                "query": r.query_raw, "verdict": r.verdict, "note": r.note,
+                "voter": r.voter, "created_at": r.created_at,
             }
-            for r in rows
+            for r, name in rows
         ],
     }
 
@@ -2012,10 +2035,18 @@ def query_stream(
             def on_source(name, state, **facts):
                 events.put({"type": "source", "source": name, "state": state, **facts})
 
-            suggestions = discovery_suggestions(
-                session, parsed, allow_paid=allow_paid, on_source=on_source,
-                persist=may_write,
-            )
+            try:
+                suggestions = discovery_suggestions(
+                    session, parsed, allow_paid=allow_paid, on_source=on_source,
+                    persist=may_write,
+                )
+            except Exception as exc:
+                # as in nl_query: live search failing is no reason to withhold
+                # what the corpus already has
+                logging.getLogger("rip").exception("live discovery failed")
+                session.rollback()
+                on_source("live", "failed", reason=f"{type(exc).__name__}")
+                suggestions = []
             stored = sum(1 for s_ in suggestions if s_.get("stored"))
             if stored:
                 from .nlq import invalidate_vocab

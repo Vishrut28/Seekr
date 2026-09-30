@@ -644,6 +644,25 @@ def test_match_feedback_is_recorded_but_never_ranks(session):
     assert log["count"] == 2
 
 
+def test_match_votes_can_be_read_back_newest_first_with_names(session):
+    """The Review page lists what was judged; the sync order stays oldest first."""
+    from rip.api import list_feedback, post_feedback
+    from rip.models import Person
+
+    seed(session)
+    people = session.query(Person).order_by(Person.canonical_name).all()[:2]
+    for p in people:
+        post_feedback({"person_id": str(p.id), "query": "rust", "verdict": "good"}, db=session)
+
+    synced = list_feedback(since_id=0, limit=100, person_id="", db=session)
+    assert [f["person_id"] for f in synced["feedback"]] == [str(p.id) for p in people]
+    assert [f["person_name"] for f in synced["feedback"]] == [p.canonical_name for p in people]
+
+    latest = list_feedback(since_id=0, limit=100, person_id="", newest_first=True, db=session)
+    assert [f["person_id"] for f in latest["feedback"]] == [str(p.id) for p in reversed(people)]
+    assert latest["next_since_id"] == synced["next_since_id"]
+
+
 def test_feedback_rejects_a_bad_verdict(session):
     import pytest
     from fastapi import HTTPException

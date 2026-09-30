@@ -145,8 +145,9 @@ class WebConnector(BaseConnector):
         """Plain request first; fall back to a render service only if needed.
 
         Each fallback is skipped when its key is unset, so a default install
-        makes no third-party calls. Free tiers (Aug 2026): Firecrawl 1,000
-        credits/month, ZenRows 5,000/month, ScrapingBee 1,000 trial credits.
+        makes no third-party calls. TinyFish Fetch is free (no credits). The
+        others consume a monthly quota: Firecrawl 1,000, ZenRows 5,000,
+        ScrapingBee 1,000 trial. TinyFish Agent/Browser are never called.
         """
         try:
             html = self.get_text(url)
@@ -157,6 +158,7 @@ class WebConnector(BaseConnector):
             logger.info("direct fetch failed for %s (%s), trying a renderer", url, exc)
 
         for name, fetcher in (
+            ("tinyfish", self._via_tinyfish),
             ("firecrawl", self._via_firecrawl),
             ("zenrows", self._via_zenrows),
             ("scrapingbee", self._via_scrapingbee),
@@ -171,6 +173,11 @@ class WebConnector(BaseConnector):
             except Exception as exc:
                 logger.warning("%s failed for %s: %s", name, url, exc)
         raise RuntimeError(f"could not fetch {url} by any available method")
+
+    def _via_tinyfish(self, url: str) -> str:
+        from ..tinyfish import fetch_html
+
+        return fetch_html(url, client=self._client)
 
     def _via_firecrawl(self, url: str) -> str:
         resp = self._client.post(

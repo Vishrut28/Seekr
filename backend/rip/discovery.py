@@ -933,11 +933,13 @@ def discovery_suggestions(
         nonlocal total_stored
         total_stored += stored
         report(source, "done", found=len(keep), stored=stored)
-        # A free source that found nothing is not worth remembering: nothing
+        # A free source that stored nobody is not worth remembering: nothing
         # was bought, and caching the miss would block the retry that a better
-        # parse or a wider corpus would have answered. Paid providers still
-        # cache their misses — that is where the money is.
-        if session is not None and (keep or source in PAID_SOURCES):
+        # parse or a wider corpus would have answered. "Found but not stored"
+        # is a miss too -- the cache can only replay people it kept, so a hit
+        # whose fetch failed locked that name out until the entry expired.
+        # Paid providers still cache their misses: that is where the money is.
+        if session is not None and (stored or source in PAID_SOURCES):
             _cache_record(
                 session, source, cache_key, len(keep), stored,
                 [i["person_id"] for i in keep if i.get("person_id")],

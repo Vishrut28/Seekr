@@ -11,6 +11,16 @@ interface Queue {
   fuzzy_merges: FuzzyMerge[];
 }
 
+interface MatchVote {
+  id: number;
+  person_id: string;
+  person_name: string | null;
+  query: string;
+  verdict: "good" | "bad";
+  voter: string;
+  created_at: string;
+}
+
 /** Enough of an id to tell two people of the same name apart. */
 const short = (id: string) => (id || "").slice(0, 8);
 
@@ -50,6 +60,18 @@ export function Review() {
       setActing(false);
     }
   };
+
+  // The thumbs on a result were recorded and nowhere to be seen again.
+  const [votes, setVotes] = useState<MatchVote[] | null>(null);
+  useEffect(() => {
+    let live = true;
+    api<{ feedback: MatchVote[] }>("/v1/feedback?newest_first=true&limit=100")
+      .then((r) => live && setVotes(r.feedback))
+      .catch(() => live && setVotes([]));
+    return () => {
+      live = false;
+    };
+  }, []);
 
   useEffect(() => {
     let live = true;
@@ -408,6 +430,48 @@ export function Review() {
               </div>
             </div>
           ))
+        )}
+      </section>
+
+      <section className="block">
+        <h2>
+          Match votes <span className="n">{votes ? votes.length : "…"}</span>
+        </h2>
+        {/* Stored, never applied: a vote does not reorder anything. It is the
+            record of what was judged, for whoever tunes ranking next. */}
+        {votes === null ? (
+          <Loading message="Reading votes…" />
+        ) : votes.length === 0 ? (
+          <EmptyState
+            title="No votes yet"
+            body="Thumbs up or down on a search result are recorded here against the
+                  query they were judged on. They do not change the order of results."
+          />
+        ) : (
+          <table className="data">
+            <thead>
+              <tr>
+                <th>Person</th>
+                <th>Query</th>
+                <th>Vote</th>
+                <th>When</th>
+              </tr>
+            </thead>
+            <tbody>
+              {votes.map((v) => (
+                <tr key={v.id}>
+                  <td>
+                    <Link to={`/person/${v.person_id}`}>
+                      {v.person_name || short(v.person_id)}
+                    </Link>
+                  </td>
+                  <td>{v.query}</td>
+                  <td>{v.verdict === "good" ? "good match" : "bad match"}</td>
+                  <td className="muted">{(v.created_at || "").slice(0, 10)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
       </section>
     </Shell>

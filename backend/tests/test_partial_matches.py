@@ -24,11 +24,15 @@ def test_the_subject_is_kept_and_the_employer_gives_way(session):
     """Typed first or last, "at Oxford" is dropped before "deep learning"."""
     person(session, "a", "Ada Deep", topics=["Deep Learning"])
     person(session, "b", "Bob Oxford", topics=["Medieval History"], orgs=["University of Oxford"])
-    for query in ("deep learning researchers at Oxford", "Oxford deep learning researchers"):
+    # "at" makes Oxford an employer; typed bare it is the place, which also
+    # covers the university (a location matches affiliation names), and a
+    # place gives way before the subject just as an employer does
+    for query, reading in (("deep learning researchers at Oxford", "org"),
+                           ("Oxford deep learning researchers", "location")):
         rows, dropped = run(session, query)
         assert [name for name, _ in rows] == ["Ada Deep"], query
-        assert rows[0][1] == {"missing": [{"term": "Oxford", "as": "org"}]}
-        assert dropped == [{"term": "Oxford", "as": "org"}]
+        assert rows[0][1] == {"missing": [{"term": "Oxford", "as": reading}]}
+        assert dropped == [{"term": "Oxford", "as": reading}]
 
 
 def test_a_thin_page_is_topped_up_behind_the_full_matches(session):

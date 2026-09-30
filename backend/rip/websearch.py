@@ -5,8 +5,8 @@ for one job: locating a person's own homepage so the `web` connector can read
 what that page publishes (CV link, email, cross-profile links).
 
 Backends are tried in order of free-tier generosity and skipped entirely when
-their key is unset, so a default install makes no paid calls. Free tiers as of
-Aug 2026: Tavily 1,000 credits/month, SerpApi 250 searches/month.
+their key is unset, so a default install makes no paid calls. TinyFish Search
+is free (no credits). Tavily is 1,000 credits/month, SerpApi 250/month.
 """
 
 import logging
@@ -38,6 +38,12 @@ def _is_candidate_homepage(url: str) -> bool:
     return bool(host) and not any(
         host == h or host.endswith("." + h) for h in SKIP_HOSTS
     )
+
+
+def _tinyfish(query: str, limit: int) -> list[dict]:
+    from .tinyfish import search as tf_search
+
+    return tf_search(query, limit)
 
 
 def _tavily(query: str, limit: int) -> list[dict]:
@@ -76,7 +82,8 @@ def _serpapi(query: str, limit: int) -> list[dict]:
         ]
 
 
-BACKENDS = (("tavily", _tavily), ("serpapi", _serpapi))
+# free first: a key that costs nothing is tried before ones that draw a quota
+BACKENDS = (("tinyfish", _tinyfish), ("tavily", _tavily), ("serpapi", _serpapi))
 
 
 def available_backends() -> list[str]:
