@@ -69,6 +69,11 @@ What it still misses, and why, so nobody rediscovers it:
   flagging one person. Those records are small, or one career plus a stray
   paper, and their titles never fill three domains; looser rules had
   already failed on the design labels. See round3 in the draw file.
+  TRIED 2026-09-30 and not kept: OpenAlex's own placement of those papers,
+  looked up by DOI (see PLACED BY DOI below). It found 31 of rounds 2+3's
+  36 conflations instead of 21, but only 42% of its flags were right, under
+  the 50% it had to meet. The placements are stored, for a variant judged on
+  a fresh draw.
   a broad career already touches the intruder's subfield (a Monte Carlo
   statistician's control-engineering work covers a power-systems paper).
   a spurious link pulls the intruder into the career group.
@@ -431,16 +436,25 @@ def topic_hierarchy(session: Session) -> dict[str, tuple]:
     Publication rows keep only topic NAMES; where each sits in OpenAlex's
     taxonomy is in the payloads, and a topic seen on anybody's work is placed
     for everybody's. Topics no payload mentions have no place and simply say
-    nothing about distance. Topics OpenAlex gave for papers looked up by DOI
-    (work_topics) are placed the same way.
+    nothing about distance.
     """
     into: dict[str, tuple] = {}
     for (raw,) in session.execute(
             select(SourceRecord.raw).where(SourceRecord.source == "openalex")):
         _learn_hierarchy(_as_payload(raw), into)
-    doi_topics(session, into)
     return into
 
+
+# PLACED BY DOI -- tried 2026-09-30 and NOT adopted. The detector is blind to
+# people whose papers carry no OpenAlex placement (126 of 461 with six or more
+# papers); scripts/place_topics_by_doi.py looked 3,719 of their DOIs up and
+# placed 3,697 (work_topics). Falling back to those placements for a paper
+# with none of its own was pre-registered and scored on rounds 2+3:
+#   conflations found  21/36 -> 31/36     flags right  21/37 (57%) -> 31/73 (42%)
+# (flags right counts an unsure label as wrong, as the rule required;
+# measure_conflation's line leaves unsure out, and there read 62% -> 45%)
+# The rule required precision of at least 50%, so it is not used here. The
+# table and these helpers stay for a variant judged on a fresh draw.
 
 def _doi_key(doi: str | None) -> str:
     """A DOI as work_topics keys it: lower case, without a resolver prefix."""
@@ -456,9 +470,9 @@ def doi_topics(session: Session, into: dict | None = None,
                dois: list[str] | None = None) -> dict[str, list[str]]:
     """DOI -> the topic names OpenAlex placed that paper under (work_topics).
 
-    Each topic is also placed in INTO, the hierarchy, when given. DOIS limits
-    the read to those papers. A database that has never had the table created
-    has no lookups yet, which is an empty answer rather than an error.
+    Not read by the detector -- see PLACED BY DOI above. Each topic is placed
+    in INTO when given; DOIS limits the read. A database without the table has
+    no lookups, which is an empty answer rather than an error.
     """
     from sqlalchemy import inspect as sa_inspect
 
@@ -527,20 +541,12 @@ def _foreign(papers: dict[int, dict], hierarchy: dict) -> dict[int, str]:
     return out
 
 
-def _build(person_id: str, name: str | None, rows, works: dict, hierarchy: dict,
-           by_doi: dict | None = None) -> Split:
-    """ROWS: (publication id, external id, topics, raw authors, date, doi).
-
-    BY_DOI is doi_topics(): what OpenAlex placed a paper under, used only for a
-    paper whose own topics place nowhere -- the source that brought it in gave
-    none OpenAlex knows.
-    """
+def _build(person_id: str, name: str | None, rows, works: dict, hierarchy: dict) -> Split:
+    """ROWS: (publication id, external id, topics, raw authors, date)."""
     surname = (name or "").lower().split()[-1] if name else ""
     marks, papers, years = {}, {}, []
-    for pub_id, external_id, topics, raw, when, doi in rows:
+    for pub_id, external_id, topics, raw, when in rows:
         topics = _as_list(topics)
-        if by_doi and not any(t in hierarchy for t in topics):
-            topics = by_doi.get(_doi_key(doi), topics)
         with_ = _coauthors(raw, surname)
         marks[pub_id] = {("topic", t) for t in topics} | {("with", c) for c in with_}
         links = {("with", c) for c in with_}
@@ -557,7 +563,7 @@ def _build(person_id: str, name: str | None, rows, works: dict, hierarchy: dict,
 
 
 _PAPER_COLUMNS = (Publication.id, Publication.external_id, Publication.topics,
-                  Publication.raw_authors, Publication.published_date, Publication.doi)
+                  Publication.raw_authors, Publication.published_date)
 
 
 def split_of(session: Session, person_id: str, name: str | None = None,
@@ -578,8 +584,7 @@ def split_of(session: Session, person_id: str, name: str | None = None,
         .where(Authorship.person_id == person_id)
     ).all()
     works = _openalex_works(session, person_id).get(person_id, {})
-    by_doi = doi_topics(session, hierarchy, [row[-1] for row in rows if row[-1]])
-    return _build(person_id, name, rows, works, hierarchy, by_doi)
+    return _build(person_id, name, rows, works, hierarchy)
 
 
 def candidates(session: Session, above: float | None = None,
@@ -620,14 +625,13 @@ def candidates(session: Session, above: float | None = None,
         payload = _as_payload(raw)
         _learn_hierarchy(payload, hierarchy)
         works.setdefault(owner, {}).update(_works_in(payload))
-    by_doi = doi_topics(session, hierarchy)
 
     out = []
     for person_id, papers in per_person.items():
         if len({p[0] for p in papers}) < min_papers:
             continue
         split = _build(person_id, names.get(person_id), papers,
-                       works.get(person_id, {}), hierarchy, by_doi)
+                       works.get(person_id, {}), hierarchy)
         reasons = split.reasons(above)
         if not reasons:
             continue
@@ -741,17 +745,15 @@ def foreign_evidence(session: Session, split: Split) -> list[dict]:
         return []
     rows = session.execute(
         select(Publication.id, Publication.title, Publication.published_date,
-               Publication.topics, Publication.doi)
+               Publication.topics)
         .where(Publication.id.in_(split.foreign))
     ).all()
-    # a paper judged on what OpenAlex placed it under shows those topics
-    by_doi = doi_topics(session, dois=[doi for *_rest, doi in rows if doi])
     farthest = {"domain": 0, "field": 1, "subfield": 2}
     out = [{"publication_id": pub_id, "title": title,
             "year": next(iter(_year(when)), None),
             "distance": split.foreign[pub_id],
-            "topics": (_as_list(topics) or by_doi.get(_doi_key(doi), []))[:2]}
-           for pub_id, title, when, topics, doi in rows]
+            "topics": _as_list(topics)[:2]}
+           for pub_id, title, when, topics in rows]
     return sorted(out, key=lambda r: (farthest[r["distance"]], r["year"] or 0,
                                       r["publication_id"]))
 
