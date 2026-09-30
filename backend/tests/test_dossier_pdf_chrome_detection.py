@@ -12,6 +12,10 @@ function uses, rather than hardcoded backslash strings — os.path.join uses
 the CURRENT platform's separator, so a hardcoded Windows-style path string
 only matches on a machine that's actually Windows. Building both sides the
 same way keeps these tests meaningful on Linux, Mac, or Windows alike.
+
+The variables are set in upper case, as Windows provides them. Windows
+reads its environment case-insensitively and Linux does not, so a test
+setting "LocalAppData" passed on Windows and failed in CI.
 """
 import os
 
@@ -43,9 +47,9 @@ def test_finds_chrome_at_standard_windows_program_files_path(monkeypatch):
     monkeypatch.delenv("CHROME_BINARY", raising=False)
     monkeypatch.setattr("shutil.which", lambda name: None)  # nothing on PATH
     program_files = r"C:\Program Files"
-    monkeypatch.setenv("ProgramFiles", program_files)
-    monkeypatch.setenv("ProgramFiles(x86)", r"C:\Program Files (x86)")
-    monkeypatch.setenv("LocalAppData", r"C:\Users\Test\AppData\Local")
+    monkeypatch.setenv("PROGRAMFILES", program_files)
+    monkeypatch.setenv("PROGRAMFILES(X86)", r"C:\Program Files (x86)")
+    monkeypatch.setenv("LOCALAPPDATA", r"C:\Users\Test\AppData\Local")
 
     expected = os.path.join(program_files, "Google", "Chrome", "Application", "chrome.exe")
 
@@ -64,10 +68,10 @@ def test_finds_chrome_at_per_user_appdata_windows_path(monkeypatch):
     non-admin Windows user is a completely normal, common case."""
     monkeypatch.delenv("CHROME_BINARY", raising=False)
     monkeypatch.setattr("shutil.which", lambda name: None)
-    monkeypatch.setenv("ProgramFiles", r"C:\Program Files")
-    monkeypatch.setenv("ProgramFiles(x86)", r"C:\Program Files (x86)")
+    monkeypatch.setenv("PROGRAMFILES", r"C:\Program Files")
+    monkeypatch.setenv("PROGRAMFILES(X86)", r"C:\Program Files (x86)")
     local_app_data = r"C:\Users\Test\AppData\Local"
-    monkeypatch.setenv("LocalAppData", local_app_data)
+    monkeypatch.setenv("LOCALAPPDATA", local_app_data)
 
     expected = os.path.join(local_app_data, "Google", "Chrome", "Application", "chrome.exe")
 
@@ -86,10 +90,10 @@ def test_falls_back_to_edge_on_windows_when_chrome_is_absent(monkeypatch):
     should still get PDF rendering to work via Edge."""
     monkeypatch.delenv("CHROME_BINARY", raising=False)
     monkeypatch.setattr("shutil.which", lambda name: None)
-    monkeypatch.setenv("ProgramFiles", r"C:\Program Files")
+    monkeypatch.setenv("PROGRAMFILES", r"C:\Program Files")
     program_files_x86 = r"C:\Program Files (x86)"
-    monkeypatch.setenv("ProgramFiles(x86)", program_files_x86)
-    monkeypatch.setenv("LocalAppData", r"C:\Users\Test\AppData\Local")
+    monkeypatch.setenv("PROGRAMFILES(X86)", program_files_x86)
+    monkeypatch.setenv("LOCALAPPDATA", r"C:\Users\Test\AppData\Local")
 
     expected = os.path.join(program_files_x86, "Microsoft", "Edge", "Application", "msedge.exe")
 
