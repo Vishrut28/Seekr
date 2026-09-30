@@ -655,6 +655,29 @@ class ConflationReview(Base):
     reviewed_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
+class WorkTopics(Base):
+    """OpenAlex's classification of a paper, looked up by its DOI.
+
+    A quarter of the people with six or more papers had none of them placed in
+    OpenAlex's taxonomy -- ORCID, Europe PMC and Semantic Scholar bring papers
+    without it -- so the conflation detector could not see them at all. This
+    holds what OpenAlex says about those papers, apart from Publication.topics:
+    that column is what the paper's own source stated, and the ranker reads it.
+    Only the conflation detector reads this.
+
+    A row with no openalex_id is a DOI OpenAlex does not know, remembered so a
+    rerun does not ask again.
+    """
+
+    __tablename__ = "work_topics"
+
+    doi: Mapped[str] = mapped_column(String(255), primary_key=True)   # lower case, no URL prefix
+    openalex_id: Mapped[str | None] = mapped_column(String(32))
+    # [{"name", "subfield", "field", "domain"}], OpenAlex's order (strongest first)
+    topics: Mapped[list] = mapped_column(JSON, default=list)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
 # Registers the search index tables and the session hooks that keep them
 # current. Imported last: it refers to the models above.
 from . import search_index as _search_index  # noqa: E402,F401

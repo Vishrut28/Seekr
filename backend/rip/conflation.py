@@ -431,13 +431,61 @@ def topic_hierarchy(session: Session) -> dict[str, tuple]:
     Publication rows keep only topic NAMES; where each sits in OpenAlex's
     taxonomy is in the payloads, and a topic seen on anybody's work is placed
     for everybody's. Topics no payload mentions have no place and simply say
-    nothing about distance.
+    nothing about distance. Topics OpenAlex gave for papers looked up by DOI
+    (work_topics) are placed the same way.
     """
     into: dict[str, tuple] = {}
     for (raw,) in session.execute(
             select(SourceRecord.raw).where(SourceRecord.source == "openalex")):
         _learn_hierarchy(_as_payload(raw), into)
+    doi_topics(session, into)
     return into
+
+
+def _doi_key(doi: str | None) -> str:
+    """A DOI as work_topics keys it: lower case, without a resolver prefix."""
+    key = (doi or "").strip().lower()
+    for prefix in ("https://doi.org/", "http://doi.org/", "https://dx.doi.org/",
+                   "http://dx.doi.org/", "doi:"):
+        if key.startswith(prefix):
+            key = key[len(prefix):]
+    return key
+
+
+def doi_topics(session: Session, into: dict | None = None,
+               dois: list[str] | None = None) -> dict[str, list[str]]:
+    """DOI -> the topic names OpenAlex placed that paper under (work_topics).
+
+    Each topic is also placed in INTO, the hierarchy, when given. DOIS limits
+    the read to those papers. A database that has never had the table created
+    has no lookups yet, which is an empty answer rather than an error.
+    """
+    from sqlalchemy import inspect as sa_inspect
+
+    from .models import WorkTopics
+
+    if not sa_inspect(session.connection()).has_table("work_topics"):
+        return {}
+    query = select(WorkTopics.doi, WorkTopics.topics).where(WorkTopics.openalex_id.isnot(None))
+    if dois is not None:
+        keys = [k for k in {_doi_key(d) for d in dois} if k]
+        if not keys:
+            return {}
+        query = query.where(WorkTopics.doi.in_(keys))
+    out: dict[str, list[str]] = {}
+    for doi, topics in session.execute(query):
+        names = []
+        for topic in _as_list(topics):
+            name = (topic or {}).get("name")
+            if not name:
+                continue
+            names.append(name)
+            if into is not None:
+                into.setdefault(name, (topic.get("subfield"), topic.get("field"),
+                                       topic.get("domain")))
+        if names:
+            out[doi] = names
+    return out
 
 
 def _openalex_works(session: Session, person_id: str | None = None) -> dict[str, dict]:
@@ -479,12 +527,20 @@ def _foreign(papers: dict[int, dict], hierarchy: dict) -> dict[int, str]:
     return out
 
 
-def _build(person_id: str, name: str | None, rows, works: dict, hierarchy: dict) -> Split:
-    """ROWS: (publication id, external id, topics, raw authors, date)."""
+def _build(person_id: str, name: str | None, rows, works: dict, hierarchy: dict,
+           by_doi: dict | None = None) -> Split:
+    """ROWS: (publication id, external id, topics, raw authors, date, doi).
+
+    BY_DOI is doi_topics(): what OpenAlex placed a paper under, used only for a
+    paper whose own topics place nowhere -- the source that brought it in gave
+    none OpenAlex knows.
+    """
     surname = (name or "").lower().split()[-1] if name else ""
     marks, papers, years = {}, {}, []
-    for pub_id, external_id, topics, raw, when in rows:
+    for pub_id, external_id, topics, raw, when, doi in rows:
         topics = _as_list(topics)
+        if by_doi and not any(t in hierarchy for t in topics):
+            topics = by_doi.get(_doi_key(doi), topics)
         with_ = _coauthors(raw, surname)
         marks[pub_id] = {("topic", t) for t in topics} | {("with", c) for c in with_}
         links = {("with", c) for c in with_}
@@ -501,7 +557,7 @@ def _build(person_id: str, name: str | None, rows, works: dict, hierarchy: dict)
 
 
 _PAPER_COLUMNS = (Publication.id, Publication.external_id, Publication.topics,
-                  Publication.raw_authors, Publication.published_date)
+                  Publication.raw_authors, Publication.published_date, Publication.doi)
 
 
 def split_of(session: Session, person_id: str, name: str | None = None,
@@ -522,7 +578,8 @@ def split_of(session: Session, person_id: str, name: str | None = None,
         .where(Authorship.person_id == person_id)
     ).all()
     works = _openalex_works(session, person_id).get(person_id, {})
-    return _build(person_id, name, rows, works, hierarchy)
+    by_doi = doi_topics(session, hierarchy, [row[-1] for row in rows if row[-1]])
+    return _build(person_id, name, rows, works, hierarchy, by_doi)
 
 
 def candidates(session: Session, above: float | None = None,
@@ -563,13 +620,14 @@ def candidates(session: Session, above: float | None = None,
         payload = _as_payload(raw)
         _learn_hierarchy(payload, hierarchy)
         works.setdefault(owner, {}).update(_works_in(payload))
+    by_doi = doi_topics(session, hierarchy)
 
     out = []
     for person_id, papers in per_person.items():
         if len({p[0] for p in papers}) < min_papers:
             continue
         split = _build(person_id, names.get(person_id), papers,
-                       works.get(person_id, {}), hierarchy)
+                       works.get(person_id, {}), hierarchy, by_doi)
         reasons = split.reasons(above)
         if not reasons:
             continue
@@ -683,15 +741,17 @@ def foreign_evidence(session: Session, split: Split) -> list[dict]:
         return []
     rows = session.execute(
         select(Publication.id, Publication.title, Publication.published_date,
-               Publication.topics)
+               Publication.topics, Publication.doi)
         .where(Publication.id.in_(split.foreign))
     ).all()
+    # a paper judged on what OpenAlex placed it under shows those topics
+    by_doi = doi_topics(session, dois=[doi for *_rest, doi in rows if doi])
     farthest = {"domain": 0, "field": 1, "subfield": 2}
     out = [{"publication_id": pub_id, "title": title,
             "year": next(iter(_year(when)), None),
             "distance": split.foreign[pub_id],
-            "topics": _as_list(topics)[:2]}
-           for pub_id, title, when, topics in rows]
+            "topics": (_as_list(topics) or by_doi.get(_doi_key(doi), []))[:2]}
+           for pub_id, title, when, topics, doi in rows]
     return sorted(out, key=lambda r: (farthest[r["distance"]], r["year"] or 0,
                                       r["publication_id"]))
 

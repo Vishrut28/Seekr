@@ -153,6 +153,23 @@ class OpenAlexConnector(BaseConnector):
             return f"orcid:{tail}"
         return tail
 
+    def works_by_doi(self, dois: list[str]) -> list[dict]:
+        """OpenAlex's record of each DOI it knows: id, doi and placed topics.
+
+        Up to fifty DOIs in one request, OR-ed in a single filter. A DOI that
+        OpenAlex does not hold is simply absent from the answer. A DOI holding a
+        "|" or "," would be read as filter syntax, so it is never sent.
+        """
+        wanted = [d for d in dict.fromkeys(dois) if d and "|" not in d and "," not in d]
+        found: list[dict] = []
+        for start in range(0, len(wanted), 50):
+            chunk = wanted[start:start + 50]
+            data = self.get_json(f"{API}/works", params=self._params({
+                "filter": "doi:" + "|".join(chunk), "per-page": len(chunk),
+                "select": "id,doi,topics"}))
+            found.extend(data.get("results") or [])
+        return found
+
     def prefetch(self, identifiers: list[str]) -> None:
         """Load many author records in one request.
 
