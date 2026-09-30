@@ -23,13 +23,25 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
-      - run: pip install -e ".[dev]"
+      # the annotate plugin turns a failing test into an annotation on the run
+      # page, which anyone can read; the logs need a login
+      - run: pip install -e ".[dev]" "pytest-github-actions-annotate-failures==0.4.2"
+      # Each check runs even when one before it failed, so one run shows all
+      # of what is wrong rather than the first thing.
       - name: ruff
-        # annotations name the file and line on the run page; logs need a login
+        if: ${{ !cancelled() }}
         run: ruff check . --output-format github
       - name: mypy
-        run: mypy
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set -o pipefail
+          mypy --no-pretty | tee mypy.txt || {
+            sed -nE 's/^([^:]+):([0-9]+): error: (.*)$/::error file=\1,line=\2::\3/p' mypy.txt
+            exit 1
+          }
       - name: tests
+        if: ${{ !cancelled() }}
         run: python -m pytest -q
 
   web:
