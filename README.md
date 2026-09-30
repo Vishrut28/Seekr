@@ -1350,7 +1350,7 @@ process cannot write.
 pip install -e ".[dev]"
 ruff check .                 # style, dead code, likely bugs
 ruff check . --fix
-mypy                         # configured in pyproject, reads backend/rip
+mypy                         # configured in pyproject: backend/rip and backend/scripts
 coverage run -m pytest && coverage report
 pip-audit                    # known vulnerabilities in the dependency tree
 ```
@@ -1391,9 +1391,22 @@ were not, because mypy had found something true:
 The `type: ignore`s that remain are each commented, and `warn_unused_ignores`
 fails the run if one stops being needed.
 
-Coverage is **69%** overall. The honest part of that number is where the
-zeroes are: `rip/dossier.py` 0%, `rip/harvest.py` 0%, `rip/cli.py` 13%.
-`pip-audit` reports no vulnerability in any runtime dependency.
+`.github/workflows/checks.yml` runs ruff, mypy and the tests on Python 3.10
+and 3.14, and typechecks the web app, on every push. Its first runs failed in
+ways this machine could not show: import order that depended on a stray
+directory at the repository root (now `src = ["backend"]`), SQLAlchemy 2.1
+installed unasked on 3.14 (now `<2.1`, the version tested), and a test that
+relied on Windows reading environment variables case-insensitively. Ruff and
+mypy are pinned to exact versions, so CI checks what was checked here.
+
+mypy also reads the scripts, several of which write to the database, and the
+bodies of unannotated functions. Not the tests: fakes and monkeypatched
+methods are what they are for.
+
+Coverage is **74%** overall and **89%** for the `rip` package, on 2026-09-30.
+It was 69%, with `rip/dossier.py` and `rip/harvest.py` at 0% and `rip/cli.py`
+at 13%; those are now 91%, 94% and 64%. What stays low is one-off scripts.
+`pip-audit -r requirements.txt` reports no known vulnerability (2026-09-30).
 
 ## Running the full build
 
