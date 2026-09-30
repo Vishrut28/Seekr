@@ -23,6 +23,7 @@ scale fails them.
 """
 
 import pytest
+
 from rip.ingest import ingest_profile
 from rip.nlq import (
     OFF_TOPIC_WEIGHT,

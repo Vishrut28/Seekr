@@ -85,12 +85,12 @@ def test_split_detaches_record_into_new_person(session):
 
 def test_bearer_auth_enforced(monkeypatch):
     from fastapi.testclient import TestClient
-    from rip.db import Base
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
     from sqlalchemy.pool import StaticPool
 
     from rip import api
+    from rip.db import Base
 
     monkeypatch.setenv("RIP_API_TOKEN", "sekret")
     # A test database, not whatever rip.db sits in the working directory: a

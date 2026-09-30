@@ -74,12 +74,12 @@ def main() -> None:
                         help="store whatever the source returned, on subject or not")
     args = parser.parse_args()
 
-    from rip.db import SessionLocal, init_db
-    from rip.ingest import on_subject, run_connector
-    from rip.models import Person
     from sqlalchemy import func, select
 
     from rip.connectors import get_connector
+    from rip.db import SessionLocal, init_db
+    from rip.ingest import on_subject, run_connector
+    from rip.models import Person
 
     init_db()
     wanted = [t for t in TOPICS if not args.topic or t[0] in args.topic]

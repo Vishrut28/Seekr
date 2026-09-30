@@ -162,8 +162,9 @@ def orcids_of(keys) -> set:
 
 
 def facts(session, person_id: str) -> dict:
-    from rip.models import Authorship, PersonKey, Publication
     from sqlalchemy import select
+
+    from rip.models import Authorship, PersonKey, Publication
 
     papers = session.execute(
         select(Publication).join(Authorship, Authorship.publication_id == Publication.id)
@@ -286,9 +287,10 @@ def main() -> None:
     parser.add_argument("--verbose", action="store_true", help="show every test")
     args = parser.parse_args()
 
+    from sqlalchemy import select
+
     from rip.db import SessionLocal, init_db
     from rip.models import MergeCandidate, Person
-    from sqlalchemy import select
 
     init_db()
     with SessionLocal() as session:

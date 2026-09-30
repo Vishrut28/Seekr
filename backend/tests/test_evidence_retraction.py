@@ -1,9 +1,10 @@
 """Re-ingesting a record retracts what it no longer claims."""
 
+from sqlalchemy import select
+
 from rip.ingest import ingest_profile
 from rip.models import Evidence, Person
 from rip.normalize import EvidenceItem
-from sqlalchemy import select
 from tests.test_resolution import make_profile
 
 

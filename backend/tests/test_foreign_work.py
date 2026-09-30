@@ -7,11 +7,10 @@ and sits elsewhere in OpenAlex's subject taxonomy. These pin down each link
 that rescues a paper, and each guard against calling range a second person.
 """
 
+from rip import api, conflation
 from rip.ingest import ingest_profile
 from rip.normalize import PublicationData
 from tests.test_resolution import make_profile
-
-from rip import api, conflation
 
 # topic -> (subfield, field, domain), as OpenAlex places them
 PLACE = {

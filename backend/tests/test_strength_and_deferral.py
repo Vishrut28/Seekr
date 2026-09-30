@@ -16,12 +16,12 @@ only when its evidence has grown.
 """
 
 import pytest
+
+from rip import dedupe
 from rip.dedupe import COAUTHOR_POOL_FOR_FULL_WEIGHT, Judgement, _torn, strength
 from rip.ingest import ingest_profile
 from rip.models import MergeCandidate
 from tests.test_dedupe import profile
-
-from rip import dedupe
 
 
 def j(*, pubs=0, shared=0, ratio=0.0, pool=None, orgs=0, decision="merge"):

@@ -3,6 +3,7 @@
 import json
 
 import pytest
+
 from rip.ingest import ingest_profile
 from rip.models import ChangeLog, WebhookDelivery
 from rip.webhooks import (

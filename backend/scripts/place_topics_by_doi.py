@@ -26,10 +26,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 def unplaced_dois(session) -> list[str]:
     """DOIs of papers with no topic placed in OpenAlex's taxonomy, not yet asked about."""
-    from rip.models import Publication, WorkTopics
     from sqlalchemy import select
 
     from rip import conflation
+    from rip.models import Publication, WorkTopics
 
     hierarchy = conflation.topic_hierarchy(session)
     asked = set(session.execute(select(WorkTopics.doi)).scalars())
@@ -59,9 +59,8 @@ def placed(work: dict) -> list[dict]:
 
 def store(session, asked: list[str], works: list[dict]) -> tuple[int, int]:
     """Record every DOI asked about: what OpenAlex placed it under, or a miss."""
-    from rip.models import WorkTopics
-
     from rip import conflation
+    from rip.models import WorkTopics
 
     by_doi = {conflation._doi_key(w.get("doi")): w for w in works if w.get("doi")}
     hits = 0

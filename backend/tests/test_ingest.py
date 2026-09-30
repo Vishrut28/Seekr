@@ -249,6 +249,7 @@ def test_a_payload_describing_nobody_does_not_become_a_person(session):
     null name, invisible to every search because it held nothing to match.
     One reached the corpus through a topical ingest before this guard."""
     import pytest
+
     from rip.ingest import ingest_profile
     from rip.personhood import NotAPerson
     from tests.test_resolution import make_profile

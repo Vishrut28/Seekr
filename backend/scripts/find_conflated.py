@@ -23,11 +23,11 @@ def main() -> None:
     parser.add_argument("--titles", type=int, default=3, help="titles shown per group")
     args = parser.parse_args()
 
-    from rip.db import SessionLocal, init_db
-    from rip.models import Person
     from sqlalchemy import select
 
     from rip import conflation
+    from rip.db import SessionLocal, init_db
+    from rip.models import Person
 
     init_db()
     with SessionLocal() as session:

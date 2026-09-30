@@ -9,11 +9,10 @@ stored people and more behind it. The button never appeared and the rest were
 unreachable.
 """
 
+from rip import api
 from rip.ingest import ingest_profile
 from rip.normalize import EvidenceItem
 from tests.test_resolution import make_profile
-
-from rip import api
 
 
 def rust_person(session, tag: str):

@@ -109,10 +109,11 @@ def test_the_harness_refuses_to_print_a_table_it_cannot_support(tmp_path):
     from datetime import timedelta
     from pathlib import Path
 
-    from rip.db import Base
-    from rip.models import Person, PersonSplit, SourceRecord
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
+
+    from rip.db import Base
+    from rip.models import Person, PersonSplit, SourceRecord
 
     backend = Path(__file__).resolve().parents[1]
     labels = json.loads((backend / "evaluation" / "conflation_labels.json")

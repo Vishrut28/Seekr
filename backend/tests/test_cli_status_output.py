@@ -21,9 +21,9 @@ import io
 from contextlib import redirect_stdout
 
 import pytest
-from rip.db import printable_url
 
 from rip import cli
+from rip.db import printable_url
 
 SECRET = "hunter2-do-not-print-me"
 PG = f"postgresql+psycopg://seekr:{SECRET}@db.example.org:5432/rip"

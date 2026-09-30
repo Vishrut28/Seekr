@@ -2,14 +2,13 @@
 reparse-from-raw, integer change cursor, near-miss review band + tombstone
 merge, evidence-aggregated profiles."""
 
+from rip.connectors import get_connector
 from rip.ingest import ingest_profile
 from rip.models import Evidence, MergeCandidate, Person, SourceRecord
 from rip.normalize import OrgAffiliation
 from rip.review import list_suspicious, resolve_duplicate
 from tests.test_ingest import github_profile
 from tests.test_resolution import make_profile
-
-from rip.connectors import get_connector
 
 
 def test_reparse_from_stored_raw(session):

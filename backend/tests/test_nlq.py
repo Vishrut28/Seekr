@@ -226,9 +226,8 @@ def test_suggestions_fall_through_to_other_sources(session, monkeypatch):
 
 
 def test_live_searchers_cover_all_free_connectors():
-    from rip.discovery import PAID_SOURCES, SUGGESTION_SEARCHERS
-
     from rip.connectors import CONNECTORS
+    from rip.discovery import PAID_SOURCES, SUGGESTION_SEARCHERS
 
     live = {name for name, _fn, _full in SUGGESTION_SEARCHERS}
     free = set(CONNECTORS) - set(PAID_SOURCES)
@@ -323,6 +322,7 @@ def test_partial_match_still_filters(session):
 def test_queue_lead_endpoint(session):
     """UI live-search 'Queue' button: records intent, never ingests."""
     from fastapi import HTTPException
+
     from rip.api import queue_lead
     from rip.models import DiscoveryLead, Person
 
@@ -666,6 +666,7 @@ def test_match_votes_can_be_read_back_newest_first_with_names(session):
 def test_feedback_rejects_a_bad_verdict(session):
     import pytest
     from fastapi import HTTPException
+
     from rip.api import post_feedback
     from rip.models import Person
 
@@ -679,6 +680,7 @@ def test_feedback_rejects_a_bad_verdict(session):
 def test_shortlists_hold_people_with_the_query_that_found_them(session):
     import pytest
     from fastapi import HTTPException
+
     from rip.api import (
         add_to_shortlist,
         create_shortlist,
@@ -855,11 +857,12 @@ def test_job_titles_are_matched_as_roles_not_topics(session):
 
 def test_one_organization_however_it_is_spelled(session):
     """"Deccan.AI" and "Deccan AI" are one company, not two."""
+    from sqlalchemy import select
+
     from rip.ingest import ingest_profile
     from rip.models import Organization, normalize_org_name
     from rip.nlq import execute, parse
     from rip.normalize import NormalizedProfile, OrgAffiliation
-    from sqlalchemy import select
 
     def person(login, name, org, role):
         return NormalizedProfile(
@@ -952,9 +955,10 @@ def test_a_stated_skill_outranks_a_bio_mention(session):
 
 def test_vocabulary_cache_does_not_leak_between_databases(session):
     """A cached vocabulary belongs to one database, never to the process."""
-    from rip.db import Base
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
+
+    from rip.db import Base
 
     seed(session)
     assert parse(session, "distributed systems experts").skill_groups  # populates the cache

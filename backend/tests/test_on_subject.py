@@ -19,6 +19,7 @@ publish on it more than once.
 """
 
 import pytest
+
 from rip.ingest import MIN_SUBJECT_TITLES, on_subject
 from rip.normalize import EvidenceItem, PublicationData
 from tests.test_resolution import make_profile

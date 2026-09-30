@@ -46,6 +46,11 @@ testpaths = ["backend/tests"]
 # 100, so this is the width the code already has rather than one imposed on it
 line-length = 100
 target-version = "py310"
+# Where first-party code lives. Without it ruff guessed from whatever sat at
+# the repository root: a stray rip/ of bytecode caches made `rip` first-party
+# on one machine and third-party in a fresh checkout, and CI failed on import
+# order this machine called clean.
+src = ["backend"]
 extend-exclude = ["frontend", "web/node_modules"]
 
 [tool.ruff.lint]

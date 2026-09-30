@@ -22,6 +22,7 @@ because that is what it is for.
 import json
 
 import pytest
+
 from rip.bulk import bulk_ingest
 from rip.normalize import NormalizedProfile
 

@@ -42,9 +42,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 def find(session) -> dict:
     """Read-only. Returns the two kinds, separately."""
+    from sqlalchemy import select
+
     from rip.models import Authorship, IdentityLink, Publication, SourceRecord
     from scripts.purge_person import referencing_columns
-    from sqlalchemy import select
 
     records = list(session.execute(
         select(SourceRecord.id).where(
@@ -83,9 +84,10 @@ def find(session) -> dict:
 
 
 def purge(session, found: dict) -> None:
+    from sqlalchemy import delete
+
     from rip.models import Publication, SourceRecord
     from scripts.purge_person import referencing_columns
-    from sqlalchemy import delete
 
     for model, column in referencing_columns("publication"):
         if found["publications"]:

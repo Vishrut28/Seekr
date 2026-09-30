@@ -174,9 +174,8 @@ def test_a_candidate_named_after_the_subject_is_not_a_person(monkeypatch):
     "hypertension arterial stiffness researchers" stored an author called
     "ARTERIAl STIffnESS". The old check compared the whole name with single
     query words, so any two-word subject walked through it."""
-    from rip.normalize import NormalizedProfile
-
     from rip import discovery
+    from rip.normalize import NormalizedProfile
 
     names = {"S1": "ARTERIAl STIffnESS", "S2": "Kate Tilling"}
 

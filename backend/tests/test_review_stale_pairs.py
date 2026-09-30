@@ -9,12 +9,11 @@ naming the same living pair also asked the same question twice.
 """
 
 
+from rip import api
 from rip.ingest import ingest_profile
 from rip.models import MergeCandidate, Person
 from rip.review import merge_persons, resolve_duplicate
 from tests.test_resolution import make_profile
-
-from rip import api
 
 
 def person(session, tag, name):

@@ -128,11 +128,11 @@ def main() -> None:
     parser.add_argument("--cover", nargs="*", type=float, default=[0.0, 0.4, 0.6])
     args = parser.parse_args()
 
-    from rip.db import SessionLocal, init_db
-    from rip.models import ChangeLog, ConflationReview, Person, PersonSplit
     from sqlalchemy import select
 
     from rip import conflation
+    from rip.db import SessionLocal, init_db
+    from rip.models import ChangeLog, ConflationReview, Person, PersonSplit
 
     with open(LABELS, encoding="utf-8") as fh:
         raw = json.load(fh)
@@ -297,8 +297,9 @@ def judge_draw_rows(session, conflation, round_: str = "round2") -> list[dict]:
     """
     if not os.path.exists(JUDGE_DRAW):
         return []
-    from rip.models import Person
     from sqlalchemy import select
+
+    from rip.models import Person
 
     with open(JUDGE_DRAW, encoding="utf-8") as fh:
         draw = json.load(fh)

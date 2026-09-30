@@ -35,11 +35,11 @@ def main() -> None:
     parser.add_argument("--limit", type=int, default=0, help="stop after N records")
     args = parser.parse_args()
 
-    from rip.db import SessionLocal, init_db
-    from rip.models import Person
     from sqlalchemy import select
 
     from rip import conflation, conflation_judge
+    from rip.db import SessionLocal, init_db
+    from rip.models import Person
 
     init_db()
     truth: dict[str, int] = {}

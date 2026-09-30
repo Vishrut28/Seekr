@@ -2,6 +2,7 @@
 and output thresholds."""
 
 import pytest
+
 from rip.ingest import ingest_profile
 from rip.nlq import count_matches, execute_progressive, parse, subjects_asked
 from rip.normalize import EvidenceItem, OrgAffiliation, PublicationData
@@ -234,9 +235,8 @@ def test_the_subject_asked_for_is_reported_even_when_it_resolves_to_neighbours(s
     """"physicists" searches physics, whose evidence here is related subjects
     and free text only, so the applied_filters `skills` list was empty and the
     UI could show nothing at all for the subject."""
-    from rip.nlq import subjects_asked
-
     from rip import api
+    from rip.nlq import subjects_asked
 
     # nothing here is called physics: its evidence is a neighbouring subject
     person(session, "a", "Ada Quantum", topics=["Quantum Mechanics and Relativity"])

@@ -5,11 +5,10 @@ everybody. A productive researcher collaborates with different groups on
 different subjects, and that must not read as two people.
 """
 
+from rip import conflation
 from rip.ingest import ingest_profile
 from rip.normalize import PublicationData
 from tests.test_resolution import make_profile
-
-from rip import conflation
 
 # These exercise the group ratio, which reports only when asked for; the
 # fixtures' made-up topics have no place in OpenAlex's taxonomy, so the
@@ -112,8 +111,9 @@ def test_the_report_carries_what_a_reader_needs_to_judge(session):
 def openalex_person(session, tag, name, works):
     """A person as OpenAlex hands them over: each work carrying the
     institutions THIS author put on it. works: [(title, topics, coauthors, institutions)]"""
-    from rip.models import IdentityLink, SourceRecord
     from sqlalchemy import select
+
+    from rip.models import IdentityLink, SourceRecord
 
     person = researcher(session, tag, name,
                         [(t, tp, co) for t, tp, co, _inst in works])
@@ -291,8 +291,9 @@ def test_papers_that_all_share_one_year_are_not_isolated(session):
 def test_a_paper_with_no_date_says_nothing_about_time(session):
     papers = career(2005, 7, "Forensic Pathology", "Bob Helper")
     who = dated(session, "undated", "Ann Undated", papers)
-    from rip.models import Authorship, Publication
     from sqlalchemy import select as sa_select
+
+    from rip.models import Authorship, Publication
 
     first = session.execute(sa_select(Publication).join(
         Authorship, Authorship.publication_id == Publication.id)

@@ -29,8 +29,9 @@ def groups(session):
     Keyed by the folded value; the rows come back oldest first, so the first
     is the spelling to keep.
     """
-    from rip.models import Evidence
     from sqlalchemy import select
+
+    from rip.models import Evidence
 
     rows = session.execute(
         select(Evidence).order_by(Evidence.observed_at, Evidence.id)

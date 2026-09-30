@@ -15,8 +15,9 @@ this existed.
 
 import json
 
-from rip.models import CompressedJSON, SourceRecord
 from sqlalchemy import select
+
+from rip.models import CompressedJSON, SourceRecord
 
 BIG = {"works": [{"id": f"W{i}", "title": f"A study of things, number {i}",
                   "authorships": [{"author": {"id": "A1", "display_name": "Ada Lovelace"}}]}

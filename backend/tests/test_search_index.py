@@ -2,13 +2,13 @@
 search — worldwide text, whole-word matching, and ranking that sees the field."""
 
 import pytest
+
+from rip import search_index as si
 from rip.ingest import ingest_profile
 from rip.nlq import count_matches, execute, parse
 from rip.normalize import EvidenceItem, OrgAffiliation, ProjectData
 from rip.textnorm import fold, org_key, phrase_terms, words
 from tests.test_resolution import make_profile
-
-from rip import search_index as si
 
 
 def person(login, name, **kw):

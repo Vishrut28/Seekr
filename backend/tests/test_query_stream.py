@@ -26,15 +26,15 @@ import json
 
 import pytest
 from fastapi.testclient import TestClient
-from rip.db import Base
-from rip.ingest import ingest_profile
-from rip.normalize import EvidenceItem
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
-from tests.test_resolution import make_profile
 
 from rip import api, discovery
+from rip.db import Base
+from rip.ingest import ingest_profile
+from rip.normalize import EvidenceItem
+from tests.test_resolution import make_profile
 
 
 @pytest.fixture()

@@ -56,8 +56,9 @@ def is_empty(session, person) -> bool:
     anybody to judge. Deleting it cannot cost a real person their record,
     because the record carries nothing of theirs.
     """
-    from rip.models import Authorship, Evidence
     from sqlalchemy import func, select
+
+    from rip.models import Authorship, Evidence
 
     if (person.canonical_name or "").strip():
         return False
@@ -88,8 +89,9 @@ def referencing_columns(target_table: str) -> list:
 
 def plan(session, person) -> dict:
     """What would go. Read-only."""
-    from rip.models import Authorship, IdentityLink, Publication
     from sqlalchemy import func, select
+
+    from rip.models import Authorship, IdentityLink, Publication
 
     # Every record this person holds is theirs alone: identity_link is unique
     # on source_record_id, so one record can never be linked to two people.
@@ -132,8 +134,9 @@ def plan(session, person) -> dict:
 
 
 def purge(session, person, proposed: dict) -> None:
-    from rip.models import Publication, SourceRecord
     from sqlalchemy import delete
+
+    from rip.models import Publication, SourceRecord
 
     records, publications = proposed["records"], proposed["publications"]
 
@@ -169,10 +172,11 @@ def main() -> None:
     parser.add_argument("--apply", action="store_true", help="actually delete")
     args = parser.parse_args()
 
+    from sqlalchemy import select
+
     from rip.db import SessionLocal, init_db
     from rip.models import Person
     from rip.personhood import assess
-    from sqlalchemy import select
 
     init_db()
     with SessionLocal() as session:

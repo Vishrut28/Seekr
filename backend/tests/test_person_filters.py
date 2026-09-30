@@ -12,12 +12,12 @@ caught it.
 
 import pytest
 from fastapi.testclient import TestClient
-from rip.models import Base, Evidence, Person, PersonKey
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from rip import api
+from rip.models import Base, Evidence, Person, PersonKey
 
 # a value for each declared query parameter that is worth sending
 SAMPLES = {

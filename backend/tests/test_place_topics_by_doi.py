@@ -9,6 +9,7 @@ itself -- each DOI asked once, misses remembered -- and that the detector does
 NOT read it. No network: the connector is faked.
 """
 
+from rip import conflation
 from rip.connectors.openalex import OpenAlexConnector
 from rip.ingest import ingest_profile
 from rip.models import WorkTopics
@@ -16,8 +17,6 @@ from rip.normalize import PublicationData
 from scripts.place_topics_by_doi import placed, store, unplaced_dois
 from tests.test_foreign_work import PLACE
 from tests.test_resolution import make_profile
-
-from rip import conflation
 
 
 def _orcid_person(session, papers):

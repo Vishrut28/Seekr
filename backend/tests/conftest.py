@@ -15,12 +15,12 @@ _SUITE_DB = pathlib.Path(tempfile.mkdtemp(prefix="rip-tests-")) / "suite.db"
 os.environ["RIP_DATABASE_URL"] = f"sqlite:///{_SUITE_DB.as_posix()}"
 
 import pytest  # noqa: E402
-from rip.db import Base  # noqa: E402
 from sqlalchemy import create_engine  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
 
 from rip import db as _db  # noqa: E402
 from rip import models  # noqa: E402,F401
+from rip.db import Base  # noqa: E402
 
 Base.metadata.create_all(_db.engine)
 

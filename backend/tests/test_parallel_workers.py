@@ -8,14 +8,14 @@ from datetime import datetime, timedelta, timezone
 from itertools import pairwise
 
 import pytest
-from rip.db import Base
-from rip.models import DiscoveryLead, Person, SourceRecord
-from rip.normalize import NormalizedProfile
 from sqlalchemy import create_engine, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 
 from rip import discover
+from rip.db import Base
+from rip.models import DiscoveryLead, Person, SourceRecord
+from rip.normalize import NormalizedProfile
 
 
 @pytest.fixture()

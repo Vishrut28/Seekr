@@ -5,12 +5,12 @@ Every case here comes from the real queue, which held 196 pairs of which 18
 were actually decidable by a person.
 """
 
-from rip.ingest import ingest_profile
-from rip.models import MergeCandidate, Person
-from rip.review import merge_persons, triage
 from test_dedupe import ML_COAUTHORS, profile
 
 from rip import dedupe
+from rip.ingest import ingest_profile
+from rip.models import MergeCandidate, Person
+from rip.review import merge_persons, triage
 
 
 def queue(session, a, b, score=0.9):

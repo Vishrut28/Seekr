@@ -1,9 +1,8 @@
 """Semantic Scholar as a topical source: authors of papers on the subject,
 asked only when a key makes the request likely to be answered."""
 
-from rip.connectors.semanticscholar import MAX_TOPIC_TEAM, SemanticScholarConnector
-
 from rip import discovery
+from rip.connectors.semanticscholar import MAX_TOPIC_TEAM, SemanticScholarConnector
 
 
 def paper(*authors, cited=0):

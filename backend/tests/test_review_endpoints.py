@@ -23,16 +23,16 @@ had written out exactly what they looked for.
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
+
+from rip import api
 from rip.db import Base
 from rip.ingest import ingest_profile
 from rip.models import IdentityLink, MergeCandidate, Person
 from rip.normalize import OrgAffiliation
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 from tests.test_resolution import make_profile
-
-from rip import api
 
 
 @pytest.fixture()

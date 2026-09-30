@@ -71,8 +71,9 @@ def tripwire() -> None:
 
 def card(session, person_id: str) -> dict:
     """What a reader needs to judge relevance, and nothing about why they are here."""
-    from rip.models import Affiliation, Authorship, Evidence, Organization, Person, Publication
     from sqlalchemy import select
+
+    from rip.models import Affiliation, Authorship, Evidence, Organization, Person, Publication
 
     p = session.get(Person, person_id)
     orgs = [name for (name,) in session.execute(

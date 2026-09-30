@@ -17,12 +17,12 @@ Eleven of the twelve had exactly the evidence they were deferred on.
 """
 
 import pytest
+
+from rip import dedupe
 from rip.dedupe import EVIDENCE_THAT_CAN_SETTLE, grew_since_deferral
 from rip.ingest import ingest_profile
 from rip.models import MergeCandidate
 from tests.test_dedupe import profile
-
-from rip import dedupe
 
 NOTE = ("two shared co-authors on one mass-authored paper; no ORCID on either "
         "record and OpenAlex holds them as different authors")
