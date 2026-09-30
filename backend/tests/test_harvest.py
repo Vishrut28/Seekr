@@ -206,3 +206,75 @@ def test_it_does_not_search_below_the_follower_floor(tmp_path, github):
                                  progress=lambda _m: None)
     bands = {asked[1] for asked in fake.asked}
     assert all("followers:>=1000" in b or "followers:200..999" in b for b in bands), bands
+
+
+# The paths above that still had no test: an empty page, a server error, a
+# failure that does not go away, the filter, and GitHub paging and its limit.
+
+def test_an_empty_page_ends_the_harvest(tmp_path, client_pages):
+    calls = client_pages([page([], "c2")])
+    result = harvest.harvest_openalex(str(tmp_path / "a.jsonl"), progress=lambda _m: None)
+    assert (result.fetched, result.pages, len(calls)) == (0, 0, 1)
+
+
+def test_a_server_error_is_retried(tmp_path, client_pages, monkeypatch):
+    monkeypatch.setattr(harvest.time, "sleep", lambda _s: None)
+    calls = client_pages([FakeResponse({}, status_code=503), page([1], None)])
+    result = harvest.harvest_openalex(str(tmp_path / "a.jsonl"), progress=lambda _m: None)
+    assert result.fetched == 1
+    assert len(calls) == 2
+
+
+def test_a_failure_that_persists_is_raised_not_swallowed(tmp_path, client_pages, monkeypatch):
+    monkeypatch.setattr(harvest.time, "sleep", lambda _s: None)
+    client_pages([FakeResponse({}, status_code=503)] * 4)
+    with pytest.raises(httpx.HTTPStatusError):
+        harvest.harvest_openalex(str(tmp_path / "a.jsonl"), progress=lambda _m: None)
+
+
+def test_the_filter_and_projection_are_sent(tmp_path, client_pages):
+    calls = client_pages([page([1], None)])
+    harvest.harvest_openalex(str(tmp_path / "a.jsonl"), progress=lambda _m: None)
+    assert "filter" not in calls[0]
+
+    calls = client_pages([page([1], None)])
+    harvest.harvest_openalex(str(tmp_path / "b.jsonl"), filter_expr="works_count:>50",
+                             progress=lambda _m: None)
+    assert calls[-1]["filter"] == "works_count:>50"
+    assert calls[-1]["select"] == harvest.AUTHOR_SELECT
+
+
+class PagedGitHub:
+    """search_users answered per (city, follower band, page)."""
+
+    def __init__(self, answers):
+        self.answers = answers
+        self.asked = []
+
+    def search_users(self, location=None, query="", page=1, per_page=100):
+        self.asked.append((location, query, page))
+        logins = self.answers.get((location, query, page), [])
+        return logins, len(logins)
+
+
+def test_github_pages_a_band_until_a_short_page(tmp_path, monkeypatch):
+    fake = PagedGitHub({("Pune", "followers:>=1000", 1): [f"u{i}" for i in range(100)],
+                        ("Pune", "followers:>=1000", 2): ["last"]})
+    monkeypatch.setattr("rip.connectors.get_connector", lambda _s: fake)
+    result = harvest.harvest_github_india(str(tmp_path / "l.jsonl"), cities=["Pune"],
+                                          min_followers=1000, progress=lambda _m: None)
+    assert result.fetched == 101
+    assert fake.asked == [("Pune", "followers:>=1000", 1), ("Pune", "followers:>=1000", 2)]
+
+
+def test_github_limit_stops_the_next_request_not_the_page(tmp_path, monkeypatch):
+    # a full first page, so only the limit can stop a second one being asked for
+    fake = PagedGitHub({("Pune", "followers:>=1000", 1): [f"u{i}" for i in range(100)],
+                        ("Pune", "followers:>=1000", 2): ["more"],
+                        ("Pune", "followers:200..999", 1): ["d"]})
+    monkeypatch.setattr("rip.connectors.get_connector", lambda _s: fake)
+    result = harvest.harvest_github_india(str(tmp_path / "l.jsonl"), cities=["Pune"],
+                                          min_followers=200, limit=50,
+                                          progress=lambda _m: None)
+    assert result.fetched == 100          # the page is written whole
+    assert fake.asked == [("Pune", "followers:>=1000", 1)]
