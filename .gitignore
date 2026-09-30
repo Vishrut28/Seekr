@@ -3,6 +3,8 @@
 *.db-wal
 *.db-shm
 *.db.bak*
+# a zipped copy of the tree carries the database with it; one was committed once
+backend_backup*.zip
 data/
 !data/.gitkeep
 
