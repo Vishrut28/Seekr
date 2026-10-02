@@ -21,8 +21,9 @@ several arms. These measures were fixed before any were computed:
                  to the share the labels do: how much the old benchmark
                  flatters search
     pool recall  per query, of the cards labelled 2 anywhere in the pool, the
-                 share in Seekr's top ten. Relative to this pool only, and the
-                 pool holds just ten Seekr cards a query, so it is a floor.
+                 share in Seekr's top ten. Relevant people outside the pool are
+                 not counted, so true recall at ten is lower than this; and ten
+                 slots cap it at 10/n for a query with n relevant in the pool.
 
 Search's order inside its top ten was not kept in the pool, so there is no
 rank-aware measure (nDCG) here: only what came back, not where.

@@ -1,0 +1,160 @@
+{
+ "_comment": "Written by scripts/score_relevance_labels.py; its docstring defines every measure.",
+ "labels": {
+  "cards": 321,
+  "graded": {
+   "2": 194,
+   "1": 59,
+   "0": 68
+  }
+ },
+ "arms": {
+  "seekr": {
+   "cards": 180,
+   "queries": 20,
+   "graded_2": 0.689,
+   "graded_2_wilson95": [
+    0.618,
+    0.752
+   ],
+   "graded_1_or_2": 0.956,
+   "mean_grade": 1.644,
+   "graded_2_per_query_mean": 0.688
+  },
+  "criteria": {
+   "cards": 153,
+   "queries": 20,
+   "graded_2": 0.719,
+   "graded_2_wilson95": [
+    0.643,
+    0.784
+   ],
+   "graded_1_or_2": 0.915,
+   "mean_grade": 1.634,
+   "graded_2_per_query_mean": 0.737
+  },
+  "words": {
+   "cards": 45,
+   "queries": 5,
+   "graded_2": 0.978,
+   "graded_2_wilson95": [
+    0.884,
+    0.996
+   ],
+   "graded_1_or_2": 0.978,
+   "mean_grade": 1.956,
+   "graded_2_per_query_mean": 0.985
+  },
+  "random": {
+   "cards": 60,
+   "queries": 20,
+   "graded_2": 0.117,
+   "graded_2_wilson95": [
+    0.058,
+    0.222
+   ],
+   "graded_1_or_2": 0.15,
+   "mean_grade": 0.267,
+   "graded_2_per_query_mean": 0.117
+  }
+ },
+ "by_kind_graded_2": {
+  "agent": {
+   "seekr": 0.95,
+   "criteria": 0.909,
+   "words": null,
+   "random": 0.0
+  },
+  "concept": {
+   "seekr": 0.7,
+   "criteria": 0.727,
+   "words": 1.0,
+   "random": 0.167
+  },
+  "constrained": {
+   "seekr": 0.133,
+   "criteria": 0.28,
+   "words": null,
+   "random": 0.0
+  },
+  "holdout": {
+   "seekr": 0.826,
+   "criteria": 0.889,
+   "words": 1.0,
+   "random": 0.111
+  },
+  "soft": {
+   "seekr": 0.2,
+   "criteria": 0.214,
+   "words": null,
+   "random": 0.167
+  },
+  "topic": {
+   "seekr": 0.976,
+   "criteria": 0.952,
+   "words": 0.974,
+   "random": 0.133
+  },
+  "typo": {
+   "seekr": 1.0,
+   "criteria": 1.0,
+   "words": null,
+   "random": 0.333
+  }
+ },
+ "criteria_vs_labels": {
+  "cards": 321,
+  "rows_criteria_cols_label": [
+   [
+    52,
+    11,
+    26
+   ],
+   [
+    7,
+    12,
+    46
+   ],
+   [
+    9,
+    36,
+    122
+   ]
+  ],
+  "exact": 0.579,
+  "criteria_2_label_0": 9,
+  "criteria_0_label_2": 26
+ },
+ "seekr_top10": {
+  "cards": 180,
+  "criteria_call_relevant": 0.878,
+  "labels_graded_2": 0.689,
+  "criteria_call_2": 0.744,
+  "labels_graded_1_or_2": 0.956
+ },
+ "seekr_pool_recall": {
+  "mean": 0.598,
+  "per_query": {
+   "a-ecologists": 0.643,
+   "a-epidemiologists": 0.714,
+   "c-climate": 0.6,
+   "c-materials": 0.667,
+   "c-neuro": 0.643,
+   "c-webdev": 0.0,
+   "h-alz": 0.778,
+   "h-nano": 0.588,
+   "h-tb-india": 0.667,
+   "k-js": 0.0,
+   "k-ml-india": 0.571,
+   "s-cosmo-india": 1.0,
+   "s-drugs-india": 0.5,
+   "t-airquality": 0.833,
+   "t-crypto": 0.556,
+   "t-dementia": 0.7,
+   "t-drugs": 0.625,
+   "t-recsys": 0.643,
+   "y-nlp": 0.625
+  }
+ },
+ "cards_without_profile": []
+}

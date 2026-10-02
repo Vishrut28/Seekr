@@ -561,7 +561,61 @@ touched them after seeing results. They have been touched. Each now carries a
 untouched-holdout numbers.** The 31 holdout queries without a `tuned` field
 still can. `tests/test_evaluation.py` pins each confusion so it cannot return.
 
-The last row of the table is the number to believe for queries nobody has
+### Labels nothing in Seekr wrote
+
+The criteria above grade people from the same stored words the ranker reads.
+To check both from outside, `scripts/draw_relevance_pool.py` drew 20 of the
+judged queries and pooled 321 people: Seekr's top ten, a sample the criteria
+call relevant, a sample holding every word of the query, and three at random.
+Each card was graded 0, 1 or 2 by reading it — topics, paper titles, role,
+place — without knowing how it entered the pool.
+
+The standard is a person's, not this project's. Their 14 grades over two
+calibration rounds set the rule (2: something on the card is in the subject or
+a close neighbour; 1: the subject shows only as skill tags, or the place asked
+for is not shown; 0: nothing related); the other 307 cards were graded to that
+rule and sealed by hash before a blind check. On 10 fresh cards the person
+agreed on 7, short of the 8 set in advance, with every miss one grade apart.
+They reviewed the three and accepted the labels, and
+`evaluation/relevance_labels.json` records both. So these labels measure
+whether a match is **plausible**, as one person judges it, and they rest on
+that acceptance rather than on the blind check.
+`scripts/score_relevance_labels.py` scores them:
+
+| | cards | graded 2 | graded 1 or 2 |
+|---|---|---|---|
+| Seekr's top ten | 180 | **0.69** (0.62–0.75) | 0.96 |
+| what the criteria call relevant | 153 | 0.72 | 0.92 |
+| every word of the query | 45 | 0.98 | 0.98 |
+| random | 60 | 0.12 | 0.15 |
+
+- **On 13 of the 20 queries Seekr's top ten is 115 of 120 graded 2.** All the
+  rest come from two kinds of query.
+- **Developer queries** (`web`, `Python`, `JavaScript developers`): 0 of 30
+  graded 2, 27 graded 1. These people are Stack Overflow users who show the
+  subject only as tags, and the rule grades that 1. The pools hold one person
+  graded 2 for web developers, one for JavaScript and none for Python, and
+  Seekr's top ten has neither of the two.
+- **"in India" queries**: 9 of 30 graded 2. Seekr ranks everyone who meets the
+  place first; every person the criteria call relevant is in ranks 1–4. The
+  rest of the page is topped up with people flagged as not in India, and those
+  are the 1s. This is the designed behaviour working, not a defect.
+- **The word baseline ties Seekr where it answers at all.** It found someone
+  for only 5 of the 20 queries, all single-subject ones; there it scores 44 of
+  45, and Seekr scores 48 of 49 on the same five. These labels show no case
+  where Seekr picks better than a plain word match. What Seekr adds is
+  answering the other 15.
+- **The criteria agree with the labels on 58% of cards.** They call 9 cards 2
+  that the labels call 0, and 26 cards 0 that the labels call 2. They miss far
+  more than they invent, so the recall figures above are understated more than
+  they are inflated. On Seekr's top ten the two are close: 0.74 graded 2 by the
+  criteria and 0.69 by the labels.
+- **Recall is the open question.** Of the people labelled 2 anywhere in a
+  query's pool, Seekr's top ten holds 0.60 on average. That is an upper bound
+  on real recall at ten. Three Indian machine-learning researchers whose cards
+  show the subject only in paper titles were not among Seekr's matches at all.
+
+The last row of the first table is the number to believe for queries nobody has
 tuned for. Its
 misses were mostly subjects the corpus had no people for — a coverage problem,
 not a parsing one. `scripts/ingest_topics.py` fills those from the free
