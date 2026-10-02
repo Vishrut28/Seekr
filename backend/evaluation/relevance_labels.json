@@ -1831,6 +1831,64 @@
   "pre_registered": "2026-10-02, before any card is labelled under this rubric",
   "plan": "after labelling, 10 cards drawn by salt 'seekr relevance pool 2026-09-30|validation', excluding every calibration card and every person seen in calibration, are graded by the person on the page, blind to these labels",
   "accept_if": ">= 8/10 exact and none 0 against 2",
-  "result": null
+  "result": {
+   "exact": "7/10",
+   "zero_against_two": 0,
+   "verdict": "REJECTED: 7/10 exact is below the pre-registered 8/10",
+   "labels_hash_verified": "ad4852e219c76882e7ce0698042641be227460acf9153897da4f27955a0100b0",
+   "graded_after_seal": "seal committed 2026-10-02T17:44:46Z; first validation grade 2026-10-02T18:48:39Z",
+   "disagreements": [
+    "6a87af37a03e neuroscience: claude 0 (reinforcement learning, artificial networks), person 1",
+    "6b29c470de99 neuroscience: claude 2 (migraine and headache), person 1",
+    "d89aec70880b dementia researchers: claude 0 (ophthalmology, retinal imaging), person 1, noting they could not judge the field"
+   ],
+   "consequence": "these labels are NOT accepted as ground truth; no ranking is scored against them as a validated standard",
+   "observed_not_adopted": "all three misses are one step apart; the person used 1 for a weak or unjudgeable link, where the rule gives 1 only for skill-tag-only cards. Noted after the result, so it changes nothing here."
+  },
+  "person": {
+   "0a4df5d2c144": {
+    "grade": 2,
+    "labelled_at": "2026-10-02T18:48:39.644Z"
+   },
+   "17ac976439c6": {
+    "grade": 2,
+    "labelled_at": "2026-10-02T18:50:21.317Z",
+    "note": "as the work is related to study of patterns of diseases, hence a 2"
+   },
+   "3f6f7e6f139f": {
+    "grade": 2,
+    "labelled_at": "2026-10-02T18:51:33.404Z",
+    "note": "as the topics contain nlp in it, hence took a broad mindset in the stated topics"
+   },
+   "46add91ac362": {
+    "grade": 2,
+    "labelled_at": "2026-10-02T18:51:33.998Z"
+   },
+   "4d9d9c75b377": {
+    "grade": 2,
+    "labelled_at": "2026-10-02T18:51:41.858Z"
+   },
+   "58ab600de83e": {
+    "grade": 2,
+    "labelled_at": "2026-10-02T18:51:52.631Z"
+   },
+   "6a87af37a03e": {
+    "grade": 1,
+    "labelled_at": "2026-10-02T18:52:11.892Z"
+   },
+   "6b29c470de99": {
+    "grade": 1,
+    "labelled_at": "2026-10-02T18:52:19.123Z"
+   },
+   "86b5e0e6fa71": {
+    "grade": 2,
+    "labelled_at": "2026-10-02T18:52:24.422Z"
+   },
+   "d89aec70880b": {
+    "grade": 1,
+    "labelled_at": "2026-10-02T18:53:31.445Z",
+    "note": "i cant see any direct connection, maybe as i am not qualified in dementia research things, hence cant really be sure about it"
+   }
+  }
  }
 }
