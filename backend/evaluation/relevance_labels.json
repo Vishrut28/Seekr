@@ -133,11 +133,22 @@
   "0": "nothing on the card shows it, or the card is empty"
  },
  "calibration_round3": {
-  "cards": [],
-  "claude_sealed_sha256": null,
+  "cards": [
+   "3e3bbbd95b7e",
+   "46ce539bcbcd",
+   "738f8eaf3798",
+   "8d09c8c24593",
+   "e4bb6636e26a",
+   "f382705ce68f",
+   "f99b4be194df"
+  ],
+  "claude_sealed_sha256": "c4909c7204993fee6ee57a8f50ecff2944fd5b8d1ea0d083b7882a287c115e8b",
   "claude": null,
   "nonce": null,
   "person": {},
-  "rule": ">= 5/7 exact and none two apart"
+  "rule": ">= 5/7 exact and none two apart",
+  "salt": "seekr relevance pool 2026-09-30|calibration round 3",
+  "excluded": "any card whose person id or name appeared in rounds 1 or 2",
+  "how_to_verify": "sha256(nonce + '|' + json.dumps(claude, sort_keys=True, ensure_ascii=False, separators=(',', ':')))"
  }
 }
