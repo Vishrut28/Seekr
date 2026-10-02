@@ -124,5 +124,20 @@
    "rule": ">= 5/7 exact and none two apart",
    "passed": false
   }
+ },
+ "rubric": {
+  "decided": "2026-10-02, by the person, after round 2 split on exactly this",
+  "meaning": "relevant means the WORK shows the subject",
+  "2": "the work clearly shows the subject: papers, skills or role make it evident",
+  "1": "partly: adjacent work, one strand of a career, or the subject stated (a topic chip, a keyword) with no work showing it",
+  "0": "nothing on the card shows it, or the card is empty"
+ },
+ "calibration_round3": {
+  "cards": [],
+  "claude_sealed_sha256": null,
+  "claude": null,
+  "nonce": null,
+  "person": {},
+  "rule": ">= 5/7 exact and none two apart"
  }
 }
