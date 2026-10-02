@@ -126,11 +126,16 @@
   }
  },
  "rubric": {
-  "decided": "2026-10-02, by the person, after round 2 split on exactly this",
-  "meaning": "relevant means the WORK shows the subject",
-  "2": "the work clearly shows the subject: papers, skills or role make it evident",
-  "1": "partly: adjacent work, one strand of a career, or the subject stated (a topic chip, a keyword) with no work showing it",
-  "0": "nothing on the card shows it, or the card is empty"
+  "decided": "2026-10-02, by the person, after rounds 2 and 3: the person's own grades are the standard",
+  "meaning": "relevant means PLAUSIBLY CONNECTED to the subject, as the person grades it",
+  "2": "something on the card -- a stated topic, a paper title, a role -- sits in the search's subject area or a close neighbour",
+  "1": "the subject shows only as skill tags (e.g. Stack Overflow tags), with no papers, role or bio",
+  "0": "nothing on the card is in the subject's area, or the card is empty",
+  "derived_from": "the person's 14 grades in calibration rounds 2 and 3; the rule reproduces all 14, but was fitted to them, so that is not validation",
+  "superseded": {
+   "work_shows_it": "the 2026-10-02 'the work shows it' rubric, under which round 3 did not pass"
+  },
+  "what_it_measures": "plausibility of a match, not demonstrated expertise: close to what judgments.json's criteria already score"
  },
  "calibration_round3": {
   "cards": [
@@ -215,5 +220,11 @@
    ],
    "passed": false
   }
+ },
+ "validation": {
+  "pre_registered": "2026-10-02, before any card is labelled under this rubric",
+  "plan": "after labelling, 10 cards drawn by salt 'seekr relevance pool 2026-09-30|validation', excluding every calibration card and every person seen in calibration, are graded by the person on the page, blind to these labels",
+  "accept_if": ">= 8/10 exact and none 0 against 2",
+  "result": null
  }
 }
