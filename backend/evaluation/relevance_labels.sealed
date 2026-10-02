@@ -1,0 +1,9 @@
+Relevance labels, sealed before the validation was graded.
+
+sha256 of json.dumps(relevance_labels.json["labels"], sort_keys=True,
+ensure_ascii=False, separators=(",", ":")):
+
+ad4852e219c76882e7ce0698042641be227460acf9153897da4f27955a0100b0
+
+The labels themselves are on the local branch relevance-labels until the
+person has graded the 10 validation cards; they are pushed after.
