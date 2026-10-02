@@ -143,12 +143,77 @@
    "f99b4be194df"
   ],
   "claude_sealed_sha256": "c4909c7204993fee6ee57a8f50ecff2944fd5b8d1ea0d083b7882a287c115e8b",
-  "claude": null,
-  "nonce": null,
-  "person": {},
+  "claude": {
+   "3e3bbbd95b7e": {
+    "grade": 0,
+    "note": "environmental epidemiology and nutrition; no climate-science work"
+   },
+   "46ce539bcbcd": {
+    "grade": 1,
+    "note": "speech recognition and acoustic modelling: adjacent to NLP, not NLP work itself"
+   },
+   "738f8eaf3798": {
+    "grade": 0,
+    "note": "palaeontology; nothing on cryptography"
+   },
+   "8d09c8c24593": {
+    "grade": 2,
+    "note": "several papers on air pollution and aerosol optical depth over Indian cities"
+   },
+   "e4bb6636e26a": {
+    "grade": 1,
+    "note": "malaria drug-resistance epidemiology; adjacent to drug discovery"
+   },
+   "f382705ce68f": {
+    "grade": 1,
+    "note": "one recommender paper in a medical-imaging career"
+   },
+   "f99b4be194df": {
+    "grade": 2,
+    "note": "nanostructured organic and perovskite materials and devices, and a nanotechnology paper"
+   }
+  },
+  "nonce": "3bd561e2f23f225c4dbdffbb62589b18",
+  "person": {
+   "3e3bbbd95b7e": {
+    "grade": 2,
+    "labelled_at": "2026-10-02"
+   },
+   "46ce539bcbcd": {
+    "grade": 2,
+    "labelled_at": "2026-10-02"
+   },
+   "738f8eaf3798": {
+    "grade": 0,
+    "labelled_at": "2026-10-02"
+   },
+   "8d09c8c24593": {
+    "grade": 2,
+    "labelled_at": "2026-10-02"
+   },
+   "e4bb6636e26a": {
+    "grade": 2,
+    "labelled_at": "2026-10-02"
+   },
+   "f382705ce68f": {
+    "grade": 2,
+    "labelled_at": "2026-10-02"
+   },
+   "f99b4be194df": {
+    "grade": 2,
+    "labelled_at": "2026-10-02"
+   }
+  },
   "rule": ">= 5/7 exact and none two apart",
   "salt": "seekr relevance pool 2026-09-30|calibration round 3",
   "excluded": "any card whose person id or name appeared in rounds 1 or 2",
-  "how_to_verify": "sha256(nonce + '|' + json.dumps(claude, sort_keys=True, ensure_ascii=False, separators=(',', ':')))"
+  "how_to_verify": "sha256(nonce + '|' + json.dumps(claude, sort_keys=True, ensure_ascii=False, separators=(',', ':')))",
+  "agreement": {
+   "exact": "3/7",
+   "two_apart": [
+    "3e3bbbd95b7e"
+   ],
+   "passed": false
+  }
  }
 }
