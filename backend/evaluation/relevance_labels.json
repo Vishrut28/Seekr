@@ -1834,7 +1834,7 @@
   "result": {
    "exact": "7/10",
    "zero_against_two": 0,
-   "verdict": "REJECTED: 7/10 exact is below the pre-registered 8/10",
+   "verdict": "7/10 exact: below the pre-registered 8/10 (none 0 against 2)",
    "labels_hash_verified": "ad4852e219c76882e7ce0698042641be227460acf9153897da4f27955a0100b0",
    "graded_after_seal": "seal committed 2026-10-02T17:44:46Z; first validation grade 2026-10-02T18:48:39Z",
    "disagreements": [
@@ -1842,7 +1842,7 @@
     "6b29c470de99 neuroscience: claude 2 (migraine and headache), person 1",
     "d89aec70880b dementia researchers: claude 0 (ophthalmology, retinal imaging), person 1, noting they could not judge the field"
    ],
-   "consequence": "these labels are NOT accepted as ground truth; no ranking is scored against them as a validated standard",
+   "consequence": "the rule alone would have rejected these labels; see `decision`",
    "observed_not_adopted": "all three misses are one step apart; the person used 1 for a weak or unjudgeable link, where the rule gives 1 only for skill-tag-only cards. Noted after the result, so it changes nothing here."
   },
   "person": {
@@ -1889,6 +1889,13 @@
     "labelled_at": "2026-10-02T18:53:31.445Z",
     "note": "i cant see any direct connection, maybe as i am not qualified in dementia research things, hence cant really be sure about it"
    }
+  },
+  "decision": {
+   "on": "2026-10-03",
+   "by": "the person whose grades are the standard",
+   "accepted": true,
+   "their_words": "the difference that you showed are correct with my understanding, i might have misread or missed something, so its almost 10 on 10, so you can start labelling, its passed, go for it",
+   "caveat": "made AFTER the three disagreements and these labels were shown, so the three cards were not re-graded blind; the blind result stays 7/10. Scores against these labels rest on the person's acceptance, not on the pre-registered rule."
   }
  }
 }
