@@ -25,7 +25,8 @@ Here every person is broken into (term, field) postings once, at write time:
     co     current organisation words                    (/v1/persons)
     l      stated location words + pairs                 (/v1/persons)
     p      place words: location, bio, education, org names, summary
-    c      ISO country: stated, named in the location, or an unambiguous city
+    c      ISO country: stated, named in the location, an unambiguous city,
+           or else the one country their workplaces agree on
     k      project technologies
 
 A lookup is an index seek on (term, field, person_id), so a query costs
@@ -92,7 +93,7 @@ logger = logging.getLogger("rip.search_index")
 
 # Bump whenever tokenisation or field contents change: databases indexed by an
 # older version are rebuilt by init_db rather than silently half-matching.
-INDEX_VERSION = "10"
+INDEX_VERSION = "11"
 
 # Fields where number is not identity: a bio reading "recommender systems"
 # must answer a search for "recommender system". Indexed and queried through
@@ -272,7 +273,7 @@ def work_alt(text: str | None) -> Alt | None:
 
 def _postings_for(session: Session, person_ids: list[str]) -> tuple[list[dict], list[dict]]:
     """(search_term rows, search_doc rows) for these people, from the tables."""
-    from .geo import city_country, country_in_text
+    from .geo import city_country, country_in_text, country_of_employers
     from .models import (
         Affiliation,
         Authorship,
@@ -326,11 +327,16 @@ def _postings_for(session: Session, person_ids: list[str]) -> tuple[list[dict], 
             if code:
                 add(pid, "c", [code.lower()])
 
-    for pid, role, org_name, relation in session.execute(
-        select(Affiliation.person_id, Affiliation.role, Organization.name, Affiliation.relation)
+    # workplaces, current and past, for placing someone nothing else places
+    employers: dict[str, tuple[list[str], list[str]]] = defaultdict(lambda: ([], []))
+    for pid, role, org_name, relation, is_current in session.execute(
+        select(Affiliation.person_id, Affiliation.role, Organization.name, Affiliation.relation,
+               Affiliation.is_current)
         .join(Organization, Organization.id == Affiliation.organization_id)
         .where(Affiliation.person_id.in_(ids))
     ).all():
+        if relation != "studied_at":
+            employers[pid][0 if is_current else 1].append(org_name)
         add(pid, "o", [org_key(org_name)])
         # word-level, for the faceted filter's "organization=Acme" (any word
         # of any affiliation) and "education=IIT" (studied_at only)
@@ -439,8 +445,15 @@ def _postings_for(session: Session, person_ids: list[str]) -> tuple[list[dict], 
         # stated country, else one the location names outright, else the
         # country of an unambiguous major city ("Bengaluru" is in India). An
         # index entry, not a stored claim — Person.country stays as sourced.
+        # Last, the country their workplaces name, when they agree: OpenAlex
+        # writes "IBM (India)", and "Indian Institute of Technology Kanpur"
+        # is in Kanpur. A merge once dropped the country a source stated for
+        # someone at BITS Hyderabad, and nothing else could put him in India.
+        current, past = employers.get(pid, ([], []))
         code = ((p.country or "").strip() or country_in_text(p.location)
-                or city_country(p.location) or "")
+                or city_country(p.location)
+                or country_of_employers([*filter(None, [p.current_organization]), *current], past)
+                or "")
         if code:
             add(pid, "c", [code.lower()])
         # Exactly the query-independent half of the final score (output 0.25,

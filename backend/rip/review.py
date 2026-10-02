@@ -144,6 +144,13 @@ def approve_link(session: Session, link_id: int) -> IdentityLink:
     return link
 
 
+# What a merge copies onto the keeper when the keeper has none. country was
+# added to Person after this list was first written, and a merge into a record
+# without one silently dropped what a source stated;
+# scripts/backfill_merged_fields.py repairs merges made before.
+MERGE_FILLED_FIELDS = ("location", "country", "summary", "current_role", "current_organization")
+
+
 def merge_persons(session: Session, keep_id: str, merge_id: str) -> Person:
     """Fold person `merge_id` into `keep_id`: move all their rows, keep both
     names as aliases, log the merge. Source records are untouched."""
@@ -213,7 +220,7 @@ def merge_persons(session: Session, keep_id: str, merge_id: str) -> Person:
     keep.aliases = sorted(aliases)
     urls = set(keep.profile_urls or []) | set(merged.profile_urls or [])
     keep.profile_urls = sorted(u for u in urls if u)
-    for field in ("location", "summary", "current_role", "current_organization"):
+    for field in MERGE_FILLED_FIELDS:
         if not getattr(keep, field) and getattr(merged, field):
             setattr(keep, field, getattr(merged, field))
 

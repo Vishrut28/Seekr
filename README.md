@@ -677,9 +677,35 @@ Two digital-pathology researchers now match both words through their papers
 and rank above the people who only match "pathology". The criteria grade them
 1 because they do not state the subject.
 
-One of the three Indian researchers is still missing, on place, not subject:
-his only tie to India is "BITS Hyderabad" in an institution name, which the
-country filter does not read.
+One of the three Indian researchers was still missing, on place rather than
+subject. It looked like the country filter not reading "BITS Hyderabad". The
+real cause was a merge. His OpenAlex record states India, but he had been
+merged into his own country-less record, and `review.merge_persons` copied
+location, summary, role and organization onto the keeper and not country,
+which was added to Person later. It does now (`review.MERGE_FILLED_FIELDS`).
+`scripts/backfill_merged_fields.py` repairs merges made before the fix; on this
+corpus it found and filled that one record.
+
+The same look found a smaller, real gap: people no source places and whose
+location says nothing, but whose workplace does ("IBM (India)", "Indian
+Institute of Technology Kanpur"). The index now places them by their
+workplaces, as it already placed people by a city in their location. Three
+rules keep it honest:
+
+- **Workplaces only.** Where someone studied is not where they are.
+- **Current ones decide whenever there are any.** That holds even when none can
+  be placed. Someone now at Lund University was put in Britain by a past job at
+  the LSE, because Lund is not in the gazetteer.
+- **A name naming two countries counts for neither.** "New York University Abu
+  Dhabi" is one.
+
+A stated country or location always wins. It places 16 more of the 351 people
+with no country, all checked by hand. On the labelled queries, the BITS
+researcher is now fourth for `machine learning researchers in India`, and
+people labelled 2 in the top ten went from 127 to 128. On the criteria, P@10
+went from 0.775 to 0.776 and no query got worse. The SQL fallback, used only
+before the index is built, still reads country names in organization names
+and not cities, as it already did for locations.
 
 The last row of the first table is the number to believe for queries nobody has
 tuned for. Its

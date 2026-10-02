@@ -243,6 +243,44 @@ def country_in_text(text: str | None) -> str | None:
     return None
 
 
+def countries_named(text: str | None) -> set[str]:
+    """Every country TEXT places itself in: a part that IS a country ("IBM
+    (India)", "Govt. of NCT of Delhi"), or an unambiguous major city anywhere
+    in it ("Indian Institute of Technology Kanpur"). All of them, not the
+    first: "New York University Abu Dhabi" names two, and is in neither for
+    certain."""
+    found = set()
+    for part in _parts(text):
+        if part in COUNTRIES:
+            found.add(COUNTRIES[part])
+        ws = part.split()
+        for n in (3, 2, 1):
+            for i in range(len(ws) - n + 1):
+                gram = " ".join(ws[i:i + n])
+                if gram in CITY_COUNTRY:
+                    found.add(CITY_COUNTRY[gram])
+    return found
+
+
+def country_of_employers(current: list[str], past: list[str]) -> str | None:
+    """The country someone's workplaces put them in, or None if they disagree.
+
+    For people no source places and whose location says nothing. Workplaces
+    only -- where someone studied is not where they are. With a current
+    workplace, only current ones count, even when none can be placed: someone
+    now at Lund University was put in Britain by a past job at the LSE,
+    because Lund is not in the gazetteer. With none, every past workplace
+    must name the same single country. A name that places itself in two
+    countries counts for neither.
+    """
+    named: set[str] = set()
+    for name in current or past:
+        places = countries_named(name)
+        if len(places) == 1:
+            named |= places
+    return named.pop() if len(named) == 1 else None
+
+
 def city_country(text: str | None) -> str | None:
     """The country of an unambiguous major city named in TEXT, if any."""
     for part in _parts(text):
