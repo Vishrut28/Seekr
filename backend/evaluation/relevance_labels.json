@@ -54,8 +54,75 @@
   "salt": "seekr relevance pool 2026-09-30|calibration round 2",
   "claude_sealed_sha256": "1cdbbd4568b920b1ae699e1b39051e3f3d5652c0b64505435cd8111a0b6ac78e",
   "how_to_verify": "sha256(nonce + '|' + json.dumps(claude, sort_keys=True, ensure_ascii=False, separators=(',', ':')))",
-  "claude": null,
-  "nonce": null,
-  "person": {}
+  "claude": {
+   "0aa716112bdb": {
+    "grade": 0,
+    "note": "the card holds nothing to judge on"
+   },
+   "17f85455b447": {
+    "grade": 1,
+    "note": "energy-transition and climate-policy work; adjacent to climate science, not climate science itself"
+   },
+   "1e071b5532b3": {
+    "grade": 0,
+    "note": "molecular magnets and 2D materials; a stated quantum-information topic but no cryptography work on the card"
+   },
+   "3054ee981dda": {
+    "grade": 1,
+    "note": "ASP.NET, C# and MySQL: back-end web work, arguably a web developer"
+   },
+   "36cbf83d359a": {
+    "grade": 1,
+    "note": "cryptography is one stated topic among many; the only paper is on game NPCs"
+   },
+   "8b3947881e86": {
+    "grade": 0,
+    "note": "computational pathology and dermatopathology; not drug discovery"
+   },
+   "a764b194e711": {
+    "grade": 2,
+    "note": "CSS, JavaScript, jQuery, media queries, Apache rewrites: a front-end web developer"
+   }
+  },
+  "nonce": "40fa001001d1c9f79e80653992cbd5f6",
+  "person": {
+   "0aa716112bdb": {
+    "grade": 0,
+    "labelled_at": "2026-10-02"
+   },
+   "17f85455b447": {
+    "grade": 2,
+    "labelled_at": "2026-10-02"
+   },
+   "1e071b5532b3": {
+    "grade": 2,
+    "labelled_at": "2026-10-02"
+   },
+   "3054ee981dda": {
+    "grade": 1,
+    "labelled_at": "2026-10-02"
+   },
+   "36cbf83d359a": {
+    "grade": 2,
+    "labelled_at": "2026-10-02"
+   },
+   "8b3947881e86": {
+    "grade": 2,
+    "labelled_at": "2026-10-02"
+   },
+   "a764b194e711": {
+    "grade": 1,
+    "labelled_at": "2026-10-02"
+   }
+  },
+  "agreement": {
+   "exact": "2/7",
+   "two_apart": [
+    "1e071b5532b3",
+    "8b3947881e86"
+   ],
+   "rule": ">= 5/7 exact and none two apart",
+   "passed": false
+  }
  }
 }
