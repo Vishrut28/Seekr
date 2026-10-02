@@ -1062,11 +1062,25 @@ def _related_values(term: str, skills: dict, aux: VocabAux, exclude: set) -> lis
 def _expand_concepts(result: NLQuery, skills: dict, aux: VocabAux) -> None:
     """Add related subjects to broad concepts, and rescue broad terms the
     vocabulary does not hold at all ("cybersecurity", "web")."""
+    from .concepts import related_subjects
+
     for group in result.skill_groups:
         term = group.get("term") or ""
         have = list(group.get("related_values") or [])
         known = set(group.get("values") or []) | set(group.get("contained_values") or [])
-        extra = [v for v in _related_values(term, skills, aux, known) if v not in have]
+        # The concept map is keyed by the subject, and a misspelt term is not
+        # one: "natual language processing" resolved to the NLP topics and
+        # then found no related subjects, so a typo cost the expansion the
+        # right spelling gets. Fall back to a subject the term resolved to --
+        # only when that subject is the term respelled: "computational"
+        # resolves to "Computational Biology" too, and borrowing ITS related
+        # subjects sent "computational pathology" to genomics.
+        lookup = term
+        if not related_subjects(term):
+            lookup = next((v for v in group.get("values") or []
+                           if related_subjects(v)
+                           and fuzz.ratio(fold(term), fold(v)) >= FUZZY_VOCAB_THRESHOLD), term)
+        extra = [v for v in _related_values(lookup, skills, aux, known) if v not in have]
         if extra:
             group["related_values"] = (have + extra)[:MAX_RELATED_VALUES]
             result.rewrites.append({"typed": term, "searched": f"{term} + related subjects",
@@ -2065,6 +2079,25 @@ def has_filters(parsed: NLQuery) -> bool:
     )
 
 
+def _papers_naming(term: str):
+    """How many of the person's papers name TERM in the title or the paper's
+    own topics: the "w" postings, for a database whose index is not built."""
+    from sqlalchemy import String, cast
+
+    from .models import Authorship, Publication
+
+    needle = f"%{like_escape(term.lower())}%"
+    return (
+        select(func.count(Authorship.id))
+        .join(Publication, Publication.id == Authorship.publication_id)
+        .where(Authorship.person_id == Person.id,
+               func.lower(Publication.title).like(needle, escape="\\")
+               | func.lower(cast(Publication.topics, String)).like(needle, escape="\\"))
+        .correlate(Person)
+        .scalar_subquery()
+    )
+
+
 def _filtered_stmt(parsed: NLQuery):
     """The filter query, without paging — shared by the count and the page."""
     from sqlalchemy import exists as sa_exists
@@ -2099,9 +2132,11 @@ def _filtered_stmt(parsed: NLQuery):
             ))
         if not clauses:
             continue
-        stmt = stmt.where(sa_exists().where(and_(
-            Evidence.person_id == Person.id, or_(*clauses),
-        )))
+        stated = sa_exists().where(and_(Evidence.person_id == Person.id, or_(*clauses)))
+        if _meaningful(term, 4):
+            stmt = stmt.where(stated | (_papers_naming(term) >= si.WORK_MENTIONS_TO_MATCH))
+        else:
+            stmt = stmt.where(stated)
     if parsed.organizations:
         from sqlalchemy.orm import aliased
 
@@ -2201,9 +2236,10 @@ def _restrict(parsed: NLQuery):
 
 
 def _group_alts(group: dict) -> list:
-    """Index alternatives for one skill concept — the same three routes the
+    """Index alternatives for one skill concept — the same four routes the
     SQL filter takes: an exact topic value, a phrase inside a longer topic,
-    and the term as typed in a bio or job title."""
+    the term as typed in a bio or job title, and the term in enough of their
+    papers."""
     alts = [si.exact_alt("sv", value_key(v))
             for v in [*(group.get("values") or []), *(group.get("contained_values") or []),
                       *(group.get("related_values") or [])]]
@@ -2212,6 +2248,8 @@ def _group_alts(group: dict) -> list:
     term = group.get("term") or ""
     if _meaningful(term, 4):
         alts.append(si.phrase_alt("t", term))
+        # a subject of their papers they never state as a topic
+        alts.append(si.work_alt(term))
     return [a for a in alts if a is not None]
 
 
@@ -2456,7 +2494,58 @@ def _matched_evidence_clause(parsed: NLQuery):
     return or_(*clauses), weight
 
 
-def _score_evidence(session, parsed, ids, depth, best_conf, corroborated, latest):
+def _score_papers_only(session, parsed, ids, per_group, related_depth, contained_depth,
+                       depth) -> set[str]:
+    """Depth for people the filter let in through their papers alone, and
+    who they are.
+
+    Worth one bio mention (TEXT_EVIDENCE_WEIGHT) and given only where nothing
+    stated matched that concept, so nobody already matched moves. Depth alone
+    does not keep them behind the people who state the subject: their papers
+    count in output too, and a breast pathologist with cited
+    computational-pathology papers came second for "computational pathology"
+    ahead of the people who work on it. _rank_and_page orders them after
+    everyone else instead.
+    """
+    from .models import Authorship, Publication
+
+    phrases = [(gi, stems(g.get("term") or "")) for gi, g in enumerate(parsed.skill_groups)
+               if _meaningful(g.get("term") or "", 4)]
+    phrases = [(gi, p) for gi, p in phrases if p]
+    if not phrases:
+        return set()
+    n_groups = len(parsed.skill_groups)
+
+    def stated(pid: str, gi: int) -> bool:
+        return any(d.get(pid, [0.0] * n_groups)[gi]
+                   for d in (per_group, related_depth, contained_depth))
+
+    # only people missing stated evidence for some concept can be credited,
+    # so only their papers are read -- usually a handful of the pool
+    unstated = [pid for pid in ids if any(not stated(pid, gi) for gi, _ in phrases)]
+    counts: dict[tuple[str, int], int] = {}
+    credited: set[str] = set()
+    for start in range(0, len(unstated), 900):
+        for pid, title, topics in session.execute(
+            select(Authorship.person_id, Publication.title, Publication.topics)
+            .join(Publication, Publication.id == Authorship.publication_id)
+            .where(Authorship.person_id.in_(unstated[start:start + 900]))
+        ).all():
+            texts = [stems(title or ""), *(stems(str(t)) for t in topics or [])]
+            for gi, phrase in phrases:
+                if any(contains_phrase(t, phrase) for t in texts):
+                    counts[(pid, gi)] = counts.get((pid, gi), 0) + 1
+    for (pid, gi), n in counts.items():
+        if n < si.WORK_MENTIONS_TO_MATCH or stated(pid, gi):
+            continue
+        per_group.setdefault(pid, [0.0] * n_groups)[gi] += TEXT_EVIDENCE_WEIGHT
+        depth[pid] = depth.get(pid, 0.0) + TEXT_EVIDENCE_WEIGHT
+        credited.add(pid)
+    return credited
+
+
+def _score_evidence(session, parsed, ids, depth, best_conf, corroborated, latest,
+                    papers_only: set[str] | None = None):
     """Per-concept evidence depth, plus confidence/corroboration/recency, for
     the candidate pool. Fills the passed dicts; returns {pid: [depth per
     concept]}.
@@ -2531,6 +2620,10 @@ def _score_evidence(session, parsed, ids, depth, best_conf, corroborated, latest
                 latest[pid] = published
     for pid, srcs in sources.items():
         corroborated[pid] = len(srcs)
+    credited = _score_papers_only(session, parsed, ids, per_group, related_depth,
+                                  contained_depth, depth)
+    if papers_only is not None:
+        papers_only.update(credited)
     # However many related subjects someone has, together they are worth at
     # most half of one subject they state: three neural-network topics made a
     # person outrank someone who states "deep learning" outright.
@@ -3026,8 +3119,10 @@ def relevance_scores(
     latest: dict[str, datetime] = {}
 
     group_depth: dict[str, list[float]] = {}
+    papers_only: set[str] = set()
     if parsed.skill_groups:
-        group_depth = _score_evidence(session, parsed, ids, depth, best_conf, corroborated, latest)
+        group_depth = _score_evidence(session, parsed, ids, depth, best_conf, corroborated, latest,
+                                      papers_only)
     matched, weight = (None, None) if parsed.skill_groups else _matched_evidence_clause(parsed)
     if matched is not None:
         stmt = (
@@ -3131,6 +3226,10 @@ def relevance_scores(
             "impact": round(on_impact.get(pid, 0.0), 1),
             "impact_off_topic": round(off_impact.get(pid, 0.0), 1),
         }
+        if pid in papers_only:
+            # matched a concept only through their papers: ranked after
+            # everyone who states it, and the reason travels with the score
+            out[pid]["papers_only"] = True
     return out
 
 
@@ -3485,7 +3584,10 @@ def _rank_and_page(session: Session, parsed: NLQuery, ids: list[str]) -> list[Pe
     # Ties keep their filter order, so equal-evidence results stay stable
     # across requests instead of shuffling between pages.
     order = {pid: i for i, pid in enumerate(ids)}
-    ranked = sorted(ids, key=lambda p: (-scored.get(p, {}).get("score", 0.0), order[p]))
+    # People who match only through their papers come after everyone who
+    # states the subject, whatever their citations (see _score_papers_only).
+    ranked = sorted(ids, key=lambda p: (scored.get(p, {}).get("papers_only", False),
+                                        -scored.get(p, {}).get("score", 0.0), order[p]))
     page = ranked[parsed.offset : parsed.offset + parsed.limit]
     if not page:
         return []

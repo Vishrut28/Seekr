@@ -203,8 +203,11 @@ _CONCEPTS: dict[str, list[str]] = {
     "cardiology": ["cardiovascular", "heart failure", "hypertension", "coronary", "arrhythmia"],
     "information retrieval": ["search engine", "recommender system", "image retrieval", "ranking",
                               "question answering", "topic modeling", "semantic web"],
+    # "pollutant emission", not the bare word: "emission" reached "Otoacoustic
+    # Emissions", a hearing-research topic. "aerosol" stays -- its filtration
+    # and electrostatic precipitation are how air pollution is controlled.
     "air pollution": ["air quality", "aerosol", "atmospheric chemistry", "particulate matter",
-                      "emission"],
+                      "pollutant emission"],
     "water resources": ["hydrology", "groundwater", "water quality", "irrigation", "flood"],
     "software engineering": ["software testing", "software architecture", "programming language",
                              "code review", "requirements engineering"],
@@ -231,6 +234,9 @@ _ALIASES = {
     "infectious diseases": "infectious disease",
     "ai in healthcare": "medical ai", "ai in medicine": "medical ai",
     "clinical ai": "medical ai", "alzheimer": "dementia", "alzheimers": "dementia",
+    # the same subject under its other name; "air quality researchers" reached
+    # only the people whose topic said air quality, not atmospheric chemistry
+    "air quality": "air pollution",
 }
 
 

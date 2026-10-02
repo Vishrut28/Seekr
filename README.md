@@ -614,6 +614,72 @@ that acceptance rather than on the blind check.
   query's pool, Seekr's top ten holds 0.60 on average. That is an upper bound
   on real recall at ten. Three Indian machine-learning researchers whose cards
   show the subject only in paper titles were not among Seekr's matches at all.
+  The next section is what was done about it.
+
+These scores are of search as it was when the pool was drawn, and they stay
+that way: the pool records who search returned then.
+
+### Finding people through their papers
+
+Search matched a subject against what people state (topics, bio, job title)
+and never against their papers. Of the 194 people labelled 2, search found 144
+at all. Among the 50 it missed, three causes were general enough to fix:
+
+- **Papers.** A person now matches a subject when at least two of their papers
+  name it, in the title or the paper's own topics. That is the rule
+  `ingest.on_subject` and the grader already used; one paper is not a
+  research area. The index stores each paper's phrases of up to four words
+  (field `w`), because pairs of words cannot say "in the same paper": "AI in
+  healthcare" was found as "ai in" from one paper and "in healthcare" from
+  another, for someone who works on fairness in AI. People who match only
+  this way **rank after everyone who states the subject**, whatever their
+  citations. Ranked by score alone, a breast pathologist with cited
+  computational-pathology papers came second for `computational pathology`.
+  Their result carries `papers_only`.
+- **Typos lost the related subjects.** `natual language processing` resolved to
+  the NLP topics but looked up related subjects under the typo and found none.
+  It now borrows them from the subject it resolved to, but only when that
+  subject is the same words respelled. `computational` also resolves to
+  "Computational Biology", and borrowing its related subjects sent
+  `computational pathology` to genomics.
+- **Air quality.** It is now another name for air pollution in the concept map.
+  That exposed the map's bare `emission`, which reached "Otoacoustic
+  Emissions", a hearing-research topic; it is now `pollutant emission`.
+
+Most of the other misses are people the labels count as plausibly connected
+through a neighbouring field or a single paper: privacy-preserving computation
+for `cryptography`, nanoparticles for `nanotechnology`. Pulling those into
+results would trade precision for the labels' generosity, so they were left.
+
+On a copy of the corpus:
+
+| | before | after |
+|---|---|---|
+| people labelled 2 found at all | 144 of 194 | 153 |
+| labelled 2 in the top ten | 124 | 127 |
+| top-ten places filled | 180 | 191 |
+| criteria nDCG@10 / P@10 / recall@50 | 0.899 / 0.751 / 0.701 | 0.906 / 0.775 / 0.760 |
+| median / p90 query time | ~16 / ~41 ms | ~22 / ~56 ms |
+
+Read the "after" column with three cautions:
+
+- **The changes were chosen after reading the misses on these same labels.**
+  So the label rows are in-sample.
+- **The criteria rows are not independent either.** The grader gives 1 to two
+  papers on a subject, which is the new route's own rule.
+- **The eleven new top-ten places hold ten people the labels never saw.** Graded
+  afterwards under the same rule, and not blind: 5 graded 2, 2 graded 1, 3
+  graded 0. With them, 69% of the top ten is graded 2, the same as before;
+  there are simply more of them.
+
+One query reads worse on the criteria, `computational pathology` (0.86 → 0.75).
+Two digital-pathology researchers now match both words through their papers
+and rank above the people who only match "pathology". The criteria grade them
+1 because they do not state the subject.
+
+One of the three Indian researchers is still missing, on place, not subject:
+his only tie to India is "BITS Hyderabad" in an institution name, which the
+country filter does not read.
 
 The last row of the first table is the number to believe for queries nobody has
 tuned for. Its

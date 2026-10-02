@@ -15,6 +15,9 @@ Here every person is broken into (term, field) postings once, at write time:
     sv     whole skill values, normalised    (exact topic match)
     s      skill/interest/specialization words + adjacent pairs
     t      bio and job-title evidence words + pairs   (free-text mention)
+    w      whole phrases of up to WORK_PHRASE_WORDS words found in at least
+           WORK_MENTIONS_TO_MATCH of the person's papers (title or the
+           paper's own topics); see work_alt
     r      job titles: current role + affiliation roles
     o      organisation keys ("deccan ai")
     ow     organisation name words, any affiliation     (/v1/persons)
@@ -75,10 +78,12 @@ from sqlalchemy.sql.elements import ColumnElement
 
 from .db import Base
 from .textnorm import (
+    MAX_TERM_LEN,
     org_key,
     phrase_terms,
     stem_phrase_terms,
     stem_text_terms,
+    stems,
     text_terms,
     value_key,
 )
@@ -87,18 +92,27 @@ logger = logging.getLogger("rip.search_index")
 
 # Bump whenever tokenisation or field contents change: databases indexed by an
 # older version are rebuilt by init_db rather than silently half-matching.
-INDEX_VERSION = "9"
+INDEX_VERSION = "10"
 
 # Fields where number is not identity: a bio reading "recommender systems"
 # must answer a search for "recommender system". Indexed and queried through
 # the same stemmer, so the two sides always agree. Names are deliberately not
 # here — "Rogers" is not "Roger" — and neither are places or organisation
 # keys, which are matched against gazetteers and stored values instead.
-STEMMED_FIELDS = frozenset({"s", "t", "r", "k"})
+STEMMED_FIELDS = frozenset({"s", "t", "r", "k", "w"})
 
 SKILL_ATTRS = ("skill", "research_interest", "specialization", "research_field")
 TEXT_ATTRS = ("bio", "role")
 PLACE_EVIDENCE_ATTRS = ("bio", "role", "location", "education")
+# How many of someone's papers must be about a subject before search counts it
+# as theirs. One title is not a research area -- the pandemic put COVID-19 in
+# front of crop geneticists and database researchers alike -- so two, the rule
+# ingest.MIN_SUBJECT_TITLES and the benchmark's MIN_TITLE_MENTIONS already use.
+WORK_MENTIONS_TO_MATCH = 2
+# Longest phrase stored whole. Pairs alone cannot say "in the same paper":
+# "AI in healthcare" was found as "ai in" from one paper's topic and "in
+# healthcare" from another's, for someone who works on fairness in AI.
+WORK_PHRASE_WORDS = 4
 
 
 class SearchTerm(Base):
@@ -232,6 +246,30 @@ def _reported_totals(source: str, raw) -> tuple[int, int]:
 TOTALS_SOURCES = ("openalex", "semanticscholar", "dblp")
 
 
+def _phrases(ws: list[str]) -> set[str]:
+    """Every run of 1..WORK_PHRASE_WORDS consecutive words, joined."""
+    out = set()
+    for n in range(1, WORK_PHRASE_WORDS + 1):
+        for i in range(len(ws) - n + 1):
+            phrase = " ".join(ws[i:i + n])
+            if len(phrase) <= MAX_TERM_LEN:
+                out.add(phrase)
+    return out
+
+
+def work_alt(text: str | None) -> Alt | None:
+    """TEXT as a subject of someone's papers: the whole phrase, in enough of
+    them. Longer than WORK_PHRASE_WORDS words, it falls back to the chain of
+    pairs, which can only over-match; scoring re-checks every paper."""
+    ws = stems(text)
+    if not ws:
+        return None
+    phrase = " ".join(ws)
+    if len(ws) <= WORK_PHRASE_WORDS and len(phrase) <= MAX_TERM_LEN:
+        return Alt("w", (phrase,))
+    return phrase_alt("w", text)
+
+
 def _postings_for(session: Session, person_ids: list[str]) -> tuple[list[dict], list[dict]]:
     """(search_term rows, search_doc rows) for these people, from the tables."""
     from .geo import city_country, country_in_text
@@ -326,6 +364,29 @@ def _postings_for(session: Session, person_ids: list[str]) -> tuple[list[dict], 
         with contextlib.suppress(TypeError, ValueError, AttributeError):
             impact[pid] += float(activity.get("stars") or 0) + 0.5 * float(activity.get("forks") or 0)
         note_date(pid, last_active, PROJECT_HALF_LIFE_DAYS)
+    # Subjects people publish on but never state. A term counts once per
+    # paper, title and the paper's own topics together, and is indexed only
+    # when enough papers carry it: "w" answers "is this a subject of their
+    # work", not "did the word ever appear".
+    per_paper: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    for pid, title, topics in session.execute(
+        select(Authorship.person_id, Publication.title, Publication.topics)
+        .join(Publication, Publication.id == Authorship.publication_id)
+        .where(Authorship.person_id.in_(ids))
+    ).all():
+        terms = _phrases(stems(title))
+        for topic in topics or []:
+            terms |= _phrases(stems(str(topic)))
+        for term in terms:
+            per_paper[pid][term] += 1
+    for pid, counted in per_paper.items():
+        for term, n in counted.items():
+            # weighted like a bio mention, however many papers: the weight
+            # orders a candidate pool, and twenty titles must not outweigh
+            # one stated topic there
+            if n >= WORK_MENTIONS_TO_MATCH:
+                postings[(term, "w", pid)] = 0.25
+
     publications: dict[str, int] = defaultdict(int)
     citations: dict[str, int] = defaultdict(int)
     for pid, cites, newest, n_pubs in session.execute(
@@ -540,13 +601,14 @@ def _memo(session: Session) -> dict:
 
 @event.listens_for(Session, "after_flush")
 def _track_changes(session: Session, _ctx) -> None:
-    from .models import Affiliation, Contribution, Evidence, IdentityLink, Person
+    from .models import Affiliation, Authorship, Contribution, Evidence, IdentityLink, Person
 
     dirty = session.info.setdefault(_DIRTY, set())
     for obj in (*session.new, *session.dirty, *session.deleted):
         if isinstance(obj, Person):
             dirty.add(obj.id)
-        elif isinstance(obj, (Evidence, Affiliation, Contribution, IdentityLink)):
+        # Authorship: papers feed the "w" postings and search_doc's totals
+        elif isinstance(obj, (Evidence, Affiliation, Contribution, IdentityLink, Authorship)):
             dirty.add(obj.person_id)
             # a row moved from one person to another (merge/split) changes both
             hist = cast("InstanceState[Any]", inspect(obj)).attrs.person_id.history
