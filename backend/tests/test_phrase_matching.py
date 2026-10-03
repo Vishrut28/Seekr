@@ -95,6 +95,29 @@ def test_a_typo_inside_a_phrase_is_repaired(session):
     assert parsed.unmatched_terms == []
 
 
+def test_two_typos_in_a_longer_phrase_are_repaired_together(session):
+    """"natual language procesing" fixed neither word alone, fell back to
+    "natual language", and dropped "procesing" without saying so. With a word
+    spelled right to pin the phrase down, both slips are repaired, and the
+    correction names the whole phrase as typed."""
+    person(session, "n", "Nell Sample", "Natural Language Processing")
+    parsed = parse(session, "natual language procesing")
+    assert skills_of(parsed) == ["Natural Language Processing"]
+    assert [g["term"] for g in parsed.skill_groups] == ["natual language procesing"]
+    assert parsed.corrections == [{"typed": "natual language procesing",
+                                   "matched": "Natural Language Processing"}]
+    assert parsed.unmatched_terms == []
+
+
+def test_two_typos_with_nothing_spelled_right_are_not_guessed(session):
+    """Two words, both misspelled: nothing pins down what was meant, so no
+    pair of guesses is tried."""
+    person(session, "n", "Nell Sample", "Natural Language Processing")
+    person(session, "m", "Mo Sample", "Machine Learning")
+    parsed = parse(session, "machin lerning")
+    assert skills_of(parsed) == []
+
+
 def test_a_transposition_is_repaired(session):
     """One transposition is two edits to Levenshtein and one to Damerau, and
     it is the commonest typo there is."""

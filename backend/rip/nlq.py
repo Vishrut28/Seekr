@@ -923,12 +923,19 @@ def _repair(parts: list[str], skills: dict, aux: VocabAux):
     slip is one word inside a phrase, and the phrase scores nothing against
     any single value. Comparing against the vocabulary's WORDS finds it. Only
     a repair that makes the phrase match something real is accepted, so this
-    cannot invent a filter: it returns (words, typed_word, values) or None.
+    cannot invent a filter: it returns (words, typed, values) or None, where
+    TYPED is the misspelled word, or the whole phrase when two were repaired.
+
+    Two slips are repaired together in a phrase of three words or more, so a
+    word spelled right still pins down what was meant: "natual language
+    procesing" fixed neither alone, fell back to "natual language", and
+    dropped "procesing" without a word.
     """
     from rapidfuzz import process
     from rapidfuzz.distance import DamerauLevenshtein
 
     best = None
+    guessed: dict[int, list[tuple[str, float]]] = {}
     for i, word in enumerate(parts):
         if len(word) < 4 or singular(word) in aux.word_index:
             continue                    # too short to judge, or spelled fine
@@ -966,12 +973,23 @@ def _repair(parts: list[str], skills: dict, aux: VocabAux):
                 scorer=DamerauLevenshtein.distance, score_cutoff=limit)
             if near:
                 guesses.append((near[0], FUZZY_VOCAB_THRESHOLD - 5 * near[1]))
+        if guesses:
+            guessed[i] = sorted(guesses, key=lambda g: -g[1])[:3]
         for guess, score in guesses:
             candidate = list(parts)
             candidate[i] = guess
             values = _contained(" ".join(candidate), skills, aux)
             if values and (best is None or score > best[3]):
                 best = (candidate, word, values, score)
+    if best is None and len(parts) >= 3 and len(guessed) == 2:
+        (i, gi), (j, gj) = sorted(guessed.items())
+        for a, sa in gi:
+            for b, sb in gj:
+                candidate = list(parts)
+                candidate[i], candidate[j] = a, b
+                values = _contained(" ".join(candidate), skills, aux)
+                if values and (best is None or min(sa, sb) > best[3]):
+                    best = (candidate, " ".join(parts), values, min(sa, sb))
     return None if best is None else (best[0], best[1], best[2])
 
 
