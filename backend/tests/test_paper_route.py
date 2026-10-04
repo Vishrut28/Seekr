@@ -120,6 +120,19 @@ def test_a_misspelt_subject_gets_the_related_subjects_of_the_right_spelling(sess
     assert typo == {"natual language processing": ["Topic Modeling"]}
 
 
+def test_a_repaired_typo_reaches_what_the_right_spelling_reaches(session):
+    """"cosmolgy" was repaired to its topic, then matched papers and the
+    concept map as "cosmolgy": one person, where the right spelling found the
+    dark-matter people and the ones who only publish on it."""
+    person(session, "s", "Sky Stated", topics=["Cosmology and Gravitation Theories"])
+    person(session, "d", "Dee Dark", topics=["Dark Matter and Cosmic Phenomena"])
+    person(session, "p", "Pat Papers", papers=[
+        ("Cosmology with weak lensing", ()), ("Inflationary cosmology revisited", ())])
+    typo = names(execute(session, parse(session, "cosmolgy")))
+    assert typo == names(execute(session, parse(session, "cosmology")))
+    assert {"Sky Stated", "Dee Dark", "Pat Papers"} <= set(typo)
+
+
 def test_a_term_does_not_borrow_the_related_subjects_of_a_different_topic(session):
     """"computational" resolves to "Computational Biology" too, and borrowing
     its related subjects sent "computational pathology" to genomics."""

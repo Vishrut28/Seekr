@@ -125,6 +125,36 @@ def test_two_typos_landing_only_inside_a_topic_are_not_guessed(session):
     assert skills_of(parsed) == []
 
 
+def test_a_misspelt_job_word_is_dropped_like_the_right_spelling(session):
+    """"cosmolgy resarchers" found nothing: the misspelt "researchers" made
+    the pair an unknown phrase, and "cosmolgy" alone was then never tried."""
+    person(session, "c", "Cos Sample", "Cosmology and Gravitation Theories")
+    person(session, "k", "Kit Sample", "Cryptography")
+    parsed = parse(session, "cosmolgy resarchers")
+    assert skills_of(parsed) == ["Cosmology and Gravitation Theories"]
+    assert parsed.unmatched_terms == []
+    parsed = parse(session, "cryptography resarchers")
+    assert skills_of(parsed) == ["Cryptography"] and parsed.unmatched_terms == []
+
+
+def test_a_misspelt_job_word_does_not_make_its_phrase_unknown(session):
+    """"computr vison resarchers" was reported dropped whole while "computr
+    vison" inside it was repaired and searched: the job word's typo made the
+    three words a phrase nobody knew."""
+    person(session, "v", "Vi Sample", "Computer Vision")
+    parsed = parse(session, "computr vison resarchers")
+    assert skills_of(parsed) == ["Computer Vision"]
+    assert parsed.unmatched_terms == []
+
+
+def test_a_misspelt_weak_word_stays_a_visible_correction(session):
+    """"software" is weak but can still be the subject: its typo is reported."""
+    person(session, "s", "Sol Sample", "Software")
+    parsed = parse(session, "softwar engineers")
+    assert skills_of(parsed) == ["Software"]
+    assert [c["typed"] for c in parsed.corrections] == ["softwar"]
+
+
 def test_a_typo_is_never_corrected_into_a_name_that_is_a_topic_word(session):
     """"machin" became the name "machine", an alias entity records carry, and
     "machin lerning" answered with a robot."""

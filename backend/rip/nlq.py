@@ -1083,13 +1083,50 @@ def _related_values(term: str, skills: dict, aux: VocabAux, exclude: set) -> lis
     return out
 
 
+# Words the parser always drops. Not WEAK_WORDS: "software" is weak but can
+# still be the subject, and its typo must stay a visible correction.
+_LONG_NOISE = sorted(w for w in STOPWORDS if len(w) >= 6)
+
+
+def _misspelt_noise(token: str, aux: VocabAux) -> str | None:
+    """The filler or job word TOKEN misspells, if it is one: "resarchers"
+    is "researchers". Long words only, never a word the vocabulary uses, and
+    only words that are always dropped (see _LONG_NOISE).
+
+    Spelled right, such a word sets no filter and is dropped. Misspelt, it
+    made the phrase around it unknown: "cosmolgy resarchers" found nothing,
+    because the pair was reported unknown and "cosmolgy" alone was then never
+    tried; "computr vison resarchers" was reported dropped while its first two
+    words were answered."""
+    t = fold(token)
+    if len(t) < 6 or t in NOISE_WORDS or singular(t) in aux.word_index:
+        return None
+    from rapidfuzz import process
+
+    hit = process.extractOne(t, _LONG_NOISE, scorer=fuzz.ratio,
+                             score_cutoff=FUZZY_VOCAB_THRESHOLD)
+    return hit[0] if hit else None
+
+
+def _search_term(group: dict) -> str:
+    """The words a concept is matched by: the repaired phrase where a typo
+    was repaired, else the term as typed. Display keeps the typed term.
+
+    "cosmolgy" was repaired to its topic and then matched bios, papers and
+    the concept map as "cosmolgy" -- so it found the one person whose topic
+    says cosmology and none of the dark-matter, black-hole or paper-only
+    people the right spelling reaches.
+    """
+    return group.get("searched") or group.get("term") or ""
+
+
 def _expand_concepts(result: NLQuery, skills: dict, aux: VocabAux) -> None:
     """Add related subjects to broad concepts, and rescue broad terms the
     vocabulary does not hold at all ("cybersecurity", "web")."""
     from .concepts import related_subjects
 
     for group in result.skill_groups:
-        term = group.get("term") or ""
+        term = _search_term(group)
         have = list(group.get("related_values") or [])
         known = set(group.get("values") or []) | set(group.get("contained_values") or [])
         # The concept map is keyed by the subject, and a misspelt term is not
@@ -1328,6 +1365,8 @@ def parse(session: Session, query: str | None, _nested: bool = False) -> NLQuery
 
     tokens, agent_rewrites = rewrite_agents(tokens)
     result.rewrites.extend(agent_rewrites)
+    # a misspelt filler or job word is that word: it sets no filter either way
+    tokens = [_misspelt_noise(t, aux) or t for t in tokens]
 
     # Words selecting people by a protected attribute are taken out before
     # anything can match them — see compliance.protected_in_query.
@@ -1519,8 +1558,9 @@ def parse(session: Session, query: str | None, _nested: bool = False) -> NLQuery
                 # Processing) and report the rest as dropped.
                 repaired = _repair(parts, skills, aux)
                 if repaired:
-                    _, typed, values = repaired
-                    result.skill_groups.append({"term": gram, "values": values})
+                    fixed, typed, values = repaired
+                    result.skill_groups.append({"term": gram, "values": values,
+                                                "searched": " ".join(fixed)})
                     result.corrections.append({"typed": typed, "matched": values[0]})
                     consumed |= span
                     continue
@@ -2153,7 +2193,7 @@ def _filtered_stmt(parsed: NLQuery):
                 func.lower(Evidence.value).like(f"%{like_escape(group['pattern'].lower())}%", escape="\\"),
             ))
         # the raw term as written, against free text (bio, job title)
-        term = (group.get("term") or "").lower()
+        term = _search_term(group).lower()
         if _meaningful(term, 4):
             clauses.append(and_(
                 Evidence.attribute_type.in_(("bio", "role")),
@@ -2274,7 +2314,7 @@ def _group_alts(group: dict) -> list:
                       *(group.get("related_values") or [])]]
     if group.get("pattern"):
         alts.append(si.phrase_alt("s", group["pattern"]))
-    term = group.get("term") or ""
+    term = _search_term(group)
     if _meaningful(term, 4):
         alts.append(si.phrase_alt("t", term))
         # a subject of their papers they never state as a topic
@@ -2507,7 +2547,7 @@ def _matched_evidence_clause(parsed: NLQuery):
         # The raw term against free text — the same clause the filter uses, so
         # anything that passed the filter can also be scored. Without this a
         # bio-only match scores a flat zero and every such person ties.
-        term = (group.get("term") or "").lower()
+        term = _search_term(group).lower()
         if _meaningful(term, 4):
             clauses.append(and_(
                 Evidence.attribute_type.in_(("bio", "role")),
@@ -2538,8 +2578,8 @@ def _score_papers_only(session, parsed, ids, per_group, related_depth, contained
     """
     from .models import Authorship, Publication
 
-    phrases = [(gi, stems(g.get("term") or "")) for gi, g in enumerate(parsed.skill_groups)
-               if _meaningful(g.get("term") or "", 4)]
+    phrases = [(gi, stems(_search_term(g))) for gi, g in enumerate(parsed.skill_groups)
+               if _meaningful(_search_term(g), 4)]
     phrases = [(gi, p) for gi, p in phrases if p]
     if not phrases:
         return set()
@@ -2590,7 +2630,7 @@ def _score_evidence(session, parsed, ids, depth, best_conf, corroborated, latest
         contained = {value_key(v) for v in g.get("contained_values") or []} - values
         related = {value_key(v) for v in g.get("related_values") or []} - values - contained
         pattern = words(g["pattern"]) if g.get("pattern") else None
-        term = g.get("term") or ""
+        term = _search_term(g)
         term_words = words(term) if _meaningful(term, 4) else None
         matchers.append((values, contained, related, pattern, term_words))
 
