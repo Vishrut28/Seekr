@@ -929,7 +929,10 @@ def _repair(parts: list[str], skills: dict, aux: VocabAux):
     Two slips are repaired together in a phrase of three words or more, so a
     word spelled right still pins down what was meant: "natual language
     procesing" fixed neither alone, fell back to "natual language", and
-    dropped "procesing" without a word.
+    dropped "procesing" without a word. In a two-word phrase nothing is
+    spelled right, so the pair must land EXACTLY on a stored topic: "machin
+    lerning" is machine learning, and two guesses agreeing on a whole topic by
+    chance is not a risk worth naming. Containment alone is not enough there.
     """
     from rapidfuzz import process
     from rapidfuzz.distance import DamerauLevenshtein
@@ -981,13 +984,16 @@ def _repair(parts: list[str], skills: dict, aux: VocabAux):
             values = _contained(" ".join(candidate), skills, aux)
             if values and (best is None or score > best[3]):
                 best = (candidate, word, values, score)
-    if best is None and len(parts) >= 3 and len(guessed) == 2:
+    if best is None and len(guessed) == 2:
         (i, gi), (j, gj) = sorted(guessed.items())
         for a, sa in gi:
             for b, sb in gj:
                 candidate = list(parts)
                 candidate[i], candidate[j] = a, b
                 values = _contained(" ".join(candidate), skills, aux)
+                if len(parts) < 3 and not any(stems(v) == stems(" ".join(candidate))
+                                              for v in values):
+                    continue
                 if values and (best is None or min(sa, sb) > best[3]):
                     best = (candidate, " ".join(parts), values, min(sa, sb))
     return None if best is None else (best[0], best[1], best[2])
@@ -1653,9 +1659,14 @@ def parse(session: Session, query: str | None, _nested: bool = False) -> NLQuery
             continue
 
         # A misspelled name reaches nothing at all otherwise, because name
-        # matching is exact: "hintonn" simply disappears.
+        # matching is exact: "hintonn" simply disappears. Never into a word
+        # the topic vocabulary uses, for the reason the leftovers below give:
+        # "machin" became the name "machine", an alias two entity records
+        # carry, and "machin lerning" answered with a robot.
         if _could_be_a_name(token):
             near = _nearest_name_beside(session, tokens, i, t) or _nearest_name(session, t)
+            if near and df.get(singular(fold(near)), 0) > 0:
+                near = None
             if near:
                 result.name_terms.append(near)
                 result.corrections.append({"typed": token, "matched": near})

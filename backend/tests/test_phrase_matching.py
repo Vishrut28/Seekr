@@ -109,13 +109,32 @@ def test_two_typos_in_a_longer_phrase_are_repaired_together(session):
     assert parsed.unmatched_terms == []
 
 
-def test_two_typos_with_nothing_spelled_right_are_not_guessed(session):
-    """Two words, both misspelled: nothing pins down what was meant, so no
-    pair of guesses is tried."""
-    person(session, "n", "Nell Sample", "Natural Language Processing")
+def test_two_typos_in_two_words_are_repaired_only_onto_a_whole_topic(session):
+    """Nothing in "machin lerning" is spelled right, so the pair of guesses
+    must land exactly on a stored topic, not merely inside one."""
     person(session, "m", "Mo Sample", "Machine Learning")
+    person(session, "x", "Xu Sample", "Machine Learning in Medicine")
+    parsed = parse(session, "machin lerning")
+    assert "Machine Learning" in skills_of(parsed)
+    assert parsed.corrections[0]["typed"] == "machin lerning"
+
+
+def test_two_typos_landing_only_inside_a_topic_are_not_guessed(session):
+    person(session, "x", "Xu Sample", "Machine Learning in Medicine")
     parsed = parse(session, "machin lerning")
     assert skills_of(parsed) == []
+
+
+def test_a_typo_is_never_corrected_into_a_name_that_is_a_topic_word(session):
+    """"machin" became the name "machine", an alias entity records carry, and
+    "machin lerning" answered with a robot."""
+    person(session, "x", "Xu Sample", "Machine Learning in Medicine")
+    ingest_profile(session, make_profile(
+        external_id="r", url="https://github.com/r", raw={"login": "r"},
+        name="Machine Robot", usernames=["github:r"]))
+    parsed = parse(session, "machin lerning")
+    assert parsed.name_terms == []
+    assert all(c["matched"] != "machine" for c in parsed.corrections)
 
 
 def test_a_transposition_is_repaired(session):
