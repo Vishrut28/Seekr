@@ -1897,5 +1897,99 @@
    "their_words": "the difference that you showed are correct with my understanding, i might have misread or missed something, so its almost 10 on 10, so you can start labelling, its passed, go for it",
    "caveat": "made AFTER the three disagreements and these labels were shown, so the three cards were not re-graded blind; the blind result stays 7/10. Scores against these labels rest on the person's acceptance, not on the pre-registered rule."
   }
+ },
+ "post_fix_check": {
+  "pre_registered": "2026-10-04, before the person grades any of these cards",
+  "why": "the recall and location fixes of 2026-10-03 put 11 people in Seekr's top ten whom the labels never covered; Claude graded them, not blind (it knew they were Seekr's), and stated those grades in chat on 2026-10-03",
+  "entrants": [
+   "42fb5fd89abd",
+   "de97a4da21b3",
+   "e0f2509d5c9e",
+   "add64d2d7dad",
+   "87ef3cac9bcd",
+   "1ab1051bf0e6",
+   "2b791a7f2245",
+   "485ec24a6d13",
+   "e25d70719194",
+   "ea101cc968dc",
+   "0a1b7096e843"
+  ],
+  "entrant_cards": {
+   "de97a4da21b3": {
+    "query_id": "t-airquality",
+    "person_id": "cfd9f258-ae9f-4c29-bb44-0a77c758d707",
+    "name": "Nicholas Wagner"
+   },
+   "485ec24a6d13": {
+    "query_id": "s-cosmo-india",
+    "person_id": "090b328d-30bd-4866-9d78-b46c51a5b575",
+    "name": "John Preskill"
+   },
+   "1ab1051bf0e6": {
+    "query_id": "k-ml-india",
+    "person_id": "4b97a811-478f-4349-b1cd-c77c61691d7c",
+    "name": "Chirag Jain"
+   },
+   "42fb5fd89abd": {
+    "query_id": "t-dementia",
+    "person_id": "a1ca85c1-5961-4f8a-8d61-de605fe97023",
+    "name": "Luc Van Bortel"
+   },
+   "e0f2509d5c9e": {
+    "query_id": "t-airquality",
+    "person_id": "4fef349d-8410-42bb-b935-a50d28729050",
+    "name": "Morgan Bazilian"
+   },
+   "2b791a7f2245": {
+    "query_id": "k-ml-india",
+    "person_id": "969bf6a4-85b5-4476-b6b4-938a9982b355",
+    "name": "Rahul Mukundrao Mulajkar"
+   },
+   "e25d70719194": {
+    "query_id": "y-nlp",
+    "person_id": "c06d195d-41e4-49cc-961f-f1ef0f86efeb",
+    "name": "Koray Kavukcuoglu"
+   },
+   "0a1b7096e843": {
+    "query_id": "h-tb-india",
+    "person_id": "f6664e52-6ea1-413c-bc1b-ed2dbf7d3770",
+    "name": "Virat Sirisanthana"
+   },
+   "ea101cc968dc": {
+    "query_id": "h-tb-india",
+    "person_id": "8b9359d7-d659-4766-97c7-f8473f0b84b5",
+    "name": "Niharika Dhattarwal"
+   },
+   "87ef3cac9bcd": {
+    "query_id": "t-airquality",
+    "person_id": "371bd7e0-0c50-4d72-9c8f-0600dd2bc694",
+    "name": "Ke Zhu"
+   },
+   "add64d2d7dad": {
+    "query_id": "t-airquality",
+    "person_id": "6064c3b2-2087-4d80-8591-b93e3e12a62d",
+    "name": "Xiekang Wang"
+   }
+  },
+  "controls": [
+   "64ddbcd0723c",
+   "b932173a4539",
+   "052bed19ab7e",
+   "30a20a4f8c51",
+   "3d58844bda08",
+   "30dfc39c4b1b"
+  ],
+  "control_rule": "per query, the first unseen pool card ordered by sha256('seekr relevance pool 2026-09-30|postfix 2026-10-04|' + card id)",
+  "shown_as": "17 cards shuffled by salt, no mark of which are entrants",
+  "claude_sealed_sha256": "16201fa6e6e616526a410c26d6c2bdba9e3d1fc294ebe45132ac5e280444a686",
+  "how_to_verify": "sha256(nonce + '|' + json.dumps(claude, sort_keys=True, ensure_ascii=False, separators=(',', ':')))",
+  "measures": [
+   "share of the 11 entrants the person grades 2, and 1 or 2: the precision of what the fixes added",
+   "exact agreement person vs Claude on the 11 (non-blind on Claude's side) and on the 7 controls",
+   "top-ten share graded 2 over all 191 places, with the person's grades for the 11",
+   "the controls are one per query the entrants come from: six"
+  ],
+  "caveat": "the person saw Claude's grades for the 11 described in chat on 2026-10-03, so their grading of those 11 is not fully blind to Claude's; the controls are",
+  "result": null
  }
 }
