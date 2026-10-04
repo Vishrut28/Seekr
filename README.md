@@ -481,18 +481,36 @@ python scripts/eval_ranking.py --audit t-tb    # everyone the criteria call rele
 ```
 
 Always run it against a copy of the database, because it initializes and
-reindexes. On the 709-person corpus, after the criteria review below:
+reindexes. On the 766-person corpus, as of 2026-10-04:
 
 | Set | Queries | nDCG@10 | recall@50 |
 |---|---|---|---|
-| tuned (topic, concept, agent, constrained, soft, typo, name, protected) | 52 | 0.89 | 0.74 |
-| `holdout`: written mid-way, partly tuned after | 16 | 0.86 | 0.65 |
-| `holdout2`: written last, criteria fixed before the first run | 20 | 0.88 | 0.63 |
+| tuned (topic, concept, agent, constrained, soft, typo, name, protected) | 52 | 0.93 | 0.79 |
+| `holdout`: written mid-way, partly tuned after | 15 | 0.88 | 0.73 |
+| `holdout2`: written last, criteria fixed before the first run | 20 | 0.89 | 0.76 |
 
-Overall: nDCG@10 0.88, P@10 0.74, recall@50 0.69. **Read recall@50 against its
-ceiling, which is 0.96, not against 1.0**: ten queries have more than fifty
+Overall: nDCG@10 0.91, P@10 0.78, recall@50 0.77. **Read recall@50 against its
+ceiling, which is 0.97, not against 1.0**: six queries have more than fifty
 relevant people, so no ranker can retrieve them all in fifty results.
-`machine learning engineers` has 126, capping it at 0.40.
+`deep learning researchers` has 118, capping it at 0.42.
+
+The previous version of this table (0.88 / 0.74 / 0.69) was measured on the
+709-person corpus. On today's corpus, before the changes below, the same run
+gave 0.90 / 0.75 / 0.70. Three changes since then moved it, and two of them
+flatter it:
+
+- **Matching through papers.** Recall gained most from this; see
+  [Finding people through their papers](#finding-people-through-their-papers).
+  The grader gives 1 to anyone with two papers on a subject, which is the new
+  route's own rule, so part of that gain is the criteria agreeing with
+  themselves.
+- **Typo repair.** The typo queries went from 0.82 to 0.98, and searching a
+  repaired typo by its repair was written for `cosmolgy`, which went from 0.31
+  to 0.93. That query's gain is in-sample.
+- **Placing people by their workplace.** This barely moved the table.
+
+The two holdout rows barely moved in nDCG (`holdout2` 0.889 → 0.893); their
+recall rose with the paper route, under the same caution.
 `scripts/audit_judgments.py` prints the ceiling, the share of the corpus each
 criterion calls relevant, and `--terms`, the report that found the six criteria
 below.
@@ -1732,7 +1750,8 @@ Still open:
 - Negation, "both" and count thresholds are pattern-based. "not" inside a
   longer clause ("researchers who are not only…") is handled for the common
   forms, not for every English construction.
-- Search quality on queries nobody tuned for (`holdout2`, nDCG@10 0.76) is
-  below the tuned sets (0.86), and five of those criteria have now been
-  edited after seeing results — see *Measuring search quality*.
+- Search quality on queries nobody tuned for (`holdout2`, nDCG@10 0.89) is
+  below the tuned sets (0.93). Seven of its twenty criteria have been edited
+  after seeing results, and two had their subject ingested after failing. See
+  *Measuring search quality*.
 - Bulk ingest is single-threaded; throughput is bounded by resolution, not IO.
