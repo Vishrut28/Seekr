@@ -2141,6 +2141,25 @@
    "draw 10 cards the person has never graded, by salt 'seekr relevance pool 2026-09-30|validation v2', and have the person grade them blind",
    "accept if >= 8/10 exact and none 0 against 2; otherwise report and do not score against them",
    "if accepted, re-run scripts/score_relevance_labels.py and update the README"
-  ]
+  ],
+  "labels_sealed_sha256": "a49da7afe970adc42fbac593b28d3f04e869f2d8b98e9d243f11ab83275b7c8f",
+  "validation": {
+   "cards": [
+    "a91e04d6f377",
+    "de74e4c85ebf",
+    "a0b126dd1d79",
+    "4cff03fa08eb",
+    "c0165bf9c043",
+    "1ea5fbbbb64f",
+    "ba996f61680f",
+    "a9f1e092b06d",
+    "67fad163beaf",
+    "8150feafc704"
+   ],
+   "drawn": "first 10 by sha256('seekr relevance pool 2026-09-30|validation v2|' + card id), from cards the person has not graded showing no person they have seen",
+   "candidates": 268,
+   "accept_if": ">= 8/10 exact and none 0 against 2",
+   "result": null
+  }
  }
 }
