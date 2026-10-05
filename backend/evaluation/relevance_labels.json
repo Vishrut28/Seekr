@@ -2127,5 +2127,20 @@
     "labelled_at": "2026-10-05T05:28:38.349Z"
    }
   }
+ },
+ "rubric_v2": {
+  "decided": "2026-10-05, by the person, choosing between written options after the second blind check",
+  "why": "the labels agreed with the person on 10 of 16 blind cards; the differences were the labels crediting neighbouring fields as 2 and the place rule applied unevenly",
+  "2": "the card shows the subject itself or a direct sub-area of it (a stated topic, a paper title, a role); for a query with a place, the place is shown too",
+  "1": "only a neighbouring field, however close (ALS for dementia, LHC physics for cosmology, HIV for tuberculosis); or the subject shows only as skill tags; or the subject fits but the place asked for is not shown or is shown elsewhere",
+  "0": "nothing on the card is in or next to the subject, or the card is empty",
+  "person_grades": "the person's own grades (calibration rounds 2 and 3, validation, post-fix check) stand as given: they are the standard this rubric writes down",
+  "plan": [
+   "relabel every pooled card under this rubric; cards the person graded keep the person's grade",
+   "seal the new labels by hash before any further grading",
+   "draw 10 cards the person has never graded, by salt 'seekr relevance pool 2026-09-30|validation v2', and have the person grade them blind",
+   "accept if >= 8/10 exact and none 0 against 2; otherwise report and do not score against them",
+   "if accepted, re-run scripts/score_relevance_labels.py and update the README"
+  ]
  }
 }
