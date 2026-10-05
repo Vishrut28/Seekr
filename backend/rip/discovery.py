@@ -19,6 +19,7 @@ import re
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .names import alias_fits, carries_name
 from .nlq import (
     NOISE_WORDS,
     ROLE_MODIFIERS,
@@ -698,6 +699,13 @@ def _fetch_profiles(to_fetch: list[dict], deadline: float | None = None) -> list
             profile = get_connector(item["source"]).fetch(item["external_id"])
             if not (profile.name or "").strip():
                 raise ValueError("source returned a profile with no name")
+            # the search result's name was checked; the record behind it is
+            # what gets stored, and a handle-only result had no name to check
+            if item.get("_name") and not carries_name(
+                    item["_name"],
+                    [profile.name, *(a for a in profile.aliases or [] if alias_fits(profile.name, a))],
+                    profile.usernames or []):
+                raise ValueError(f"{item['external_id']} is not called {item['_name']}")
             term_words = {
                 w for w in re.split(r"[^A-Za-z0-9+#.-]+", item.get("_term", "").lower())
                 if len(w) > 2
@@ -934,11 +942,20 @@ def discovery_suggestions(
         if isinstance(exc, RateLimitedError):
             _note_source_throttled(session, source, exc.retry_after)
 
+    # A name in the question is a constraint on whoever comes back. Sources
+    # match it anywhere -- Europe PMC in paper text, GitHub and Stack Overflow
+    # in profiles -- so "Sundar Pichai" stored a psychiatrist and twenty others
+    # who are not called that.
+    wanted_name = " ".join(parsed.name_terms)
+
     def annotate(source: str, search_for: str, found) -> list[dict]:
         keep = []
         for item in found or []:
             if not item.get("external_id"):
                 continue
+            if wanted_name and item.get("name") and not carries_name(wanted_name, [item["name"]]):
+                continue
+            item["_name"] = wanted_name
             item["reason"] = f"live {source} search for '{search_for}'"
             item["ingest_command"] = f"rip.cli ingest {source} {item['external_id']}"
             item["_term"] = search_for

@@ -6,6 +6,8 @@ export interface Attribute {
   value: string;
   evidence_count: number;
   sources: string[];
+  /** one of the topics that matched the query; these are listed first */
+  matched?: boolean;
 }
 
 /** Why a person ranks where they do. `/v1/query` attaches this; the faceted

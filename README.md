@@ -429,12 +429,28 @@ never quietly belongs to a different question than the one asked.
   Aggarwal / Agrawal) are one name for both search and entity resolution.
   Look-alikes (Katherine / Kathryn) and nicknames (Bill → William) are accepted
   by search only, because two such records at one institute are two people as
-  often as one.
+  often as one. A name is searched whole: "satya nadella" with nobody here
+  called Nadella finds nobody, not every Satya, and live search then looks for
+  the whole name. An alternative name a source filed under someone else's
+  record (OpenAlex lists "Aman Sharma" on Poonam Sharma) does not count: an
+  alias must be a way of writing that person's own name. Case never matters,
+  including a query typed all in capitals.
+- **Abbreviations are their subjects.** "NLP" and "natural language
+  processing" find the same people, as do ML, CV, AI, DL, RL, LLM, GNN, HCI and
+  the rest of `ABBREVIATIONS` in `rip/nlq.py`. Either spelling also accepts
+  anyone who stated the short form.
+- **Live results must answer the question.** People a live source returns are
+  shown only if they satisfy every part of the query the corpus can check,
+  and for a name search a candidate must carry the name before it is even
+  fetched. Full-text sources match words anywhere: "Sundar Pichai" once
+  stored a psychiatrist whose papers mentioned him.
+- **Why each row is there.** The topics that matched are listed first in the
+  Skills column, in bold.
 - **Too few full matches means partial ones, labelled.** When fewer than 10
   people meet every part of a query, the page is topped up with people who
   meet most of it, placed behind the full matches. Each one carries
   `match: "partial"` and `missing: [...]`. A place or employer gives way before
-  the subject, and a name never does.
+  the subject, and a name never gives way at all.
 - **Protected attributes are never applied.** "women in machine learning"
   searches machine learning and reports `protected_terms`. This holds inside
   an exclusion too: "but not women" excludes nobody.

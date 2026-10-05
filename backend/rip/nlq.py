@@ -557,7 +557,70 @@ ACRONYMS = {
     "infosec": "information security",
     "sre": "site reliability",
     "qa": "quality assurance",
+    "dl": "deep learning",
+    "gnn": "graph neural network",
+    "gnns": "graph neural network",
+    "cnn": "convolutional neural network",
+    "cnns": "convolutional neural network",
+    "rnn": "recurrent neural network",
+    "ner": "named entity recognition",
+    "nlg": "natural language generation",
+    "rag": "retrieval-augmented generation",
+    "xai": "explainable",
+    "hpc": "high performance computing",
+    "ocr": "optical character recognition",
+    "ehr": "electronic health record",
+    "bci": "brain-computer interface",
+    "vlm": "vision-language model",
+    "vlms": "vision-language model",
 }
+
+# Short forms that ARE the subject, not a way into neighbouring ones: "NLP"
+# and "natural language processing" must find the same people. One person
+# stating "NLP" made it a vocabulary word, after which "NLP" matched that
+# literal value -- 26 people where the full name found 30, and the full name
+# missed the person who wrote "NLP". Either spelling now searches the full
+# subject and also accepts the short form as stated. Looked up against the
+# vocabulary in singular and plural.
+ABBREVIATIONS = {
+    "nlp": "natural language processing",
+    "ml": "machine learning",
+    "ai": "artificial intelligence",
+    "cv": "computer vision",
+    "dl": "deep learning",
+    "rl": "reinforcement learning",
+    "llm": "large language model",
+    "llms": "large language model",
+    "hci": "human-computer interaction",
+    "iot": "internet of things",
+    "gnn": "graph neural network",
+    "gnns": "graph neural network",
+    "cnn": "convolutional neural network",
+    "ner": "named entity recognition",
+    "nlg": "natural language generation",
+    "xai": "explainable artificial intelligence",
+    "hpc": "high performance computing",
+    "ocr": "optical character recognition",
+    "ar": "augmented reality",
+    "vr": "virtual reality",
+}
+
+
+def _full_form(short: str, skills: dict) -> str | None:
+    """The vocabulary key of the subject SHORT abbreviates, if the corpus holds it."""
+    full = ABBREVIATIONS.get(short)
+    if not full:
+        return None
+    for key in (full, full + "s", full.removesuffix("s")):
+        if key in skills:
+            return key
+    return None
+
+
+def _short_forms(full: str, skills: dict) -> list[str]:
+    """Stated values that abbreviate FULL ("NLP" for natural language processing)."""
+    return [skills[s] for s, f in ABBREVIATIONS.items()
+            if s in skills and f in (full, full.removesuffix("s"))]
 
 # Full phrases that mean the same specialization in different words, where
 # no acronym or substring relationship connects them. Unlike ACRONYMS (a
@@ -1115,6 +1178,35 @@ def _misspelt_noise(token: str, aux: VocabAux) -> str | None:
     return hit[0] if hit else None
 
 
+def _whole_names(tokens: list[str], result: NLQuery, df: dict) -> None:
+    """A name is asked for whole.
+
+    "satya nadella" kept "satya" as a name and set "nadella" aside because
+    nobody here is called that, so every Satya answered; "sundar pichai" did
+    the same before anyone named Pichai was stored. Half a name is not the
+    person. A name-shaped word beside a name word is part of that name,
+    whether or not anyone here carries it yet -- the search then finds nobody
+    rather than somebody else, and live search looks for the whole name.
+    """
+    if not result.name_terms:
+        return
+    named = {fold(w) for term in result.name_terms for w in term.split()}
+    named |= {fold(c["typed"]) for c in result.corrections if c.get("matched") in result.name_terms}
+    grew = True
+    while grew:
+        grew = False
+        for i, token in enumerate(tokens):
+            if (token not in result.unmatched_terms or not _could_be_a_name(token)
+                    or df.get(singular(fold(token)), 0) > 0):
+                continue
+            beside = {fold(tokens[j]) for j in (i - 1, i + 1) if 0 <= j < len(tokens)}
+            if beside & named:
+                result.unmatched_terms.remove(token)
+                result.name_terms.append(token)
+                named.add(fold(token))
+                grew = True
+
+
 def _search_term(group: dict) -> str:
     """The words a concept is matched by: the repaired phrase where a typo
     was repaired, else the term as typed. Display keeps the typed term.
@@ -1354,6 +1446,13 @@ def parse(session: Session, query: str | None, _nested: bool = False) -> NLQuery
     if not _nested:
         cleaned = _count_filters(cleaned, result)
         cleaned = _negations(session, cleaned, result)
+    # Capitals carry meaning only beside lower case: "SaaS" is a product and
+    # "AI" an acronym. Typed all in capitals they say nothing, and "GEOFFREY
+    # HINTON" was read as two acronyms -- nobody found, where "geoffrey
+    # hinton" found him. Short all-capital queries ("NLP") are left alone.
+    if (any(ch.isupper() for ch in cleaned) and not any(ch.islower() for ch in cleaned)
+            and re.search(r"[^\W\d_]{5,}", cleaned)):
+        cleaned = cleaned.lower()
 
     skills, orgs, locations = _vocab(session)
     aux = _vocab_aux(session)
@@ -1419,8 +1518,20 @@ def parse(session: Session, query: str | None, _nested: bool = False) -> NLQuery
         # meaningful part, so skip this one.
         if len(parts) > 1 and (parts[0] in STOPWORDS or parts[-1] in STOPWORDS):
             continue
+        full = _full_form(gram_l, skills)
+        if full:
+            # "NLP" is searched as natural language processing, widening and
+            # all, and still accepts anyone who wrote "NLP"
+            also = [skills[gram_l]] if gram_l in skills else []
+            gram_l, parts = full, full.split()
+        else:
+            also = _short_forms(gram_l, skills) if gram_l in skills else []
         if gram_l in TECH_SKILLS or gram_l in skills:
             group = {"term": gram}
+            if full:
+                # bios, papers, the concept map and live sources see the
+                # subject's name, not three letters
+                group["searched"] = full
             if gram_l in skills:
                 values = [skills[gram_l]]
                 # An exact hit used to be read as the narrowest possible
@@ -1455,7 +1566,7 @@ def parse(session: Session, query: str | None, _nested: bool = False) -> NLQuery
                     partial = [v for v in wider if fold(v) not in aux.field_only]
                     if partial:
                         group["contained_values"] = partial[:MAX_RELATED_VALUES]
-                group["values"] = values
+                group["values"] = values + [v for v in also if v not in values]
             else:
                 # not in the corpus yet, but it is a skill — match bios/topics
                 # by pattern rather than inventing a name filter
@@ -1509,12 +1620,16 @@ def parse(session: Session, query: str | None, _nested: bool = False) -> NLQuery
             result.name_terms.append(gram)
             consumed |= span
         elif gram_l in ACRONYMS and ACRONYMS[gram_l] in skills:
-            result.skill_groups.append({"term": gram, "values": [skills[ACRONYMS[gram_l]]]})
+            result.skill_groups.append({"term": gram, "values": [skills[ACRONYMS[gram_l]]],
+                                        "searched": ABBREVIATIONS.get(gram_l) or ACRONYMS[gram_l]})
             consumed |= span
         elif gram_l in ACRONYMS:
             contained = _contained(ACRONYMS[gram_l], skills, aux)
             if contained:
-                result.skill_groups.append({"term": gram, "values": contained})
+                # bios and papers are read for the words, as for the full name:
+                # "GNN" found 6 people and "graph neural networks" 17
+                result.skill_groups.append({"term": gram, "values": contained,
+                                            "searched": ABBREVIATIONS.get(gram_l) or ACRONYMS[gram_l]})
                 consumed |= span
         elif gram_l in SYNONYMS and SYNONYMS[gram_l] in skills:
             # An exact vocabulary hit on the OTHER phrasing: "model serving"
@@ -1759,6 +1874,7 @@ def parse(session: Session, query: str | None, _nested: bool = False) -> NLQuery
         else:
             result.unmatched_terms.append(token)
 
+    _whole_names(tokens, result, df)
     _expand_concepts(result, skills, aux)
 
     # flat views, kept so the API response and existing callers stay simple
@@ -2379,6 +2495,30 @@ def count_matches(session: Session, parsed: NLQuery) -> int:
     return session.execute(select(func.count()).select_from(inner)).scalar_one()
 
 
+def satisfying(session: Session, parsed: NLQuery, ids) -> set[str]:
+    """Which of IDS meet every constraint PARSED applies.
+
+    For people a live source has just returned: they are shown only when
+    they answer the question. A search for "Sundar Pichai" showed Michael
+    Bauer and a GitHub account called JACKSPARROWbts, because a source had
+    matched the words somewhere in their papers or profile. A query whose
+    every term is unknown applies no constraint, and keeps everyone.
+    """
+    ids = list(ids)
+    if not ids or not has_filters(parsed):
+        return set(ids)
+    if si.is_ready(session):
+        stmt = si.match_select(session, _constraints(parsed), _restrict(parsed))
+        if stmt is None:
+            return set()
+        sub = stmt.subquery()
+        return set(session.execute(
+            select(sub.c.person_id).where(sub.c.person_id.in_(ids))).scalars())
+    return set(session.execute(
+        _filtered_stmt(parsed).with_only_columns(Person.id)
+        .where(Person.id.in_(ids)).distinct()).scalars())
+
+
 FILTER_GROUPS = ("skill_groups", "organizations", "locations", "countries", "name_terms")
 
 
@@ -2762,10 +2902,21 @@ def _query_terms(parsed: NLQuery) -> set[str]:
     for group in parsed.skill_groups:
         for value in group.get("values") or []:
             terms.add(value.lower())
-        for key in ("pattern", "term"):
+        if group.get("pattern"):
+            terms.add(str(group["pattern"]).lower())
+        for key in ("term", "searched"):
             if group.get(key):
-                terms.add(str(group[key]).lower())
+                terms |= _spellings(str(group[key]))
     return {t for t in terms if t}
+
+
+def _spellings(term: str) -> set[str]:
+    """TERM and, for an abbreviated subject, its other spellings: a paper on
+    "LLM agents" is on topic for "large language models", and the reverse."""
+    t = fold(term)
+    stem = (ABBREVIATIONS.get(t) or t).removesuffix("s")
+    shorts = {s for s, f in ABBREVIATIONS.items() if f.removesuffix("s") == stem}
+    return {t, stem, stem + "s", *shorts} if shorts else {t}
 
 
 @lru_cache(maxsize=200_000)
@@ -3137,7 +3288,7 @@ def _name_fit_scores(
         if handle:
             handles.setdefault(pid, []).append(str(handle).lower())
 
-    from .names import search_forms
+    from .names import alias_fits, search_forms
 
     def same(typed: list[str], stored: list[str]) -> bool:
         # word by word, where a word also matches its nicknames and spellings:
@@ -3166,7 +3317,8 @@ def _name_fit_scores(
             score = NAME_FIT_ALL_WORDS
         elif any(contains(name_words, t) for t in term_words):
             score = NAME_FIT_ANY_WORD
-        alias_words = [norm(str(a)).split() for a in (aliases or [])]
+        alias_words = [norm(str(a)).split() for a in (aliases or [])
+                       if alias_fits(name, str(a))]
         if score < NAME_FIT_ALIAS_FLOOR and any(
                 same(t, a) for t in term_words for a in alias_words):
             score = max(score, NAME_FIT_ALIAS_FLOOR)
@@ -3556,12 +3708,13 @@ def execute_progressive(session: Session, parsed: NLQuery) -> tuple[list, NLQuer
         if rows and (len(rows) >= min(PARTIAL_FILL_BELOW, wanted) or parsed.offset):
             return rows, parsed, []
 
-        sequence = _drop_sequence(clauses)
-        if rows:
-            # Topping up a page never loosens a name: "Dhruv Dixit" found Dhruv
-            # Dixit, and filling the page with every other Dhruv is noise.
-            sequence = [c for c in sequence if c["kind"] != "name_terms"]
-        for n_dropped in range(1, len(sequence) + (1 if rows else 0)):
+        # Relaxing never loosens a name. "Dhruv Dixit" found Dhruv Dixit, and
+        # filling the page with every other Dhruv is noise; and when nobody
+        # here has the whole name, people with half of it are not an answer
+        # either -- "sundar pichai" listed every Sundar. Nobody is the honest
+        # answer, and the one live search exists for.
+        sequence = [c for c in _drop_sequence(clauses) if c["kind"] != "name_terms"]
+        for n_dropped in range(1, len(sequence) + 1):
             dropped_clauses = sequence[:n_dropped]
             kept = [c for c in clauses if c not in dropped_clauses]
             if not kept:

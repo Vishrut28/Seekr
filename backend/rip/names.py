@@ -18,6 +18,7 @@ Two relations, used differently on purpose:
 
 from __future__ import annotations
 
+import re
 from functools import lru_cache
 
 from .textnorm import fold
@@ -114,3 +115,60 @@ def name_phrase_forms(phrase: str, limit: int = 12) -> list[str]:
         options = [part] + sorted(search_forms(part) - {part})
         forms = [f"{f} {o}".strip() for f in forms for o in options][:limit]
     return forms
+
+
+def _name_words(text: str | None) -> list[str]:
+    return [w for w in re.split(r"[^\w]+", fold(text or "")) if w]
+
+
+def carries_name(wanted: str, names, handles=()) -> bool:
+    """Is someone called one of NAMES (or with one of HANDLES) the person a
+    search for the name WANTED asks about?
+
+    Every word of WANTED must be a word of one name, in any of its search
+    forms; case, accents and word order do not matter. A search for "Sundar
+    Pichai" kept people called Michael Bauer and JACKSPARROWbts, because a
+    full-text source matched the words somewhere in their papers or profile.
+    A handle counts when it is the name run together ("sundarpichai").
+    """
+    want = _name_words(wanted)
+    if not want:
+        return True
+    keys = [search_key(w) for w in want]
+    for name in names:
+        have = {search_key(w) for w in _name_words(name)}
+        if have and all(k in have for k in keys):
+            return True
+    joined = "".join(want)
+    return any("".join(_name_words(h)) == joined for h in handles if h)
+
+
+def _word_fits(a: str, b: str) -> bool:
+    """One word of a name standing for another: the same word in any search
+    form, an initial, or a shortening ("Sundar" for "Sundararajan")."""
+    if a == b or search_key(a) == search_key(b):
+        return True
+    short, long_ = sorted((a, b), key=len)
+    if len(short) == 1:
+        return long_.startswith(short)
+    return len(short) >= 3 and long_.startswith(short)
+
+
+def alias_fits(name: str | None, alias: str | None) -> bool:
+    """Could ALIAS be NAME written another way, rather than somebody else's?
+
+    Sources list alternative names that belong to other people: OpenAlex
+    filed "Aman Sharma" under Poonam Sharma and Kusum Sharma, so a search for
+    Aman Sharma answered with both. Initials, reordering, nicknames, a
+    shortening and an added middle name all fit. Two names that each have a
+    word the other cannot account for -- Aman against Poonam -- are two
+    people; that also turns away a changed surname, which the canonical name
+    still finds. A name in another script is not judged.
+    """
+    n = [w for w in _name_words(name) if not w.isdigit()]
+    a = [w for w in _name_words(alias) if not w.isdigit()]
+    if not n or not a or any(ch.isalpha() and ord(ch) > 0x24F for ch in "".join(a)):
+        return True
+    alias_left = [w for w in a if not any(_word_fits(w, x) for x in n)]
+    name_left = [w for w in n if not any(_word_fits(w, x) for x in a)]
+    return not (alias_left and name_left)

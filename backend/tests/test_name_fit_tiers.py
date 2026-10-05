@@ -67,10 +67,11 @@ def test_alias_floor_lifts_a_weak_base_tier(session):
     """A person whose NAME doesn't match well, but who is known by the
     queried name as an ALIAS, must be lifted to at least the alias floor —
     even though their base tier (from canonical_name alone) would score
-    lower."""
+    lower. The alias has to be a way of writing their name: one sharing no
+    word with it is someone else's (see names.alias_fits)."""
     person = ingest_profile(
         session,
-        make_profile(name="Totally Different Name", aliases=["Geoffrey Hinton"]),
+        make_profile(name="G. E. Hinton", aliases=["Geoffrey Hinton"]),
     )
     parsed = NLQuery(raw="Geoffrey Hinton", name_terms=["Geoffrey Hinton"])
     scores = _name_fit_scores(session, parsed, [person.id])
@@ -117,7 +118,7 @@ def test_alias_floor_is_checked_before_handle_floor(session):
     person = ingest_profile(
         session,
         make_profile(
-            name="No Overlap Whatsoever", external_id="geoffreyh2",
+            name="G. Hinton", external_id="geoffreyh2",
             url="https://github.com/geoffreyh2", raw={"login": "geoffreyh2"},
             usernames=["github:geoffreyh2"], aliases=["Geoffrey Hinton"],
         ),

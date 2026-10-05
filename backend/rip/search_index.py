@@ -78,6 +78,7 @@ from sqlalchemy.orm import InstanceState, Mapped, Session, aliased, mapped_colum
 from sqlalchemy.sql.elements import ColumnElement
 
 from .db import Base
+from .names import alias_fits
 from .textnorm import (
     MAX_TERM_LEN,
     org_key,
@@ -93,7 +94,7 @@ logger = logging.getLogger("rip.search_index")
 
 # Bump whenever tokenisation or field contents change: databases indexed by an
 # older version are rebuilt by init_db rather than silently half-matching.
-INDEX_VERSION = "11"
+INDEX_VERSION = "12"
 
 # Fields where number is not identity: a bio reading "recommender systems"
 # must answer a search for "recommender system". Indexed and queried through
@@ -430,7 +431,10 @@ def _postings_for(session: Session, person_ids: list[str]) -> tuple[list[dict], 
     for pid, p in live.items():
         add(pid, "n", text_terms(p.canonical_name))
         for alias in p.aliases or []:
-            add(pid, "na", text_terms(str(alias)))
+            # an alternative name a source filed under someone else's record
+            # ("Aman Sharma" on Poonam Sharma) would find them for that name
+            if alias_fits(p.canonical_name, str(alias)):
+                add(pid, "na", text_terms(str(alias)))
         add(pid, "p", text_terms(p.location))
         for text in (p.summary, p.current_organization):
             add(pid, "p", _free_text_place_terms(text))

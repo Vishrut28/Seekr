@@ -118,16 +118,19 @@ def test_purging_renames_comma_names_and_keeps_their_spellings(session, monkeypa
     session.refresh(junk)
     assert junk.canonical_name == "Rahul Mukundrao Mulajkar"
     assert "Rahul Mulajkar" in junk.aliases
-    assert "Rahul Mukundrao Mulajkar" not in junk.aliases
+    assert "Rahul Mukundrao Mulajkar" not in junk.aliases
+
 
 
 def test_half_a_name_does_not_answer_a_whole_one(session):
     """"Katherine Jones" found Kate Tilling — Katherine by nickname, Jones by
-    nobody — and the row claimed a full match."""
+    nobody. It was then shown as a partial match; half a name is not the
+    person, so nobody here is the answer, and live search asks for the whole
+    name."""
     person(session, "a", "Kate Tilling")
-    rows, _parsed, _dropped = execute_progressive(session, parse(session, "Katherine Jones"))
-    assert [p.canonical_name for p in rows] == ["Kate Tilling"]
-    assert rows[0].partial_match == {"missing": [{"term": "Jones", "as": "name"}]}
+    rows, parsed, _dropped = execute_progressive(session, parse(session, "Katherine Jones"))
+    assert rows == []
+    assert parsed.name_terms == ["Katherine", "Jones"] and parsed.unmatched_terms == []
 
 
 def test_a_whole_name_that_matches_is_a_full_match(session):
@@ -143,8 +146,8 @@ def test_an_unknown_employer_is_labelled_an_employer_not_a_name(session):
     assert rows[0].partial_match == {"missing": [{"term": "Zzyzx", "as": "org"}]}
 
 
-def test_a_name_beside_a_subject_is_reported_too(session):
-    """The subject matching in full does not make the name whole."""
+def test_a_subject_does_not_make_half_a_name_whole(session):
+    """Kate Tilling works on robotics, and is still not Katherine Jones."""
     from rip.normalize import EvidenceItem
 
     ingest_profile(session, make_profile(
@@ -153,7 +156,7 @@ def test_a_name_beside_a_subject_is_reported_too(session):
         evidence=[EvidenceItem(attribute_type="research_interest", value="Robotics")]))
     rows, _parsed, _dropped = execute_progressive(
         session, parse(session, "robotics Katherine Jones"))
-    assert rows and rows[0].partial_match == {"missing": [{"term": "Jones", "as": "name"}]}
+    assert rows == []
 
 
 def test_a_product_style_word_is_not_a_missing_name(session):

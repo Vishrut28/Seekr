@@ -304,7 +304,9 @@ def ui():
     index = FRONTEND_DIR / "index.html"
     if not index.exists():
         raise HTTPException(500, f"frontend not found at {FRONTEND_DIR}")
-    return HTMLResponse(index.read_text())
+    # revalidated every time: the page names this build's hashed assets, and
+    # a cached copy keeps a browser on the previous build after a deploy
+    return HTMLResponse(index.read_text(), headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/")
@@ -1322,6 +1324,7 @@ def nl_query(
         has_filters,
         parse,
         query_understanding,
+        satisfying,
         subjects_asked,
     )
 
@@ -1377,14 +1380,23 @@ def nl_query(
                     _org_cache[pid].append(org_name)
 
         wanted_orgs = {o.lower() for o in parsed.organizations}
+        # The topics that put someone in these results come first, marked:
+        # listing the six best-evidenced topics showed Joel Veness under "NLP"
+        # with bandits, games and compression, and not the Topic Modeling and
+        # Speech Recognition that matched.
+        wanted_topics = {v.lower() for g in parsed.skill_groups
+                         for key in ("values", "contained_values", "related_values")
+                         for v in g.get(key) or []}
         out = []
         for person in rows:
             summary = _person_summary(person)
             attrs = [
-                {**a, "sources": sorted(a["sources"])}
+                {**a, "sources": sorted(a["sources"]),
+                 "matched": a["value"].lower() in wanted_topics}
                 for a in _attr_cache.get(person.id, {}).values()
             ]
-            summary["attributes"] = sorted(attrs, key=lambda a: -a["evidence_count"])[:6]
+            summary["attributes"] = sorted(
+                attrs, key=lambda a: (not a["matched"], -a["evidence_count"]))[:6]
             summary["organizations"] = _org_cache.get(person.id, [])
             # the affiliation that satisfied the org filter — often NOT the
             # current one, so showing only current_organization looks wrong
@@ -1550,11 +1562,12 @@ def nl_query(
             response["applied_clauses"] = [
                 {"term": c["token"], "as": c["label"]} for c in (parsed.clause_order or [])
             ]
-            # People the live provider returned FOR THIS QUERY are answers in
-            # their own right. The corpus filter can only express what the
-            # corpus already knows, so a freshly fetched person often fails it
-            # ("Rust" is nobody's stored topic yet) — appending them keeps the
-            # results the user actually paid a round-trip for.
+            # People the live provider returned FOR THIS QUERY join the
+            # results only when they answer it: the re-parse above has learned
+            # whatever they brought ("Rust" is a topic once a Rust developer
+            # is stored), so every constraint the question applies can be
+            # checked on them. Appending them unchecked showed Michael Bauer
+            # and a GitHub account called JACKSPARROWbts for "Sundar Pichai".
             # Where the NEXT page of the corpus starts. Paging walks the
             # corpus, so the cursor counts corpus rows only — the live rows
             # appended below are already on this page and sit at no offset.
@@ -1575,7 +1588,8 @@ def nl_query(
                         _Person.id.in_(live_ids), _Person.merged_into.is_(None)
                     )
                 ).scalars().all()
-                persons = persons + [p for p in extra if p.id not in seen]
+                answers = satisfying(db, asked, [p.id for p in extra])
+                persons = persons + [p for p in extra if p.id not in seen and p.id in answers]
             rows = build_results(persons)
             live_set = set(live_ids)
             for row in rows:
@@ -2014,6 +2028,7 @@ def query_stream(
         parse,
         query_understanding,
         relevance_scores,
+        satisfying,
         subjects_asked,
     )
 
@@ -2062,15 +2077,12 @@ def query_stream(
                 parsed = parse(session, q)
                 if limit:
                     parsed.limit = limit
+            asked = parsed
             persons, applied, not_found = execute_progressive(session, parsed)
             parsed = applied
-            # People a live source just returned are answers in their own
-            # right. The corpus filter can only express what the corpus
-            # already knows, so someone fetched seconds ago usually fails it —
-            # a search for experts in Hyderabad stored fifteen people and then
-            # showed none, because none of them carry a Hyderabad location
-            # yet. /v1/query already appends them; without this the cards said
-            # "10 kept" over an empty table.
+            # People a live source just returned join the results when they
+            # answer the question, as in /v1/query: every constraint the
+            # re-parsed query applies is checked on them.
             corpus_page = len(persons)
             seen = {p.id for p in persons}
             live_ids = [s_["person_id"] for s_ in suggestions if s_.get("person_id")]
@@ -2080,7 +2092,8 @@ def query_stream(
                         Person.id.in_(live_ids), Person.merged_into.is_(None)
                     )
                 ).scalars().all()
-                persons = persons + [p for p in extra if p.id not in seen]
+                answers = satisfying(session, asked, [p.id for p in extra])
+                persons = persons + [p for p in extra if p.id not in seen and p.id in answers]
 
             # the same ranking /v1/query applies, so the stream and the plain
             # endpoint cannot disagree about the order

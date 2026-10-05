@@ -124,13 +124,26 @@ function MatchCell({ person, query }: { person: PersonSummary; query: string }) 
 function PersonRow({ person, query }: { person: PersonSummary; query: string }) {
   const navigate = useNavigate();
 
-  const skills = (person.attributes || [])
+  // the topics that matched the query come first from the API, and are marked
+  const topics = (person.attributes || [])
     .filter(
       (a) => a.attribute_type === "skill" || a.attribute_type === "research_interest",
     )
-    .slice(0, 6)
-    .map((a) => a.value)
-    .join(", ");
+    .slice(0, 6);
+  const skills = topics.length
+    ? topics.map((a, i) => (
+        <span key={a.value}>
+          {i > 0 && ", "}
+          {a.matched ? (
+            <span className="skhit" title="Matches your search">
+              {a.value}
+            </span>
+          ) : (
+            a.value
+          )}
+        </span>
+      ))
+    : null;
   const sources = [...new Set((person.attributes || []).flatMap((a) => a.sources || []))];
 
   // the affiliation that satisfied the org filter — often NOT the current one,
