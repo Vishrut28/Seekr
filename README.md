@@ -606,6 +606,16 @@ Japan, for `machine learning researchers in India`. Across both checks that
 is 10 of 16. Where they differ, the labels are more generous on neighbouring
 fields, such as ALS for dementia or LHC physics for cosmology. **Read any
 score against these labels as ±0.1, not to the third decimal.**
+
+A stricter rubric was then tried. The person chose its rules: a neighbouring
+field is always a 1, and a missing place is a 1. Every card was relabelled
+under it (66 changed), sealed, and checked on ten fresh cards. It failed:
+6 of 10, with one 0 against 2. The person graded two neighbouring fields 0,
+and graded 0 a card that names materials science outright. The relabelled
+set is kept in `relevance_labels.json["rubric_v2"]` as a record and is not
+used. Three blind checks now put one grader's agreement with any single
+labelling of these cards at about 60–70%, which is the real limit on these
+labels.
 `scripts/score_relevance_labels.py` scores them:
 
 | | cards | graded 2 | graded 1 or 2 |

@@ -2159,7 +2159,1706 @@
    "drawn": "first 10 by sha256('seekr relevance pool 2026-09-30|validation v2|' + card id), from cards the person has not graded showing no person they have seen",
    "candidates": 268,
    "accept_if": ">= 8/10 exact and none 0 against 2",
-   "result": null
+   "result": {
+    "seal_verified": true,
+    "graded_after_seal": "sealed 2026-10-05T05:47:18Z; first grade 2026-10-05T05:48:13Z",
+    "exact": "6/10",
+    "zero_against_two": 1,
+    "verdict": "REJECTED under the pre-registered rule (>= 8/10, none 0 against 2); nothing is scored against these labels",
+    "disagreements": [
+     "a0b126dd1d79 materials science: Vivek B. Shenoy (2D materials, battery materials, graphene) claude 2, person 0",
+     "1ea5fbbbb64f drug discovery: Holger Gohlke (drug design, binding free energy) claude 2, person 1",
+     "a91e04d6f377 cryptography: Vishesh Garg (privacy-preserving ML) claude 1, person 0",
+     "de74e4c85ebf nanotechnology: Vishrut Garg (thin-film fluid dynamics) claude 1, person 0"
+    ],
+    "observed_not_adopted": "two of the four are neighbouring fields the person graded 0, not the 1 rubric v2 gives them; the 0 against 2 is a card that names materials outright. Noted after the result; it changes nothing.",
+    "standing": "the v1 labels, accepted by the person on 2026-10-03, remain the labels in use, read as +-0.1"
+   },
+   "person": {
+    "a91e04d6f377": {
+     "grade": 0,
+     "labelled_at": "2026-10-05T05:48:13.363Z"
+    },
+    "de74e4c85ebf": {
+     "grade": 0,
+     "labelled_at": "2026-10-05T05:48:25.463Z"
+    },
+    "a0b126dd1d79": {
+     "grade": 0,
+     "labelled_at": "2026-10-05T05:49:19.384Z"
+    },
+    "4cff03fa08eb": {
+     "grade": 0,
+     "labelled_at": "2026-10-05T05:49:28.652Z"
+    },
+    "c0165bf9c043": {
+     "grade": 2,
+     "labelled_at": "2026-10-05T05:49:47.252Z"
+    },
+    "1ea5fbbbb64f": {
+     "grade": 1,
+     "labelled_at": "2026-10-05T05:50:34.024Z"
+    },
+    "ba996f61680f": {
+     "grade": 1,
+     "labelled_at": "2026-10-05T05:50:41.809Z"
+    },
+    "a9f1e092b06d": {
+     "grade": 1,
+     "labelled_at": "2026-10-05T05:50:45.316Z"
+    },
+    "67fad163beaf": {
+     "grade": 0,
+     "labelled_at": "2026-10-05T05:50:54.755Z"
+    },
+    "8150feafc704": {
+     "grade": 2,
+     "labelled_at": "2026-10-05T05:51:07.314Z"
+    }
+   }
+  },
+  "labels": {
+   "01d2604ab9e2": {
+    "grade": 2,
+    "by": "claude",
+    "note": "spiking neural networks; neural dynamics and brain function stated"
+   },
+   "0361c8ab24cf": {
+    "grade": 2,
+    "by": "claude",
+    "note": "context-aware recommender systems"
+   },
+   "04752062b51a": {
+    "grade": 2,
+    "by": "claude",
+    "note": "insect ecology and behaviour stated; systematics"
+   },
+   "052bed19ab7e": {
+    "grade": 2,
+    "by": "person"
+   },
+   "05c5278a1cdf": {
+    "grade": 0,
+    "by": "claude",
+    "note": "tags in other languages; no Python"
+   },
+   "069327cb8c5b": {
+    "grade": 1,
+    "by": "claude",
+    "note": "web development shown only as Stack Overflow tags"
+   },
+   "06c1670aae54": {
+    "grade": 0,
+    "by": "claude",
+    "note": "pattern recognition and biometrics"
+   },
+   "074a26185e78": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: atmospheric gas budgets and chemistry: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "07589c78b497": {
+    "grade": 1,
+    "by": "claude",
+    "note": "JavaScript and jQuery shown only as Stack Overflow tags"
+   },
+   "07837fb6fee9": {
+    "grade": 2,
+    "by": "claude",
+    "note": "atmospheric chemistry, ozone and climate"
+   },
+   "07ff8ccf896f": {
+    "grade": 2,
+    "by": "claude",
+    "note": "global burden of disease, diarrhoeal disease epidemiology"
+   },
+   "099355aa298b": {
+    "grade": 0,
+    "by": "claude",
+    "note": "graph neural networks; nothing biomedical"
+   },
+   "0a4df5d2c144": {
+    "grade": 2,
+    "by": "person"
+   },
+   "0aa3f4184091": {
+    "grade": 0,
+    "by": "claude",
+    "note": "orthopaedic and plastic surgery"
+   },
+   "0aa716112bdb": {
+    "grade": 0,
+    "by": "person"
+   },
+   "0bf7a9c9b8dc": {
+    "grade": 0,
+    "by": "claude",
+    "note": "empty card"
+   },
+   "0d5302669957": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: headache and brain injury, neurology: as the person graded 6b29c470de99",
+    "v1": 2
+   },
+   "0e44f37368b7": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: ecosystem health and vectors: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "0e8ef4fddddb": {
+    "grade": 0,
+    "by": "claude",
+    "note": "agricultural price forecasting"
+   },
+   "0f1b088faae6": {
+    "grade": 1,
+    "by": "claude",
+    "note": "JavaScript frameworks shown only as Stack Overflow tags"
+   },
+   "1225ead4dc98": {
+    "grade": 1,
+    "by": "claude",
+    "note": "Python and Django shown only as Stack Overflow tags"
+   },
+   "12edde3866c7": {
+    "grade": 1,
+    "by": "claude",
+    "note": "web development shown only as Stack Overflow tags"
+   },
+   "13347d982841": {
+    "grade": 2,
+    "by": "claude",
+    "note": "species distribution models stated; vector distribution"
+   },
+   "1457e5309737": {
+    "grade": 0,
+    "by": "claude",
+    "note": "hydrology"
+   },
+   "14923f3f6551": {
+    "grade": 0,
+    "by": "claude",
+    "note": "malaria treatment"
+   },
+   "16270b5a9dd8": {
+    "grade": 1,
+    "by": "claude",
+    "note": "ML for translation style; India not shown"
+   },
+   "173bf4d4518b": {
+    "grade": 2,
+    "by": "claude",
+    "note": "quantum information and cryptography stated"
+   },
+   "173e57e1bd1b": {
+    "grade": 0,
+    "by": "claude",
+    "note": "molecular dynamics and gene expression; not nanotechnology"
+   },
+   "1749b7cc96e3": {
+    "grade": 2,
+    "by": "claude",
+    "note": "matrix factorisation, collaborative filtering"
+   },
+   "17ac976439c6": {
+    "grade": 2,
+    "by": "person"
+   },
+   "17ecaf5ba2cc": {
+    "grade": 2,
+    "by": "claude",
+    "note": "explainable recommendation paper; IR"
+   },
+   "17f43d8176f5": {
+    "grade": 2,
+    "by": "claude",
+    "note": "tubercular uveitis; AIIMS and PGIMER"
+   },
+   "17f85455b447": {
+    "grade": 2,
+    "by": "person"
+   },
+   "18567fbefeea": {
+    "grade": 2,
+    "by": "claude",
+    "note": "quantum information and cryptography stated"
+   },
+   "18c0a93ed5c1": {
+    "grade": 0,
+    "by": "claude",
+    "note": "database systems"
+   },
+   "18f6cbccf623": {
+    "grade": 2,
+    "by": "claude",
+    "note": "magnetic nanoparticles"
+   },
+   "19641c874f8c": {
+    "grade": 1,
+    "by": "claude",
+    "note": "Django shown only as Stack Overflow tags"
+   },
+   "1a90481a1c4f": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: community-based conservation: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "1c096c72df2e": {
+    "grade": 1,
+    "by": "claude",
+    "note": "cancer pharmacology; India not shown"
+   },
+   "1ca05ac70525": {
+    "grade": 1,
+    "by": "claude",
+    "note": "ML (automatic differentiation); India not shown"
+   },
+   "1d2158e59d10": {
+    "grade": 2,
+    "by": "claude",
+    "note": "NLP stated; prompt tuning of language models"
+   },
+   "1e071b5532b3": {
+    "grade": 2,
+    "by": "person"
+   },
+   "1ea5fbbbb64f": {
+    "grade": 2,
+    "by": "claude",
+    "note": "drug design, binding free energy"
+   },
+   "2467b2e0b50f": {
+    "grade": 2,
+    "by": "claude",
+    "note": "air quality and health impacts stated"
+   },
+   "25b7ac67e1cd": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: perception and emotion: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "2616685f9db4": {
+    "grade": 2,
+    "by": "claude",
+    "note": "recommender systems survey and context-aware RS"
+   },
+   "261a11632039": {
+    "grade": 2,
+    "by": "claude",
+    "note": "nanoparticles and nanomaterials"
+   },
+   "28a180a1913c": {
+    "grade": 1,
+    "by": "claude",
+    "note": "pathology, which the person counted for drug discovery; India not shown"
+   },
+   "29d88f2bb56f": {
+    "grade": 1,
+    "by": "claude",
+    "note": "digital pathology; India not shown"
+   },
+   "2aaaee1deff5": {
+    "grade": 2,
+    "by": "claude",
+    "note": "malaria treatment trials"
+   },
+   "2b37461c4d72": {
+    "grade": 2,
+    "by": "claude",
+    "note": "cryptography and data security stated; ML privacy"
+   },
+   "2c81dfc84b53": {
+    "grade": 0,
+    "by": "claude",
+    "note": "synthetic and environmental chemistry"
+   },
+   "2c854b0f36d0": {
+    "grade": 2,
+    "by": "claude",
+    "note": "nanoparticles stated; copper and silver nanoparticle papers"
+   },
+   "2e1ecb0465e0": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: brain mapping, neuroimaging: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "2e8860904945": {
+    "grade": 2,
+    "by": "claude",
+    "note": "Mycobacterium tuberculosis research in India"
+   },
+   "2ee9cc2805fa": {
+    "grade": 1,
+    "by": "claude",
+    "note": "web development shown only as Stack Overflow tags"
+   },
+   "2f81641733d9": {
+    "grade": 0,
+    "by": "claude",
+    "note": "cancer genomics"
+   },
+   "2fc53c35ab33": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: attacks on graph RAG: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "3054ee981dda": {
+    "grade": 1,
+    "by": "person"
+   },
+   "30a20a4f8c51": {
+    "grade": 1,
+    "by": "person"
+   },
+   "30c03943517a": {
+    "grade": 2,
+    "by": "claude",
+    "note": "ecology, vegetation and wildlife conservation"
+   },
+   "30dfc39c4b1b": {
+    "grade": 0,
+    "by": "person"
+   },
+   "311c1dbde024": {
+    "grade": 2,
+    "by": "claude",
+    "note": "metal-organic frameworks"
+   },
+   "31432d1cf639": {
+    "grade": 2,
+    "by": "claude",
+    "note": "quantum information and cryptography stated"
+   },
+   "318d089ae82e": {
+    "grade": 2,
+    "by": "claude",
+    "note": "computational drug discovery stated; artemisinin resistance"
+   },
+   "31d4850b61cf": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: cognitive ageing: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "32ccc2bb572f": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: drug delivery: a neighbouring field, not the subject itself; India not shown",
+    "v1": 2
+   },
+   "33470a31f23a": {
+    "grade": 1,
+    "by": "claude",
+    "note": "malaria drug resistance, computational drug discovery stated; India not shown"
+   },
+   "348950184a51": {
+    "grade": 1,
+    "by": "claude",
+    "note": "web development shown only as Stack Overflow tags"
+   },
+   "36cbf83d359a": {
+    "grade": 2,
+    "by": "person"
+   },
+   "37325cf6df05": {
+    "grade": 2,
+    "by": "claude",
+    "note": "neurobiology of autism, cortical development"
+   },
+   "375a12686635": {
+    "grade": 0,
+    "by": "claude",
+    "note": "crystallography and cardiology"
+   },
+   "37c477e88b4d": {
+    "grade": 1,
+    "by": "claude",
+    "note": "dark matter stated; Poland and Italy, not India"
+   },
+   "38f93658f2f3": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: retinal imaging AI: as the person graded the like card d89aec70880b",
+    "v1": 0
+   },
+   "397bb4ffedaa": {
+    "grade": 0,
+    "by": "claude",
+    "note": "business and marketing roles"
+   },
+   "3b05e57fb1b5": {
+    "grade": 2,
+    "by": "claude",
+    "note": "MXene materials, spintronic sensors"
+   },
+   "3c7866a6419b": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: graph learning, molecular property prediction: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "3ccbecf87677": {
+    "grade": 2,
+    "by": "claude",
+    "note": "a paper on genetics informing drug discovery"
+   },
+   "3d01a357ac35": {
+    "grade": 0,
+    "by": "claude",
+    "note": "particle physics"
+   },
+   "3d58844bda08": {
+    "grade": 2,
+    "by": "person"
+   },
+   "3d62b04f1e08": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: one neuropsychological paper: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "3e3bbbd95b7e": {
+    "grade": 2,
+    "by": "person"
+   },
+   "3e4962f259b4": {
+    "grade": 1,
+    "by": "claude",
+    "note": "antimalarial compounds; India not shown"
+   },
+   "3f6f7e6f139f": {
+    "grade": 2,
+    "by": "person"
+   },
+   "3fc0a4b6cb46": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: cognitive ageing: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "3ff7c01897dd": {
+    "grade": 1,
+    "by": "claude",
+    "note": "deep reinforcement learning; India not shown"
+   },
+   "41ea33983bd8": {
+    "grade": 2,
+    "by": "claude",
+    "note": "computational drug discovery stated, artemisinin resistance; in India"
+   },
+   "424d135bcd5b": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: migraine, MS: neurology, a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "453c84a8cf51": {
+    "grade": 0,
+    "by": "claude",
+    "note": "distributed systems"
+   },
+   "4574560cb6b7": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: space weather: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "45f2fa48b854": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: expert finding / Q&A: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "46add91ac362": {
+    "grade": 2,
+    "by": "person"
+   },
+   "46ce539bcbcd": {
+    "grade": 2,
+    "by": "person"
+   },
+   "4734b6df06da": {
+    "grade": 2,
+    "by": "claude",
+    "note": "neuroscience of respiration and sleep stated"
+   },
+   "47c5b8d2cf7b": {
+    "grade": 2,
+    "by": "claude",
+    "note": "aerosols and air pollution over India"
+   },
+   "488364ca04e6": {
+    "grade": 1,
+    "by": "claude",
+    "note": "an organisation's record: TB stated; India not shown"
+   },
+   "4897afc8a4a8": {
+    "grade": 2,
+    "by": "claude",
+    "note": "a paper on agricultural nanotechnologies"
+   },
+   "48b9226d4835": {
+    "grade": 2,
+    "by": "claude",
+    "note": "insect ecology and behaviour stated; phylogenomics"
+   },
+   "49b98ec9254d": {
+    "grade": 2,
+    "by": "claude",
+    "note": "dengue epidemiology"
+   },
+   "49f9e706e4cc": {
+    "grade": 0,
+    "by": "claude",
+    "note": "particle physics"
+   },
+   "4b0fbc067bc9": {
+    "grade": 2,
+    "by": "claude",
+    "note": "global eye-health epidemiology"
+   },
+   "4b118d2999c2": {
+    "grade": 1,
+    "by": "claude",
+    "note": "PyQt and Python shown only as Stack Overflow tags"
+   },
+   "4b67ef4eda59": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: blockchain security: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "4cfef7b5bdc5": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: stroke burden: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "4cff03fa08eb": {
+    "grade": 0,
+    "by": "claude",
+    "note": "chatbot and marketing papers; nothing on Python"
+   },
+   "4d562f251efe": {
+    "grade": 2,
+    "by": "claude",
+    "note": "NLP stated; word representations"
+   },
+   "4d758fad2eef": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: JavaScript security research: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "4d9d9c75b377": {
+    "grade": 2,
+    "by": "person"
+   },
+   "4eb3a867ae07": {
+    "grade": 2,
+    "by": "claude",
+    "note": "copper-based nanomaterials"
+   },
+   "5019b55311ac": {
+    "grade": 2,
+    "by": "claude",
+    "note": "ML for performance modelling; in India"
+   },
+   "50953affec6c": {
+    "grade": 2,
+    "by": "claude",
+    "note": "Alzheimer's disease genetics"
+   },
+   "50cb57b71f45": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: css among the tags: a neighbouring web technology",
+    "v1": 0
+   },
+   "5188daffe239": {
+    "grade": 2,
+    "by": "claude",
+    "note": "microbial ecology and biodiversity"
+   },
+   "522d6c0a846d": {
+    "grade": 0,
+    "by": "claude",
+    "note": "clinical pharmacology"
+   },
+   "535b70015bdc": {
+    "grade": 0,
+    "by": "claude",
+    "note": "structural biology"
+   },
+   "538b34da3042": {
+    "grade": 1,
+    "by": "claude",
+    "note": "web development shown only as Stack Overflow tags"
+   },
+   "53ec49c07f5b": {
+    "grade": 2,
+    "by": "claude",
+    "note": "inorganic chemistry and materials stated; crystallography"
+   },
+   "555e88697544": {
+    "grade": 1,
+    "by": "claude",
+    "note": "Django and Python idioms shown only as Stack Overflow tags"
+   },
+   "57826075e28d": {
+    "grade": 0,
+    "by": "claude",
+    "note": "pathology image data"
+   },
+   "5801bac35875": {
+    "grade": 1,
+    "by": "claude",
+    "note": "ML in medical imaging; India not shown"
+   },
+   "58ab600de83e": {
+    "grade": 2,
+    "by": "person"
+   },
+   "58e466e77484": {
+    "grade": 0,
+    "by": "claude",
+    "note": "C++ tags"
+   },
+   "5a1c72f238d7": {
+    "grade": 2,
+    "by": "claude",
+    "note": "neuroscience, education and cognitive function stated"
+   },
+   "5ba7c3adf436": {
+    "grade": 0,
+    "by": "claude",
+    "note": "global burden of disease epidemiology"
+   },
+   "5c120248b764": {
+    "grade": 1,
+    "by": "claude",
+    "note": "drug design; India not shown"
+   },
+   "5c2a498ef2c7": {
+    "grade": 1,
+    "by": "claude",
+    "note": "dark matter stated; India not shown"
+   },
+   "5cc734a3d924": {
+    "grade": 1,
+    "by": "claude",
+    "note": "CPython and dataframes shown only as Stack Overflow tags"
+   },
+   "5d851ee8006f": {
+    "grade": 0,
+    "by": "claude",
+    "note": "radiation dosimetry"
+   },
+   "5ee54f23419e": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: graph retrieval: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "5fb40bf843e0": {
+    "grade": 2,
+    "by": "claude",
+    "note": "population cohorts and risk-factor studies"
+   },
+   "6036590fc4b9": {
+    "grade": 1,
+    "by": "claude",
+    "note": "ML shown only as Stack Overflow tags; in India"
+   },
+   "60e01804070a": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: cyber and blockchain security: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "62cc34671145": {
+    "grade": 0,
+    "by": "claude",
+    "note": "machine learning and space science"
+   },
+   "6374cc434c1c": {
+    "grade": 1,
+    "by": "claude",
+    "note": "web development shown only as Stack Overflow tags"
+   },
+   "64ddbcd0723c": {
+    "grade": 1,
+    "by": "person"
+   },
+   "64ec9c7d661b": {
+    "grade": 2,
+    "by": "claude",
+    "note": "ML applications; in India"
+   },
+   "6592384bcdd2": {
+    "grade": 2,
+    "by": "claude",
+    "note": "collaborative filtering"
+   },
+   "65a0ba7fcb9e": {
+    "grade": 2,
+    "by": "claude",
+    "note": "genetic associations and epidemiology stated"
+   },
+   "664ea5a58968": {
+    "grade": 1,
+    "by": "claude",
+    "note": "web development shown only as Stack Overflow tags"
+   },
+   "674d361f656a": {
+    "grade": 0,
+    "by": "claude",
+    "note": "empty card"
+   },
+   "675d8669dedb": {
+    "grade": 2,
+    "by": "claude",
+    "note": "global burden of disease epidemiology"
+   },
+   "67fad163beaf": {
+    "grade": 0,
+    "by": "claude",
+    "note": "software engineer; nothing on air quality"
+   },
+   "68b88eede71e": {
+    "grade": 0,
+    "by": "claude",
+    "note": "database systems"
+   },
+   "6a6599375884": {
+    "grade": 2,
+    "by": "claude",
+    "note": "NLP stated; speech recognition"
+   },
+   "6a87af37a03e": {
+    "grade": 1,
+    "by": "person"
+   },
+   "6b29c470de99": {
+    "grade": 1,
+    "by": "person"
+   },
+   "6b6c29180c0a": {
+    "grade": 2,
+    "by": "claude",
+    "note": "genetic associations and epidemiology stated"
+   },
+   "6bd39aef87a0": {
+    "grade": 2,
+    "by": "claude",
+    "note": "learning theory and online control; in India"
+   },
+   "738f8eaf3798": {
+    "grade": 0,
+    "by": "person"
+   },
+   "745030874327": {
+    "grade": 2,
+    "by": "claude",
+    "note": "cosmology and gravitational waves; IIT Bombay"
+   },
+   "74b2c8b6e270": {
+    "grade": 0,
+    "by": "claude",
+    "note": "greenhouse climate control in agriculture is not climate science (borderline)"
+   },
+   "74b5db18e033": {
+    "grade": 2,
+    "by": "claude",
+    "note": "infectious disease distribution and burden"
+   },
+   "74c15e6e3e9b": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: one cognitive-neuroscience paper: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "752688896022": {
+    "grade": 0,
+    "by": "claude",
+    "note": "energy policy"
+   },
+   "755168af26cd": {
+    "grade": 2,
+    "by": "claude",
+    "note": "dementia and cognitive impairment research stated"
+   },
+   "778c57196e2c": {
+    "grade": 0,
+    "by": "claude",
+    "note": "C#, Java and JavaScript tags; no Python"
+   },
+   "782f9ffbcabf": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: digital pathology, biomarkers: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "7910541131ee": {
+    "grade": 2,
+    "by": "claude",
+    "note": "air quality stated; plantations mitigating air pollution"
+   },
+   "796b5de21ffb": {
+    "grade": 0,
+    "by": "claude",
+    "note": "C#/.NET tags; no Python"
+   },
+   "7987e7520807": {
+    "grade": 0,
+    "by": "claude",
+    "note": "cancer genomics"
+   },
+   "79a666442c0a": {
+    "grade": 0,
+    "by": "claude",
+    "note": "empty card"
+   },
+   "7adb7eaee79c": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: AI in healthcare: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "7cda0a32b919": {
+    "grade": 2,
+    "by": "claude",
+    "note": "quantum information and cryptography; BB84 security proof"
+   },
+   "7cff6d2e27bf": {
+    "grade": 2,
+    "by": "claude",
+    "note": "carbon and methane budgets, earth-system model"
+   },
+   "7d48cff26bb1": {
+    "grade": 0,
+    "by": "claude",
+    "note": "quantum physics"
+   },
+   "7d9799e70f07": {
+    "grade": 2,
+    "by": "claude",
+    "note": "dementia and cognitive impairment research stated"
+   },
+   "7f46d23e3b21": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: AI development: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "7f831bd74aa2": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: climate and health: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "7f8bcc6f2641": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: retinal imaging AI: as the person graded the like card d89aec70880b",
+    "v1": 0
+   },
+   "7fe8a9eeef46": {
+    "grade": 0,
+    "by": "claude",
+    "note": "marriage-service listings, not a researcher"
+   },
+   "80987b8c4840": {
+    "grade": 1,
+    "by": "claude",
+    "note": "Node.js shown only as Stack Overflow tags"
+   },
+   "8150feafc704": {
+    "grade": 2,
+    "by": "claude",
+    "note": "papers on JavaScript security"
+   },
+   "81d934a78b8e": {
+    "grade": 2,
+    "by": "claude",
+    "note": "2D materials and graphene"
+   },
+   "83c5df05f8c8": {
+    "grade": 1,
+    "by": "claude",
+    "note": "Django shown only as Stack Overflow tags"
+   },
+   "83e640044072": {
+    "grade": 0,
+    "by": "claude",
+    "note": "hydrogeophysics"
+   },
+   "86b5e0e6fa71": {
+    "grade": 2,
+    "by": "person"
+   },
+   "87f3f82686ed": {
+    "grade": 0,
+    "by": "claude",
+    "note": "condensed-matter physics and thermal measurement"
+   },
+   "897d738fa903": {
+    "grade": 0,
+    "by": "claude",
+    "note": "machine learning applications"
+   },
+   "8985d7902ab1": {
+    "grade": 2,
+    "by": "claude",
+    "note": "collaborative filtering evaluation"
+   },
+   "8a3241d5fbed": {
+    "grade": 2,
+    "by": "claude",
+    "note": "deep-learning medical imaging papers; in India"
+   },
+   "8ac28ec88b87": {
+    "grade": 2,
+    "by": "claude",
+    "note": "NLP stated; tool learning with foundation models"
+   },
+   "8acac262eb37": {
+    "grade": 2,
+    "by": "claude",
+    "note": "cryptography and data security stated"
+   },
+   "8b1a144edcd4": {
+    "grade": 1,
+    "by": "claude",
+    "note": "malaria drug resistance; India not shown"
+   },
+   "8b3947881e86": {
+    "grade": 2,
+    "by": "person"
+   },
+   "8c748ad2f54b": {
+    "grade": 0,
+    "by": "claude",
+    "note": "C# and C++ tags; no Python"
+   },
+   "8c89cd34a91c": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: ALS: as the person graded 64ddbcd0723c",
+    "v1": 2
+   },
+   "8ceb4ade0489": {
+    "grade": 0,
+    "by": "claude",
+    "note": ".NET and Azure tags; no Python"
+   },
+   "8cf995295bc0": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: malaria: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "8d09c8c24593": {
+    "grade": 2,
+    "by": "person"
+   },
+   "8dc480b5c261": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: ecology and air quality: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "8ee83e6640df": {
+    "grade": 1,
+    "by": "claude",
+    "note": "JavaScript among Stack Overflow tags"
+   },
+   "8fec80cd4dfe": {
+    "grade": 1,
+    "by": "claude",
+    "note": "dark matter stated; India not shown"
+   },
+   "924d418c777a": {
+    "grade": 0,
+    "by": "claude",
+    "note": "breast cancer clinical trials"
+   },
+   "9265adf1b63e": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: climate policy: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "95721c8fbc43": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: climate policy: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "95cd68ebc3ed": {
+    "grade": 0,
+    "by": "claude",
+    "note": "a design page; nothing on JavaScript"
+   },
+   "95dda56f6baa": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: climate policy: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "99b2aa953fc1": {
+    "grade": 2,
+    "by": "claude",
+    "note": "global burden of disease epidemiology"
+   },
+   "99dc4afade5c": {
+    "grade": 0,
+    "by": "claude",
+    "note": "behavioural health services"
+   },
+   "9c387bc78485": {
+    "grade": 1,
+    "by": "claude",
+    "note": "JavaScript and Node.js shown only as Stack Overflow tags"
+   },
+   "9cb4a10914b2": {
+    "grade": 2,
+    "by": "claude",
+    "note": "magnetic nanomaterials and thin films"
+   },
+   "a0863cfacb07": {
+    "grade": 1,
+    "by": "claude",
+    "note": "pathology and biomarkers; India not shown"
+   },
+   "a0b126dd1d79": {
+    "grade": 2,
+    "by": "claude",
+    "note": "2D materials, battery materials"
+   },
+   "a15b197c903e": {
+    "grade": 2,
+    "by": "claude",
+    "note": "malaria drug resistance; computational drug discovery stated"
+   },
+   "a37cabc13e42": {
+    "grade": 2,
+    "by": "claude",
+    "note": "neuroscience and neural engineering stated"
+   },
+   "a54a8d820177": {
+    "grade": 2,
+    "by": "claude",
+    "note": "random number generation; chaos-based encryption stated"
+   },
+   "a764b194e711": {
+    "grade": 1,
+    "by": "person"
+   },
+   "a8a847f4d387": {
+    "grade": 2,
+    "by": "claude",
+    "note": "magnetic thin films and nanoparticles"
+   },
+   "a91e04d6f377": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: privacy-preserving ML: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "a93377fe9b41": {
+    "grade": 0,
+    "by": "claude",
+    "note": "web and Android tags; nothing in cryptography"
+   },
+   "a9584e69ee83": {
+    "grade": 1,
+    "by": "claude",
+    "note": "Angular and the DOM shown only as Stack Overflow tags"
+   },
+   "a9f1e092b06d": {
+    "grade": 1,
+    "by": "claude",
+    "note": "web development shown only as Stack Overflow tags"
+   },
+   "aa63978f2371": {
+    "grade": 1,
+    "by": "claude",
+    "note": "JavaScript among Stack Overflow tags"
+   },
+   "aaf2bb9780f5": {
+    "grade": 2,
+    "by": "claude",
+    "note": "materials modelling, LAMMPS"
+   },
+   "aafa2cb39a41": {
+    "grade": 2,
+    "by": "claude",
+    "note": "coding theory and cryptography stated; private learning"
+   },
+   "ab011bdccaa1": {
+    "grade": 2,
+    "by": "claude",
+    "note": "a drug-repositioning database paper"
+   },
+   "ab338e3fb03a": {
+    "grade": 0,
+    "by": "claude",
+    "note": "industrial ecology here means manufacturing sustainability (borderline)"
+   },
+   "abb3026cfc55": {
+    "grade": 1,
+    "by": "claude",
+    "note": "JavaScript and ES6 shown only as Stack Overflow tags"
+   },
+   "abf2673970c5": {
+    "grade": 1,
+    "by": "claude",
+    "note": "NumPy, pandas and Keras shown only as Stack Overflow tags"
+   },
+   "acaf9e87b64c": {
+    "grade": 0,
+    "by": "claude",
+    "note": "pathology"
+   },
+   "ae070be81f03": {
+    "grade": 1,
+    "by": "claude",
+    "note": "learning theory; India not shown"
+   },
+   "ae357261775f": {
+    "grade": 0,
+    "by": "claude",
+    "note": "fairness and sentiment ML"
+   },
+   "aeb8f3b5683e": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: public health AI: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "aebcc6bc0e06": {
+    "grade": 2,
+    "by": "claude",
+    "note": "radiomics and ML; AIIMS"
+   },
+   "af5bae12764d": {
+    "grade": 2,
+    "by": "claude",
+    "note": "avian ecology and behaviour stated"
+   },
+   "afe3f2957afc": {
+    "grade": 1,
+    "by": "claude",
+    "note": "infectious disease, not TB specifically; India not shown"
+   },
+   "b0ec8f34abc8": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: digital pathology: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "b10c2702332b": {
+    "grade": 1,
+    "by": "claude",
+    "note": "Angular and JavaScript shown only as Stack Overflow tags"
+   },
+   "b199920fcc46": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: stroke burden: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "b2808aef1f6f": {
+    "grade": 2,
+    "by": "claude",
+    "note": "infectious disease epidemiology, COVID-19 interventions"
+   },
+   "b424b4036ffc": {
+    "grade": 2,
+    "by": "claude",
+    "note": "African botany and ecology stated"
+   },
+   "b42ff848cd8b": {
+    "grade": 2,
+    "by": "claude",
+    "note": "matrix factorisation for recommender systems"
+   },
+   "b4812c411a33": {
+    "grade": 1,
+    "by": "claude",
+    "note": "JavaScript and Node.js shown only as Stack Overflow tags"
+   },
+   "b60327dfbbb1": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: privacy-preserving technologies: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "b663660142c1": {
+    "grade": 0,
+    "by": "claude",
+    "note": "criminal justice and social policy"
+   },
+   "b68302a236ef": {
+    "grade": 1,
+    "by": "claude",
+    "note": "graph neural networks, language models; India not shown"
+   },
+   "b69de120351e": {
+    "grade": 2,
+    "by": "claude",
+    "note": "nanotubes and graphene"
+   },
+   "b6d1a1bb4790": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: phytochemicals: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "b932173a4539": {
+    "grade": 0,
+    "by": "person"
+   },
+   "b9e29cd1eaa9": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: psychiatry trials: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "b9ed4a94cc7f": {
+    "grade": 0,
+    "by": "claude",
+    "note": "agricultural price forecasting"
+   },
+   "ba75ca76c92a": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: genetic neurodegenerative disease: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "ba996f61680f": {
+    "grade": 1,
+    "by": "claude",
+    "note": "Python shown only as Stack Overflow tags"
+   },
+   "bb8f77bd6f5d": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: ChatGPT, vision-language models: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "bedfff2396c2": {
+    "grade": 0,
+    "by": "claude",
+    "note": "plasma physics and orthopaedics"
+   },
+   "c003b51d9aac": {
+    "grade": 2,
+    "by": "claude",
+    "note": "graphene membranes, nanopores"
+   },
+   "c0165bf9c043": {
+    "grade": 2,
+    "by": "claude",
+    "note": "ceramics, composites, MXenes"
+   },
+   "c225ecaf4f43": {
+    "grade": 2,
+    "by": "claude",
+    "note": "catalytic and copper/iron nanomaterials"
+   },
+   "c2642650ab5c": {
+    "grade": 2,
+    "by": "claude",
+    "note": "collaborative filtering evaluation"
+   },
+   "c28b774f5f1d": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: cancer pharmacology and trials: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "c3219be6602b": {
+    "grade": 1,
+    "by": "claude",
+    "note": "web development shown only as Stack Overflow tags"
+   },
+   "c3629418af5b": {
+    "grade": 2,
+    "by": "claude",
+    "note": "micro and nano robotics stated"
+   },
+   "c471bff44880": {
+    "grade": 2,
+    "by": "claude",
+    "note": "insect ecology and symbiosis"
+   },
+   "c47ee443ad0b": {
+    "grade": 2,
+    "by": "claude",
+    "note": "neurogenesis and neuroplasticity stated"
+   },
+   "c87c5eeb4470": {
+    "grade": 2,
+    "by": "claude",
+    "note": "boron and carbon nanomaterials stated"
+   },
+   "c9321a447bde": {
+    "grade": 1,
+    "by": "claude",
+    "note": "tuberculosis research and epidemiology stated; India not shown"
+   },
+   "c9b781deaf76": {
+    "grade": 1,
+    "by": "claude",
+    "note": "web development shown only as Stack Overflow tags"
+   },
+   "ca1195cfcae9": {
+    "grade": 2,
+    "by": "claude",
+    "note": "quantum information and cryptography stated"
+   },
+   "cc174e052e2a": {
+    "grade": 2,
+    "by": "claude",
+    "note": "ML applications; BITS Hyderabad"
+   },
+   "cc64f7632189": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: aerosol filtration: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "cdac2b338610": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: html among the tags: a neighbouring web technology",
+    "v1": 0
+   },
+   "cebd4932b019": {
+    "grade": 0,
+    "by": "claude",
+    "note": "insect systematics"
+   },
+   "d0b63fa85db3": {
+    "grade": 2,
+    "by": "claude",
+    "note": "NLP stated"
+   },
+   "d21192c3cb83": {
+    "grade": 2,
+    "by": "claude",
+    "note": "NLP stated; speech and semantic models"
+   },
+   "d3ddf54a6fc3": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: retinal cell biology: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "d604e12bdb28": {
+    "grade": 1,
+    "by": "claude",
+    "note": "deep learning optimisation; India not shown"
+   },
+   "d65e5b111bd6": {
+    "grade": 2,
+    "by": "claude",
+    "note": "magnetic nanoparticles"
+   },
+   "d6aa0b0442ac": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: crystallography and metal complexes, chemistry: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "d89aec70880b": {
+    "grade": 1,
+    "by": "person"
+   },
+   "d9893026618a": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: climate policy, emissions: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "d9c613d33abd": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: retinal imaging AI: as the person graded the like card d89aec70880b",
+    "v1": 0
+   },
+   "db06e97d02b4": {
+    "grade": 0,
+    "by": "claude",
+    "note": "computational pathology"
+   },
+   "db7924da56fd": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: macroecology and forecasting: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "dbc7710a6042": {
+    "grade": 2,
+    "by": "claude",
+    "note": "magnetic nanocubes, gold nanoparticles"
+   },
+   "dbd97f5d822e": {
+    "grade": 1,
+    "by": "claude",
+    "note": "JavaScript and jQuery shown only as Stack Overflow tags"
+   },
+   "dc09cc4501a9": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: retinal imaging AI: as the person graded the like card d89aec70880b",
+    "v1": 0
+   },
+   "dc2f1b792758": {
+    "grade": 2,
+    "by": "claude",
+    "note": "quantum information and cryptography stated"
+   },
+   "dd6bba443b33": {
+    "grade": 2,
+    "by": "claude",
+    "note": "EEG and brain-computer interfaces"
+   },
+   "ddf49a495e70": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: vector distribution: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "de74e4c85ebf": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: thin-film fluid dynamics: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "dec3e91caa01": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: disease distribution: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "defeb7425f56": {
+    "grade": 2,
+    "by": "claude",
+    "note": "catalytic processes in materials science stated; a materials-science paper"
+   },
+   "e129c62abd5c": {
+    "grade": 2,
+    "by": "claude",
+    "note": "macroecology, biodiversity"
+   },
+   "e1fc33aa0e72": {
+    "grade": 2,
+    "by": "claude",
+    "note": "NLP, text data augmentation"
+   },
+   "e2376464c7ca": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: privacy-preserving technologies: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "e3332f2bba06": {
+    "grade": 1,
+    "by": "claude",
+    "note": "web development shown only as Stack Overflow tags"
+   },
+   "e3e48424f988": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: public health and nutrition: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "e41f5206c311": {
+    "grade": 2,
+    "by": "claude",
+    "note": "graphene and nanomaterials"
+   },
+   "e4bb6636e26a": {
+    "grade": 2,
+    "by": "person"
+   },
+   "e4c5a04676fb": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: data mining, big data: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "e5114f26275f": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: image retrieval: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "e5637ba0108d": {
+    "grade": 2,
+    "by": "claude",
+    "note": "semiconductor materials and defect physics"
+   },
+   "e5e1b2224d98": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: malaria control and burden: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "e6728dee072d": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: neurodevelopmental epigenetics: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "e829ff18aecb": {
+    "grade": 2,
+    "by": "claude",
+    "note": "NLP stated; speech recognition"
+   },
+   "e927bce61ad0": {
+    "grade": 1,
+    "by": "claude",
+    "note": "malaria treatment trials; India not shown"
+   },
+   "e98d3a9a4b0c": {
+    "grade": 2,
+    "by": "claude",
+    "note": "perovskites, thermoelectric and polymer materials"
+   },
+   "ea2e9f71a0d1": {
+    "grade": 2,
+    "by": "claude",
+    "note": "quantum information and cryptography stated"
+   },
+   "ea55e52537c1": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: neurodevelopmental epigenetics: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "eae5a1849f00": {
+    "grade": 2,
+    "by": "claude",
+    "note": "wildlife-road interactions and conservation stated"
+   },
+   "eb5b7c924884": {
+    "grade": 2,
+    "by": "claude",
+    "note": "atmospheric chemistry, ozone and aerosol emissions"
+   },
+   "ec086a748686": {
+    "grade": 1,
+    "by": "claude",
+    "note": "Python and Kivy shown only as Stack Overflow tags"
+   },
+   "ed60681b1c17": {
+    "grade": 0,
+    "by": "claude",
+    "note": "thermophotovoltaics"
+   },
+   "ee1600607591": {
+    "grade": 2,
+    "by": "claude",
+    "note": "Alzheimer's disease genetics"
+   },
+   "eef2f08f4392": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: thin-film fluid dynamics: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "f08ff3aba487": {
+    "grade": 0,
+    "by": "claude",
+    "note": "manufacturing sustainability"
+   },
+   "f11597928804": {
+    "grade": 1,
+    "by": "claude",
+    "note": "Django shown only as Stack Overflow tags"
+   },
+   "f143b8518c9c": {
+    "grade": 2,
+    "by": "claude",
+    "note": "malaria treatment, a new antimalarial compound class"
+   },
+   "f1e1a7e24981": {
+    "grade": 2,
+    "by": "claude",
+    "note": "large genetic association studies"
+   },
+   "f20f5948f6e2": {
+    "grade": 2,
+    "by": "claude",
+    "note": "micro/nano structures, carbon-nanotube composites"
+   },
+   "f382705ce68f": {
+    "grade": 2,
+    "by": "person"
+   },
+   "f41f6c7f997a": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: biomedical genomics: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "f44fb0c9bd56": {
+    "grade": 1,
+    "by": "claude",
+    "note": "web development shown only as Stack Overflow tags"
+   },
+   "f624a85b0f9f": {
+    "grade": 1,
+    "by": "claude",
+    "note": "DOM and events tags imply front-end JavaScript (borderline)"
+   },
+   "f85626537866": {
+    "grade": 2,
+    "by": "claude",
+    "note": "dementia and cognitive impairment research stated"
+   },
+   "f8d408769f0a": {
+    "grade": 2,
+    "by": "claude",
+    "note": "air quality and health impacts stated"
+   },
+   "f99b4be194df": {
+    "grade": 2,
+    "by": "person"
+   },
+   "fa0409cfa944": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: genetic neurodegenerative disease: a neighbouring field, not the subject itself",
+    "v1": 2
+   },
+   "fbcda21044ca": {
+    "grade": 2,
+    "by": "claude",
+    "note": "machine learning in materials science stated; reactive force fields"
+   },
+   "fc854b11d61a": {
+    "grade": 2,
+    "by": "claude",
+    "note": "perovskite and chalcogenide materials"
+   },
+   "fdf157bbcdf4": {
+    "grade": 1,
+    "by": "claude",
+    "note": "v2: heterocycle synthesis, medicinal chemistry: a neighbouring field, not the subject itself",
+    "v1": 2
+   }
   }
  }
 }
