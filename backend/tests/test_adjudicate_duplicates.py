@@ -230,6 +230,23 @@ def test_a_thirty_five_author_paper_with_one_of_the_name_is_proof(session):
     assert "35 authors" in why
 
 
+def test_different_orcids_outrank_a_shared_paper(session):
+    """One Aman Sharma's ORCID claims energy-systems papers that OpenAlex
+    files under three other Aman Sharmas, each with an ORCID of their own.
+    The shared papers passed every test, and the adjudicator called all four
+    one person."""
+    a = person(session, "Aman Sharma", orcid="0000-0001-7122-1095")
+    b = person(session, "Aman Sharma", orcid="0009-0006-0501-1800")
+    title = "Conventional and advanced exergy analysis of a single flash geothermal cycle"
+    crowd = ["Xianzhi Tang", "Gongxing Yan", "Aman Sharma", "Yashar Aryanfar"]
+    paper(session, a, title, [], external_id="orcid-work:223966479")
+    paper(session, b, title, crowd, external_id="W4295095750")
+    candidate = queued(session, a, b)
+    verdict, why = verdicts_for(session)[candidate.id]
+    assert verdict == "reject", why
+    assert "different ORCIDs" in why
+
+
 def test_a_copy_with_no_author_list_counts_only_if_self_claimed(session):
     """ORCID stores no author list, so a work on an ORCID record looks like
     missing data. It is not: the holder put it there themselves. Any OTHER

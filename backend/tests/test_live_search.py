@@ -137,9 +137,9 @@ def test_results_are_stored_in_source_order_regardless_of_fetch_timing(session, 
     order = []
     real_store = discovery._store_results
 
-    def spy(session_, raw_items, fetched):
+    def spy(session_, raw_items, fetched, answers=None):
         order.extend(item["source"] for item, _p, _e in fetched)
-        return real_store(session_, raw_items, fetched)
+        return real_store(session_, raw_items, fetched, answers)
 
     monkeypatch.setattr("rip.connectors.get_connector", lambda s: Fake(s))
     monkeypatch.setattr(discovery, "_store_results", spy)

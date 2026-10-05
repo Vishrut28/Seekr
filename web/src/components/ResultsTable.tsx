@@ -121,8 +121,34 @@ function MatchCell({ person, query }: { person: PersonSummary; query: string }) 
   );
 }
 
-function PersonRow({ person, query }: { person: PersonSummary; query: string }) {
+/** The name as compared for namesakes: case and accents do not matter. */
+export const nameKey = (name?: string | null) =>
+  (name || "").normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+
+/** One line that tells this person apart from others of the same name. */
+function identityLine(person: PersonSummary): string {
+  const sources = [...new Set((person.attributes || []).flatMap((a) => a.sources || []))];
+  const bits = [
+    person.orcid ? `ORCID ${person.orcid}` : "",
+    person.papers ? `${person.papers} paper${person.papers === 1 ? "" : "s"}` : "",
+  ].filter(Boolean);
+  if (!bits.length && !person.current_organization && !person.location && !sources.length) {
+    return "only a name on record";
+  }
+  return bits.join(" · ");
+}
+
+function PersonRow({
+  person,
+  query,
+  namesakes = 1,
+}: {
+  person: PersonSummary;
+  query: string;
+  namesakes?: number;
+}) {
   const navigate = useNavigate();
+  const idLine = namesakes > 1 ? identityLine(person) : "";
 
   // the topics that matched the query come first from the API, and are marked
   const topics = (person.attributes || [])
@@ -180,6 +206,8 @@ function PersonRow({ person, query }: { person: PersonSummary; query: string }) 
           </span>
         )}
         <BrandLinks urls={person.profile_urls} />
+        {/* several people share this name on the page: say which one this is */}
+        {idLine && <div className="sub2 idline">{idLine}</div>}
       </td>
       <td className="org">
         {primary || <span className="muted">—</span>}
@@ -216,6 +244,8 @@ export function ResultsTable({
   loadingMore?: boolean;
   onLoadMore: () => void;
 }) {
+  const named: Record<string, number> = {};
+  for (const p of people) named[nameKey(p.canonical_name)] = (named[nameKey(p.canonical_name)] || 0) + 1;
   return (
     <div className="card results-card">
       <div className="tablewrap">
@@ -240,7 +270,12 @@ export function ResultsTable({
           </thead>
           <tbody>
             {people.map((p) => (
-              <PersonRow key={p.id} person={p} query={query} />
+              <PersonRow
+                key={p.id}
+                person={p}
+                query={query}
+                namesakes={named[nameKey(p.canonical_name)]}
+              />
             ))}
           </tbody>
         </table>

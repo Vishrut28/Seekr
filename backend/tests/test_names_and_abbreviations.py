@@ -155,3 +155,54 @@ def test_an_alias_that_is_someone_elses_name_does_not_find_them(session):
     session.commit()
     assert found(session, "aman sharma") == ["Aman Sharma"]
     assert found(session, "poonam sharma") == ["Poonam Sharma"]
+
+
+def test_rows_carry_what_tells_namesakes_apart(session):
+    from rip.api import nl_query
+
+    ingest_profile(session, make_profile(
+        source="openalex", source_type="scholarly", external_id="o",
+        url="https://openalex.org/o", raw={"id": "o"}, name="Aman Sharma", usernames=[],
+        orcid="0000-0001-7122-1095",
+        publications=[PublicationData(title="On turbines", external_id="o-1")]))
+    person(session, "g", "Aman Sharma")
+    session.commit()
+    rows = nl_query(q="aman sharma", limit=0, offset=0, discover="false", db=session)["results"]
+    got = sorted(((r.get("orcid") or ""), r.get("papers")) for r in rows)
+    assert got == [("", 0), ("0000-0001-7122-1095", 1)]
+
+
+def test_a_live_person_is_kept_only_if_they_answer(session, monkeypatch):
+    """"NLP researchers in India" stored 23 people and showed 4; the rest --
+    microbiome researchers in Trento among them -- stayed in the corpus."""
+    from rip import discovery
+    from rip.models import Person
+    from rip.normalize import NormalizedProfile
+
+    person(session, "seed", "Nell Seed", "Natural Language Processing")
+
+    def fake_search(search_for, limit):
+        return [{"source": "openalex", "external_id": "fit", "name": "Ira Fit"},
+                {"source": "openalex", "external_id": "off", "name": "Tom Off"}]
+
+    def fake_fetch(to_fetch, deadline=None):
+        out = []
+        for item in to_fetch:
+            topic = "Natural Language Processing" if item["external_id"] == "fit" else "Gut Microbiome"
+            out.append((item, NormalizedProfile(
+                source="openalex", source_type="scholarly", external_id=item["external_id"],
+                url=f"https://openalex.org/{item['external_id']}", raw={"id": item["external_id"]},
+                name=item["name"], usernames=[],
+                evidence=[EvidenceItem(attribute_type="research_interest", value=topic)]), None))
+        return out
+
+    monkeypatch.setattr(discovery, "enabled_searchers", lambda: (("openalex", fake_search, True),))
+    monkeypatch.setattr(discovery, "_fetch_profiles", fake_fetch)
+    asked = parse(session, "natural language processing")
+    from rip.nlq import satisfying
+    got = discovery.discovery_suggestions(session, asked,
+                                          allow_paid=False, persist=True,
+                                          answers=lambda pid: pid in satisfying(session, asked, [pid], use_index=False))
+    names = {p.canonical_name for p in session.query(Person).all()}
+    assert "Ira Fit" in names and "Tom Off" not in names
+    assert [g["name"] for g in got] == ["Ira Fit"]

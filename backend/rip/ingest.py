@@ -430,11 +430,15 @@ def _get_or_create_org(session: Session, name: str, org_type: str | None, url: s
     return org
 
 
-def ingest_profile(session: Session, profile: NormalizedProfile) -> Person:
+def ingest_profile(session: Session, profile: NormalizedProfile, commit: bool = True) -> Person:
     """Run one normalized profile through resolution + persistence. Idempotent.
 
     Raises personhood.NotAPerson, before anything is written, for a record
     that is not a person (a job post, a listicle, a community account).
+
+    With COMMIT false the result is flushed and left uncommitted, so a caller
+    can look at what it would keep and roll it back: live search keeps a
+    person only if they answer the question that fetched them.
     """
     from sqlalchemy import func as _func
 
@@ -686,7 +690,8 @@ def ingest_profile(session: Session, profile: NormalizedProfile) -> Person:
         from .webhooks import enqueue_for_changes
 
         enqueue_for_changes(session, new_changes)
-    session.commit()
+    if commit:
+        session.commit()
     return person
 
 

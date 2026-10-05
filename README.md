@@ -439,18 +439,26 @@ never quietly belongs to a different question than the one asked.
   processing" find the same people, as do ML, CV, AI, DL, RL, LLM, GNN, HCI and
   the rest of `ABBREVIATIONS` in `rip/nlq.py`. Either spelling also accepts
   anyone who stated the short form.
-- **Live results must answer the question.** People a live source returns are
-  shown only if they satisfy every part of the query the corpus can check,
-  and for a name search a candidate must carry the name before it is even
-  fetched. Full-text sources match words anywhere: "Sundar Pichai" once
-  stored a psychiatrist whose papers mentioned him.
+- **Live results must answer the question.** A person a live source returns
+  is written uncommitted, checked against every part of the query the corpus
+  can check, and kept only if they pass; otherwise nothing is stored. For a
+  name search a candidate must carry the name before it is even fetched.
+  Full-text sources match words anywhere: "Sundar Pichai" once stored a
+  psychiatrist whose papers mentioned him, and "NLP researchers in India"
+  stored 23 people to show 4. A term the corpus does not know yet applies
+  nothing, so a novel subject still keeps whoever the source found for it.
+- **Namesakes are told apart, not merged.** Several rows with one name are
+  different people unless a shared ORCID or a shared paper proves otherwise
+  (`scripts/adjudicate_duplicates.py`; two different ORCIDs outrank any shared
+  paper). The page says so, and each such row shows its ORCID and paper count.
 - **Why each row is there.** The topics that matched are listed first in the
   Skills column, in bold.
-- **Too few full matches means partial ones, labelled.** When fewer than 10
-  people meet every part of a query, the page is topped up with people who
-  meet most of it, placed behind the full matches. Each one carries
-  `match: "partial"` and `missing: [...]`. A place or employer gives way before
-  the subject, and a name never gives way at all.
+- **Near matches only on request.** Results are people who meet every part of
+  the query. When fewer than 10 do, Seekr finds people who meet most of it but
+  holds them back: the response counts them in `near_matches`, and the page
+  offers a "Show near matches" button (`near=true`), which places them behind
+  the full matches, each with `match: "partial"` and `missing: [...]`. A place
+  or employer gives way before the subject, and a name never gives way at all.
 - **Protected attributes are never applied.** "women in machine learning"
   searches machine learning and reports `protected_terms`. This holds inside
   an exclusion too: "but not women" excludes nobody.

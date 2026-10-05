@@ -13,7 +13,7 @@ import {
   nameFilter,
 } from "../components/Filters";
 import { Banner, EmptyState, Loading } from "../components/EmptyState";
-import { ResultsTable } from "../components/ResultsTable";
+import { ResultsTable, nameKey } from "../components/ResultsTable";
 import { Shell } from "../components/Shell";
 import { fmt } from "../lib/format";
 import { useWorking } from "../lib/hooks";
@@ -73,6 +73,9 @@ export function Search() {
   // read inside callbacks that must not be rebuilt on every keystroke
   const textRef = useRef(text);
   textRef.current = text;
+  // near matches (people meeting only part of the query) are shown only when
+  // asked for, and stay shown while paging through that same answer
+  const nearRef = useRef(false);
 
   useWorking(Boolean(loading));
 
@@ -107,12 +110,13 @@ export function Search() {
     return [...prev, ...next.filter((p) => !have.has(p.id))];
   };
 
-  const runQuery = useCallback(async (discover?: boolean, from?: number) => {
+  const runQuery = useCallback(async (discover?: boolean, from?: number, near?: boolean) => {
     const q = textRef.current.trim();
     if (!q) return;
     sessionStorage.setItem(LAST_QUERY_KEY, q);
     rememberQuery(q);
     const paging = typeof from === "number" && from > 0;
+    if (!paging) nearRef.current = Boolean(near);
     setMode("query");
     setRanQuery(q);
     setError(null);
@@ -157,6 +161,7 @@ export function Search() {
       const params = new URLSearchParams({ q });
       if (paging) params.set("offset", String(from));
       if (discover) params.set("discover", "true");
+      if (nearRef.current) params.set("near", "true");
       const res = await api<QueryResponse>(`/v1/query?${params}`);
       setData(res);
       setRows((prev) => (paging ? append(prev, res.results) : res.results));
@@ -396,6 +401,7 @@ export function Search() {
               searching={isSearching && rows.length === 0}
               onLoadMore={loadMore}
               onDiscover={() => runQuery(true)}
+              onNear={(show) => runQuery(false, undefined, show)}
             />
           ) : null}
         </div>
@@ -413,6 +419,7 @@ function Results({
   searching,
   onLoadMore,
   onDiscover,
+  onNear,
 }: {
   data: QueryResponse | null;
   rows: PersonSummary[];
@@ -422,6 +429,7 @@ function Results({
   searching?: boolean;
   onLoadMore: () => void;
   onDiscover: () => void;
+  onNear: (show: boolean) => void;
 }) {
   const f = data?.applied_filters;
   const unmatched = data?.unmatched_terms || [];
@@ -465,6 +473,17 @@ function Results({
   // back from a live search FOR that very term: the rows were the term's own
   // answers, and the page told the reader to disregard them.
   const corpusRows = rows.filter((r) => !r.from_live_search).length;
+  // Several rows with one name read as duplicates. They are kept apart because
+  // nothing proves them one person, and the page should say so.
+  const byName = new Map<string, { name: string; n: number }>();
+  for (const r of rows) {
+    const k = nameKey(r.canonical_name);
+    if (!k) continue;
+    const e = byName.get(k) || { name: r.canonical_name || "", n: 0 };
+    e.n += 1;
+    byName.set(k, e);
+  }
+  const shared = [...byName.values()].filter((e) => e.n > 1).sort((a, b) => b.n - a.n);
 
   return (
     <>
@@ -513,7 +532,7 @@ function Results({
         </Banner>
       )}
 
-      {relaxedTerms.length > 0 && (
+      {relaxedTerms.length > 0 && rows.length > 0 && (
         <Banner kind="warn">
           Nobody matches every part of that question, so{" "}
           <b>{relaxedTerms.join(", ")}</b> {relaxedTerms.length === 1 ? "was" : "were"} set
@@ -521,6 +540,47 @@ function Results({
           <button className="btn sm" onClick={onDiscover}>
             Search paid sources too
           </button>
+        </Banner>
+      )}
+
+      {mode === "query" && (data?.near_matches || 0) > 0 && !data?.near && (
+        <Banner kind="info">
+          {rows.length > 0
+            ? <>Showing only people who match every part of the search. </>
+            : <>Nobody matches every part of the search. </>}
+          <b>{fmt(data?.near_matches || 0)}</b>{" "}
+          {data?.near_matches === 1 ? "person matches" : "people match"} only part of it
+          {relaxedTerms.length > 0 ? <> (not <b>{relaxedTerms.join(", ")}</b>)</> : null}.{" "}
+          <button className="btn sm" onClick={() => onNear(true)}>
+            Show near matches
+          </button>
+        </Banner>
+      )}
+
+      {mode === "query" && data?.near && rows.some((r) => r.match === "partial") && (
+        <Banner kind="info">
+          Near matches are shown after the full matches, each marked <b>partial</b>.{" "}
+          <button className="btn sm" onClick={() => onNear(false)}>
+            Hide near matches
+          </button>
+        </Banner>
+      )}
+
+      {shared.length > 0 && (
+        <Banner kind="info">
+          {shared.length === 1 ? (
+            <>
+              These <b>{fmt(shared[0].n)}</b> people named <b>{shared[0].name}</b> are different
+              people.
+            </>
+          ) : (
+            <>
+              Rows with the same name ({shared.slice(0, 3).map((e) => e.name).join(", ")}) are
+              different people.
+            </>
+          )}{" "}
+          Seekr joins records only when a shared ORCID or a shared paper proves they are one
+          person; each row says which one it is.
         </Banner>
       )}
 

@@ -79,7 +79,7 @@ def spy(monkeypatch):
     calls = []
 
     def fake(session=None, parsed=None, limit=10, allow_paid=True,
-             on_source=None, persist=True):
+             on_source=None, persist=True, answers=None):
         calls.append({"allow_paid": allow_paid, "persist": persist})
         return []
 

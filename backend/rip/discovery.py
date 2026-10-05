@@ -607,7 +607,7 @@ def _matches_only_the_name(profile, term: str) -> bool:
 MAX_FREE_FETCHES = 10
 
 
-def persist_suggestions(session: Session, suggestions: list[dict]) -> int:
+def persist_suggestions(session: Session, suggestions: list[dict], answers=None) -> int:
     """Ingest live results, so a query the corpus could not answer grows it.
 
     Two kinds of result arrive here. Exa returns the whole person record in the
@@ -620,7 +620,7 @@ def persist_suggestions(session: Session, suggestions: list[dict]) -> int:
     thread: a SQLAlchemy session is not safe to share.
     """
     raw_items, to_fetch = _fetch_plan(suggestions)
-    return _store_results(session, raw_items, _fetch_profiles(to_fetch))
+    return _store_results(session, raw_items, _fetch_profiles(to_fetch), answers)
 
 
 # Wall-clock budget for one live search's profile fetches. A fetch that has not
@@ -765,8 +765,16 @@ def _fetch_profiles(to_fetch: list[dict], deadline: float | None = None) -> list
         return list(pool.map(_pull, to_fetch))
 
 
-def _store_results(session: Session | None, raw_items: list[dict], fetched: list[tuple]) -> int:
-    """Ingest payload items and fetched profiles, in order, on this thread."""
+def _store_results(session: Session | None, raw_items: list[dict], fetched: list[tuple],
+                   answers=None) -> int:
+    """Ingest payload items and fetched profiles, in order, on this thread.
+
+    ANSWERS(person_id) -> bool, when given, decides what is kept: each person
+    is written uncommitted, checked, and rolled back unless they answer the
+    question. A search for "NLP researchers in India" stored 23 people and
+    showed 4; the other 19 -- microbiome researchers in Trento among them --
+    stayed in the corpus, answering nothing anyone asked.
+    """
     from .connectors import get_connector
     from .connectors.base import RateLimitedError
     from .ingest import ingest_profile
@@ -778,7 +786,15 @@ def _store_results(session: Session | None, raw_items: list[dict], fetched: list
     def _keep(item: dict, profile) -> None:
         nonlocal stored
         try:
-            person = ingest_profile(session, profile)
+            person = ingest_profile(session, profile, commit=answers is None)
+            if answers is not None:
+                person_id = str(person.id)
+                if not answers(person_id):
+                    session.rollback()
+                    item["stored"] = False
+                    item["not_an_answer"] = True
+                    return
+                session.commit()
             item["stored"] = True
             item["person_id"] = str(person.id)
             stored += 1
@@ -838,6 +854,7 @@ def repaired_query(parsed: NLQuery) -> str:
 def discovery_suggestions(
     session: Session, parsed: NLQuery, limit: int = 10,
     allow_paid: bool = True, on_source=None, persist: bool = True,
+    answers=None,
 ) -> list[dict]:
     """Live author search across sources for terms the local corpus lacks.
 
@@ -853,6 +870,11 @@ def discovery_suggestions(
     `on_source(name, state, **facts)` is called as each source is reached, so
     a caller can show progress while the work happens rather than only once
     all of it is finished. States: searching, done, cached, skipped, failed.
+
+    `answers(person_id) -> bool` decides who is kept: each fetched person is
+    written uncommitted and rolled back unless it says they answer the
+    question. The search endpoints pass nlq.satisfying; this module does not
+    import it, so it stays on the far side of the parser boundary.
     """
     from .connectors.base import RateLimitedError
 
@@ -997,7 +1019,7 @@ def discovery_suggestions(
         if github_budget_denied(source, keep, total_stored):
             stored = 0
         else:
-            stored = (persist_suggestions(session, keep)
+            stored = (persist_suggestions(session, keep, answers)
                       if session is not None and persist else 0)
         finish(source, keep, stored)
 
@@ -1140,7 +1162,7 @@ def discovery_suggestions(
             # Session is not thread-safe, and order keeps results stable.
             for s, keep, raw_items, to_fetch in prepared:
                 fetched = [results[id(item)] for item in to_fetch]
-                finish(s, keep, _store_results(session, raw_items, fetched)
+                finish(s, keep, _store_results(session, raw_items, fetched, answers)
                        if persist else 0)
     finally:
         if ahead_pool is not None:
@@ -1149,7 +1171,10 @@ def discovery_suggestions(
     # Phase C: exa — paid and last, its skip decision depends on the total
     # found across everything above, so it stays sequential.
     run_sequential_phase(phase_c)
-    result = out[: limit * 2]
+    # someone fetched, checked and found not to answer the question is not a
+    # candidate either: listing them offered Trento microbiome researchers
+    # under "NLP researchers in India"
+    result = [i for i in out if not i.get("not_an_answer")][: limit * 2]
     # Replayed people carry no suggestion payload — they are already in the
     # graph. They ride along as id-only entries so the caller can include them
     # in results, and are not shown as "live candidates" to add.

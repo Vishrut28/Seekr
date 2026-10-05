@@ -291,6 +291,7 @@ td.nm{font-weight:600; color:var(--ink); overflow-wrap:anywhere}
 td.nm .id{display:block; font-family:var(--mono); font-size:10.5px; color:var(--faint); font-weight:400; margin-top:1px}
 td.org{color:var(--ink2)}
 td.org .sub2{font-size:11.5px; color:var(--faint); margin-top:2px}
+td.nm .idline{font-weight:400; color:var(--faint); margin-top:3px; overflow-wrap:anywhere}
 td.sk{color:var(--muted); font-size:12.5px; line-height:1.45; word-wrap:break-word}
 td.sk .skhit{color:var(--ink); font-weight:600}
 td.num{font-variant-numeric:tabular-nums; text-align:right; color:var(--muted)}

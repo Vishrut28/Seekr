@@ -229,6 +229,16 @@ def adjudicate(session, pairs, living, verbose=False) -> tuple:
         if both:
             out.append(("merge", pair, f"same ORCID {sorted(both)[0]}"))
             continue
+        # Two different ORCIDs are two people, whatever paper they share. The
+        # check used to come after the papers, so one ORCID's self-claimed
+        # works -- which overlapped three other Aman Sharmas, each with an
+        # ORCID of their own -- read as proof that all four were one person.
+        # A claim on ORCID is the holder's word; another ORCID is someone
+        # else's, and outranks it.
+        if a["orcids"] and b["orcids"]:
+            out.append(("reject", pair,
+                        f"different ORCIDs {sorted(a['orcids'])[0]} vs {sorted(b['orcids'])[0]}"))
+            continue
 
         reason = None
         for title in sorted(set(a["by_title"]) & set(b["by_title"]), key=len, reverse=True):
@@ -240,9 +250,6 @@ def adjudicate(session, pairs, living, verbose=False) -> tuple:
                 break
         if reason:
             out.append(("merge", pair, reason))
-        elif a["orcids"] and b["orcids"]:
-            out.append(("reject", pair,
-                        f"different ORCIDs {sorted(a['orcids'])[0]} vs {sorted(b['orcids'])[0]}"))
         else:
             out.append(("hold", pair, "circumstantial only - a person decides"))
     return out, known

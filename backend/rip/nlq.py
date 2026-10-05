@@ -2495,7 +2495,7 @@ def count_matches(session: Session, parsed: NLQuery) -> int:
     return session.execute(select(func.count()).select_from(inner)).scalar_one()
 
 
-def satisfying(session: Session, parsed: NLQuery, ids) -> set[str]:
+def satisfying(session: Session, parsed: NLQuery, ids, use_index: bool = True) -> set[str]:
     """Which of IDS meet every constraint PARSED applies.
 
     For people a live source has just returned: they are shown only when
@@ -2507,7 +2507,9 @@ def satisfying(session: Session, parsed: NLQuery, ids) -> set[str]:
     ids = list(ids)
     if not ids or not has_filters(parsed):
         return set(ids)
-    if si.is_ready(session):
+    # the index learns a person at commit; one still being decided on is only
+    # flushed, and the SQL filter -- the index's mirror -- can see them
+    if use_index and si.is_ready(session):
         stmt = si.match_select(session, _constraints(parsed), _restrict(parsed))
         if stmt is None:
             return set()

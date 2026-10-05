@@ -43,6 +43,9 @@ export interface PersonSummary {
   attributes?: Attribute[];
   organizations?: string[];
   matched_organization?: string | null;
+  /** what tells two people of one name apart: their ORCID, how much they published */
+  orcid?: string | null;
+  papers?: number;
   from_live_search?: boolean;
   score?: number | null;
   score_components?: ScoreComponents | null;
@@ -139,6 +142,9 @@ export interface QueryResponse extends QueryUnderstanding {
   corrections?: Correction[];
   count: number;
   total_matches?: number;
+  /** people who meet part of the query, held back unless asked for */
+  near_matches?: number;
+  near?: boolean;
   has_more?: boolean;
   next_offset?: number | null;
   results: PersonSummary[];

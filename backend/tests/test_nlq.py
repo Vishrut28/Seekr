@@ -1237,6 +1237,10 @@ def test_nl_query_reports_not_found(session):
         make_profile(name="Andrew Cole", usernames=["github:andrew"],
                      evidence=[EvidenceItem(attribute_type="skill", value="Python")]),
     )
-    resp = nl_query(q="Andrew python california", discover="false", db=session)
+    resp = nl_query(q="Andrew python california", discover="false", near=True, db=session)
     assert resp["count"] >= 1
+    assert any(d["term"].lower() == "california" for d in resp["not_found"])
+    # by default the near match is held back and counted, not shown
+    resp = nl_query(q="Andrew python california", discover="false", db=session)
+    assert resp["count"] == 0 and resp["near_matches"] >= 1
     assert any(d["term"].lower() == "california" for d in resp["not_found"])

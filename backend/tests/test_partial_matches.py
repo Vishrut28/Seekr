@@ -80,9 +80,26 @@ def test_the_api_labels_partial_results(session, monkeypatch):
     person(session, "a", "Ada Deep", topics=["Deep Learning"])
     person(session, "b", "Bob Oxford", topics=["Medieval History"], orgs=["University of Oxford"])
     body = api.nl_query(q="deep learning researchers at Oxford", limit=0, offset=0,
-                        discover="false", db=session)
+                        discover="false", near=True, db=session)
     assert body["results"][0]["match"] == "partial"
     assert body["results"][0]["missing"] == [{"term": "Oxford", "as": "org"}]
+
+
+def test_near_matches_are_held_back_unless_asked_for(session):
+    """"NLP researchers in India" filled the page with NLP people elsewhere."""
+    from rip import api
+
+    person(session, "a", "Ada Deep", topics=["Deep Learning"], orgs=["University of Oxford"])
+    for i in range(3):
+        person(session, f"d{i}", f"Dee Elsewhere{i}", topics=["Deep Learning"])
+    body = api.nl_query(q="deep learning researchers at Oxford", limit=0, offset=0,
+                        discover="false", db=session)
+    assert [r["canonical_name"] for r in body["results"]] == ["Ada Deep"]
+    assert body["total_matches"] == 1 and body["near_matches"] == 3 and body["near"] is False
+    body = api.nl_query(q="deep learning researchers at Oxford", limit=0, offset=0,
+                        discover="false", near=True, db=session)
+    assert body["results"][0]["canonical_name"] == "Ada Deep"
+    assert {r["match"] for r in body["results"][1:]} == {"partial"} and len(body["results"]) == 4
 
 
 def clause(token, at):

@@ -57,6 +57,25 @@ from .nlq import (  # whole-word matching, shared with the parser
 THIN_ANSWER = 10
 
 
+def _hold_back_near(persons: list, total: int, near: bool) -> tuple[list, int, int]:
+    """(rows to show, full-match total, near matches held back).
+
+    A near match meets part of the query: "NLP researchers in India" found two
+    people and filled the page with NLP researchers elsewhere, each marked
+    partial. They are shown only when asked for (near=true); otherwise they
+    are counted, so the page can offer them. When every row is a near match
+    -- nobody meets the whole query -- the total they were counted against
+    is theirs, and the full-match total is nought.
+    """
+    held = [p for p in persons if getattr(p, "partial_match", None)]
+    if near or not held:
+        return persons, total, 0
+    full = [p for p in persons if not getattr(p, "partial_match", None)]
+    if not full:
+        return [], 0, max(total, len(held))
+    return full, total, len(held)
+
+
 def _applied_filter_count(parsed) -> int:
     """How many distinct constraints this query actually applied.
 
@@ -1298,6 +1317,12 @@ def nl_query(
         "metered providers; false = local corpus only; queue = also add "
         "candidates to the discovery-lead queue for a worker.",
     ),
+    near: bool = Query(
+        False,
+        description="also return near matches: people who meet part of the "
+        "query, behind the full matches and marked partial. Off by default; "
+        "the response counts them in near_matches.",
+    ),
     db: Session = Depends(get_db),
 ):
     """Natural-language search. Read-only, ranked by evidence.
@@ -1338,6 +1363,7 @@ def nl_query(
     persons, parsed, not_found = execute_progressive(db, asked)
     matched_nothing = not has_filters(asked)
     total = count_matches(db, parsed) if has_filters(parsed) else 0
+    persons, total, near_matches = _hold_back_near(persons, total, near is True)
     # Per-person evidence/affiliation cache, shared across every
     # build_results() call in this request — not just within one call. When
     # live discovery fires, execute_progressive() re-runs and build_results()
@@ -1349,6 +1375,9 @@ def nl_query(
     # second call only queries the delta (new/extra people), not everyone.
     _attr_cache: dict = {}
     _org_cache: dict = {}
+    # what tells two people of one name apart on the page: "Aman Sharma" is
+    # eighteen different people here, and identical rows read as duplicates
+    _id_cache: dict = {}
 
     def build_results(rows):
         """Summaries plus a small evidence-count attribute sample per person."""
@@ -1357,7 +1386,20 @@ def nl_query(
         for pid in new_ids:
             _attr_cache[pid] = {}
             _org_cache[pid] = []
+            _id_cache[pid] = {"orcid": None, "papers": 0}
         if new_ids:
+            from .models import Authorship as _Authorship, PersonKey as _PersonKey
+
+            for pid, n in db.execute(
+                select(_Authorship.person_id, func.count(_Authorship.id))
+                .where(_Authorship.person_id.in_(new_ids)).group_by(_Authorship.person_id)
+            ).all():
+                _id_cache[pid]["papers"] = int(n or 0)
+            for pid, value in db.execute(
+                select(_PersonKey.person_id, _PersonKey.key_value)
+                .where(_PersonKey.person_id.in_(new_ids), _PersonKey.key_type == "orcid")
+            ).all():
+                _id_cache[pid]["orcid"] = value
             for pid, at, val, src in db.execute(
                 select(Evidence.person_id, Evidence.attribute_type, Evidence.value,
                        Evidence.source)
@@ -1398,6 +1440,7 @@ def nl_query(
             summary["attributes"] = sorted(
                 attrs, key=lambda a: (not a["matched"], -a["evidence_count"]))[:6]
             summary["organizations"] = _org_cache.get(person.id, [])
+            summary.update(_id_cache.get(person.id, {}))
             # the affiliation that satisfied the org filter — often NOT the
             # current one, so showing only current_organization looks wrong
             summary["matched_organization"] = next(
@@ -1449,6 +1492,9 @@ def nl_query(
         # count = this page; total_matches = everything the filters match
         "count": len(persons),
         "total_matches": total,
+        # people who meet part of the query, held back unless near=true
+        "near_matches": near_matches,
+        "near": near is True,
         "has_more": parsed.offset + len(persons) < total,
         "next_offset": parsed.offset + len(persons) if parsed.offset + len(persons) < total else None,
         "results": results,
@@ -1509,8 +1555,11 @@ def nl_query(
         # query is answered from the graph next time instead of being re-bought.
         may_write = _may_write(request)
         try:
-            suggestions = discovery_suggestions(db, parsed, allow_paid=allow_paid,
-                                                persist=may_write)
+            # kept only if they answer the whole question, not the loosened one
+            question = asked
+            suggestions = discovery_suggestions(
+                db, parsed, allow_paid=allow_paid, persist=may_write,
+                answers=lambda pid: pid in satisfying(db, question, [pid], use_index=False))
         except Exception as exc:
             # Each source's own failure is already caught inside; this is the
             # search itself failing. The corpus answer above stands without it
@@ -1558,6 +1607,10 @@ def nl_query(
                 asked.limit = limit
             asked.offset = offset
             persons, parsed, not_found = execute_progressive(db, asked)
+            corpus_total = count_matches(db, parsed) if has_filters(parsed) else 0
+            persons, corpus_total, near_matches = _hold_back_near(
+                persons, corpus_total, near is True)
+            response["near_matches"] = near_matches
             response["not_found"] = not_found
             response["applied_clauses"] = [
                 {"term": c["token"], "as": c["label"]} for c in (parsed.clause_order or [])
@@ -1600,7 +1653,6 @@ def nl_query(
             # People the live search returned are results, so the total has to
             # count them. Reporting only the corpus count printed "1 of 0
             # matching" — a row on screen that the total said did not exist.
-            corpus_total = count_matches(db, parsed)
             response["total_matches"] = max(corpus_total, len(persons))
             more = parsed.offset + corpus_page < corpus_total
             response["has_more"] = more
@@ -1990,6 +2042,7 @@ def query_stream(
         description="auto (default) = search the FREE live sources; "
         "true = also allow metered providers. Same meaning as on /v1/query.",
     ),
+    near: bool = Query(False, description="also return near matches, as on /v1/query"),
     db: Session = Depends(get_db),
 ):
     """The same search as /v1/query, reported as it happens.
@@ -2025,6 +2078,7 @@ def query_stream(
     from .nlq import (
         count_matches,
         execute_progressive,
+        has_filters,
         parse,
         query_understanding,
         relevance_scores,
@@ -2059,9 +2113,12 @@ def query_stream(
                 events.put({"type": "source", "source": name, "state": state, **facts})
 
             try:
+                question = parsed
                 suggestions = discovery_suggestions(
                     session, parsed, allow_paid=allow_paid, on_source=on_source,
                     persist=may_write,
+                    answers=lambda pid: pid in satisfying(session, question, [pid],
+                                                          use_index=False),
                 )
             except Exception as exc:
                 # as in nl_query: live search failing is no reason to withhold
@@ -2080,6 +2137,9 @@ def query_stream(
             asked = parsed
             persons, applied, not_found = execute_progressive(session, parsed)
             parsed = applied
+            corpus_total = count_matches(session, parsed) if has_filters(parsed) else 0
+            persons, corpus_total, near_matches = _hold_back_near(
+                persons, corpus_total, near is True)
             # People a live source just returned join the results when they
             # answer the question, as in /v1/query: every constraint the
             # re-parsed query applies is checked on them.
@@ -2115,11 +2175,12 @@ def query_stream(
             # A stream that says nothing about paging leaves the page holding
             # the PREVIOUS query's answer: the merge keeps old keys, so a
             # "Load 50 more" button could belong to a question already gone.
-            corpus_total = count_matches(session, parsed)
             more = parsed.offset + corpus_page < corpus_total
             events.put({
                 "type": "results",
                 "count": len(rows),
+                "near_matches": near_matches,
+                "near": near is True,
                 "persisted": may_write,
                 "stored_from_live": stored,
                 "not_found": not_found,
