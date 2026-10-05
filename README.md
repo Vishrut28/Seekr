@@ -434,7 +434,10 @@ never quietly belongs to a different question than the one asked.
   the whole name. An alternative name a source filed under someone else's
   record (OpenAlex lists "Aman Sharma" on Poonam Sharma) does not count: an
   alias must be a way of writing that person's own name. Case never matters,
-  including a query typed all in capitals.
+  including a query typed all in capitals. A word people here are called is
+  read as a name before any typo repair ("Virat" was once respelled "viral"),
+  and a keyword that is only its holder's own name (ORCID lists "Vivek Mishra"
+  among Vivek Mishra's keywords) is not kept as a topic.
 - **Abbreviations are their subjects.** "NLP" and "natural language
   processing" find the same people, as do ML, CV, AI, DL, RL, LLM, GNN, HCI and
   the rest of `ABBREVIATIONS` in `rip/nlq.py`. Either spelling also accepts
