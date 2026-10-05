@@ -804,6 +804,29 @@ def _store_results(session: Session | None, raw_items: list[dict], fetched: list
     return stored
 
 
+def repaired_query(parsed: NLQuery) -> str:
+    """What the user typed, with every phrase the parser repaired replaced by
+    its repair: the text a source that takes the whole question should get.
+
+    Sources were sent the raw text. "natual language procesing" went to
+    OpenAlex, ORCID and Hugging Face misspelt, and they answered with a
+    Caribbean historian, a network-security researcher and a building
+    designer -- twelve people stored, nearly none of them in the subject.
+    Only repairs of whole phrases are applied (a skill group's `searched`);
+    a token corrected to a vocabulary value is left as typed, because that
+    value ("Particle physics theoretical and experimental studies") is a
+    topic label, not words anyone searches with.
+    """
+    import re
+
+    text = parsed.raw or ""
+    for group in parsed.skill_groups:
+        typed, searched = group.get("term"), group.get("searched")
+        if typed and searched and typed != searched:
+            text = re.sub(re.escape(typed), searched, text, count=1, flags=re.IGNORECASE)
+    return text.strip()
+
+
 def discovery_suggestions(
     session: Session, parsed: NLQuery, limit: int = 10,
     allow_paid: bool = True, on_source=None, persist: bool = True,
@@ -883,12 +906,14 @@ def discovery_suggestions(
             return False
         return True
 
+    full_query = repaired_query(parsed) or cache_key
+
     def run_search(source: str, searcher, uses_full_query: bool):
         """The network call only — no session access, safe to run off-thread."""
         # A question made entirely of role words ("product designers who have
         # worked on developer tools") leaves no residue at all. Fall back to
         # what the user actually typed rather than searching for nothing.
-        search_for = (cache_key if uses_full_query else query) or cache_key
+        search_for = (full_query if uses_full_query else query) or full_query
         report(source, "searching", query=search_for)
         try:
             found = (

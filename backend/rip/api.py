@@ -1466,9 +1466,14 @@ def nl_query(
         # enough to top up, down to a floor of 1 (still worth going live if
         # even a tightly-filtered query comes back completely empty-handed
         # after one match — but 2+ is left alone).
+        #
+        # Judged on everything the filters match, not on this page: a request
+        # for one result (limit=1) looked "thin" by its page alone and went
+        # live for a query the corpus answers 35 times over -- storing twelve
+        # unrelated people.
         "discover_available": bool(
-            not persons or asked.unmatched_terms or not_found
-            or len(persons) < max(1, THIN_ANSWER >> max(0, _applied_filter_count(parsed) - 1))
+            not total or asked.unmatched_terms or not_found
+            or total < max(1, THIN_ANSWER >> max(0, _applied_filter_count(parsed) - 1))
         ),
         # on the deployed read-only snapshot a live search still answers the
         # question, but nothing it finds can be kept — say so rather than
