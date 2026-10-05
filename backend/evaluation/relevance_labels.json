@@ -3860,5 +3860,29 @@
     "v1": 2
    }
   }
+ },
+ "self_consistency": {
+  "pre_registered": "2026-10-05, before the person sees any of these cards again",
+  "why": "three blind checks put the person's agreement with any labelling at about 60-70%; this measures how often the person agrees with their own earlier grades",
+  "cards": [
+   "17f85455b447",
+   "36cbf83d359a",
+   "3e3bbbd95b7e",
+   "46ce539bcbcd",
+   "0a4df5d2c144",
+   "6b29c470de99",
+   "a764b194e711",
+   "3054ee981dda",
+   "f382705ce68f",
+   "4d9d9c75b377"
+  ],
+  "drawn": "first 10 by sha256('seekr relevance pool 2026-09-30|self-consistency 2026-10-05|' + card id) of the 24 cards graded in calibration rounds 2 and 3 and the first validation",
+  "shown_as": "the same cards, blank, with the v1 grading scale the earlier grades were given under; saved apart from the earlier grades",
+  "measures": [
+   "exact agreement with the person's own earlier grade",
+   "how many are 0 against 2"
+  ],
+  "reading": "no pass mark: if the person agrees with themselves about as often as with the labels, the labels are at the ceiling one grader allows",
+  "result": null
  }
 }
