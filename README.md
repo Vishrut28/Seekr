@@ -614,8 +614,15 @@ under it (66 changed), sealed, and checked on ten fresh cards. It failed:
 and graded 0 a card that names materials science outright. The relabelled
 set is kept in `relevance_labels.json["rubric_v2"]` as a record and is not
 used. Three blind checks now put one grader's agreement with any single
-labelling of these cards at about 60–70%, which is the real limit on these
-labels.
+labelling of these cards at about 60–70%.
+
+That is the ceiling, not a fault of the labels. Ten cards the person had
+graded first were shown to them again, blank. They agreed with their own
+earlier grades on 6 of 10, about as often as they agree with the labels.
+Every change was between 1 and 2; whether a card counts at all (0 against 1
+or 2) was the same all ten times. So **quote the share graded 1 or 2**, which
+holds. The share graded 2 moves with whoever grades it, and on which day.
+The check is in `relevance_labels.json["self_consistency"]`.
 `scripts/score_relevance_labels.py` scores them:
 
 | | cards | graded 2 | graded 1 or 2 |

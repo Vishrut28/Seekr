@@ -3883,6 +3883,59 @@
    "how many are 0 against 2"
   ],
   "reading": "no pass mark: if the person agrees with themselves about as often as with the labels, the labels are at the ceiling one grader allows",
-  "result": null
+  "result": {
+   "graded_after_plan": "plan committed 2026-10-05T05:57:42Z; first grade 2026-10-05T06:00Z",
+   "self_agreement": "6/10 exact, none 0 against 2",
+   "changes": [
+    "36cbf83d359a cryptography 2 -> 1",
+    "3e3bbbd95b7e climate science 2 -> 1",
+    "4d9d9c75b377 neuroscience (ALS) 2 -> 1",
+    "6b29c470de99 neuroscience (migraine) 1 -> 2"
+   ],
+   "zero_boundary": "10/10 the same on 0 against 1-or-2; every change was between 1 and 2",
+   "reading": "one grader agrees with their own earlier grades about as often (6/10) as with the labels (60-70% over three blind checks): the labels are at the ceiling one grader allows, and a further rubric round would not raise agreement. The 1-vs-2 split is where the noise is; the share graded 1 or 2 is the reliable measure."
+  },
+  "person_now": {
+   "17f85455b447": {
+    "grade": 2,
+    "labelled_at": "2026-10-05T06:03:05.393Z"
+   },
+   "36cbf83d359a": {
+    "grade": 1,
+    "labelled_at": "2026-10-05T06:03:24.648Z"
+   },
+   "3e3bbbd95b7e": {
+    "grade": 1,
+    "labelled_at": "2026-10-05T06:03:00.534Z"
+   },
+   "46ce539bcbcd": {
+    "grade": 2,
+    "labelled_at": "2026-10-05T06:03:17.892Z"
+   },
+   "0a4df5d2c144": {
+    "grade": 2,
+    "labelled_at": "2026-10-05T06:00:52.625Z"
+   },
+   "6b29c470de99": {
+    "grade": 2,
+    "labelled_at": "2026-10-05T06:00:43.532Z"
+   },
+   "a764b194e711": {
+    "grade": 1,
+    "labelled_at": "2026-10-05T06:00:37.306Z"
+   },
+   "3054ee981dda": {
+    "grade": 1,
+    "labelled_at": "2026-10-05T06:03:08.377Z"
+   },
+   "f382705ce68f": {
+    "grade": 2,
+    "labelled_at": "2026-10-05T06:00:33.443Z"
+   },
+   "4d9d9c75b377": {
+    "grade": 1,
+    "labelled_at": "2026-10-05T06:03:53.355Z"
+   }
+  }
  }
 }
