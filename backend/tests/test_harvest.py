@@ -199,6 +199,14 @@ def test_a_city_that_will_not_answer_does_not_end_the_harvest(tmp_path, github):
     assert any("unavailable" in m for m in said)
 
 
+def test_a_language_narrows_every_search(tmp_path, github):
+    fake = github({"India": ["dee"]})
+    harvest.harvest_github_india(str(tmp_path / "l.jsonl"), limit=100, cities=["India"],
+                                 language="python", progress=lambda _m: None)
+    assert fake.asked and all(q.startswith("language:python followers:")
+                              for _loc, q, _page in fake.asked), fake.asked
+
+
 def test_it_does_not_search_below_the_follower_floor(tmp_path, github):
     fake = github({"Pune": ["dee"]})
     harvest.harvest_github_india(str(tmp_path / "l.jsonl"), limit=100,

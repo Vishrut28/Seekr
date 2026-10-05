@@ -481,18 +481,18 @@ python scripts/eval_ranking.py --audit t-tb    # everyone the criteria call rele
 ```
 
 Always run it against a copy of the database, because it initializes and
-reindexes. On the 766-person corpus, as of 2026-10-04:
+reindexes. On the 964-person corpus, as of 2026-10-05:
 
 | Set | Queries | nDCG@10 | recall@50 |
 |---|---|---|---|
-| tuned (topic, concept, agent, constrained, soft, typo, name, protected) | 52 | 0.93 | 0.79 |
+| tuned (topic, concept, agent, constrained, soft, typo, name, protected) | 52 | 0.93 | 0.75 |
 | `holdout`: written mid-way, partly tuned after | 15 | 0.88 | 0.73 |
 | `holdout2`: written last, criteria fixed before the first run | 20 | 0.89 | 0.76 |
 
-Overall: nDCG@10 0.91, P@10 0.78, recall@50 0.77. **Read recall@50 against its
-ceiling, which is 0.97, not against 1.0**: six queries have more than fifty
+Overall: nDCG@10 0.91, P@10 0.79, recall@50 0.75. **Read recall@50 against its
+ceiling, which is 0.95, not against 1.0**: nine queries have more than fifty
 relevant people, so no ranker can retrieve them all in fifty results.
-`deep learning researchers` has 118, capping it at 0.42.
+`web developers` has 218, capping it at 0.23.
 
 The previous version of this table (0.88 / 0.74 / 0.69) was measured on the
 709-person corpus. On today's corpus, before the changes below, the same run
@@ -511,6 +511,26 @@ flatter it:
 
 The two holdout rows barely moved in nDCG (`holdout2` 0.889 → 0.893); their
 recall rose with the paper route, under the same caution.
+
+On 2026-10-05, 198 GitHub developers were imported: the 100 most-followed
+India-located users GitHub files under Python, and the same for JavaScript.
+Two more were refused as organisations. They answer the gap the labels
+found: `Python developers`, `JavaScript developers` and `web developers` had
+returned only Stack Overflow users who show the language as a tag. They now
+return people whose own repositories are in it. The table moved by corpus,
+not by search:
+
+- **Recall fell (0.77 → 0.75)** only because those three queries now have
+  163–218 relevant people, past the fifty that recall@50 can reach.
+- **nDCG held at 0.91.**
+- **One search bug surfaced and was fixed.** `Google DeepMind researchers`
+  had matched only through "DeepMind": "google" is a word of Stack Overflow
+  tags, so the whole phrase read as a subject. Once a plain "Google"
+  organization was stored, the query returned Google's engineers. A phrase
+  is now a subject only when all its words are.
+- **The import is repeatable:**
+  `rip.cli harvest github --india --language python --city India`, then
+  `bulk-ingest github`.
 `scripts/audit_judgments.py` prints the ceiling, the share of the corpus each
 criterion calls relevant, and `--terms`, the report that found the six criteria
 below.

@@ -315,7 +315,8 @@ def cmd_harvest(args) -> None:
         if not args.india:
             raise SystemExit("github harvesting currently targets India: pass --india")
         warn_missing_tokens(enriching=False)
-        harvest_github_india(args.out, limit=args.limit)
+        harvest_github_india(args.out, limit=args.limit, cities=args.city or None,
+                             language=args.language)
     else:
         raise SystemExit("harvest supports 'openalex' and 'github'")
 
@@ -1009,6 +1010,11 @@ def main() -> None:
     p_harvest.add_argument("--cursor", default="*", help="resume from a previous next_cursor")
     p_harvest.add_argument("--india", action="store_true",
                            help="restrict to India-affiliated/located people")
+    p_harvest.add_argument("--language", default=None,
+                           help="github: only people GitHub files under this language")
+    p_harvest.add_argument("--city", action="append", default=None,
+                           help="github: search this location instead of the built-in "
+                                "list of Indian cities (repeatable)")
 
     p_bulk = sub.add_parser("bulk-ingest", help="stream a JSONL(.gz) dump into the graph")
     p_bulk.add_argument("source", help="connector name the dump belongs to")

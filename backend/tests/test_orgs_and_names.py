@@ -36,6 +36,17 @@ def test_every_stored_spelling_of_a_company_counts(session):
     assert found(session, "Google DeepMind researchers") == ["Cy Deep"]
 
 
+def test_a_company_word_in_skill_tags_does_not_split_the_phrase(session):
+    """"google" is a word of Stack Overflow tags (google-chrome), which made the
+    whole phrase "Google DeepMind" read as a subject and never match. With an
+    organization called plain "Google" stored, "Google DeepMind researchers"
+    then returned Google's engineers alongside DeepMind's."""
+    person(session, "a", "Ada Plain", orgs=["Google"])
+    person(session, "c", "Cy Deep", orgs=["Google DeepMind (United Kingdom)"])
+    person(session, "t", "Tag User", topics=["google-chrome"])
+    assert found(session, "Google DeepMind researchers") == ["Cy Deep"]
+
+
 def test_institutions_are_found_by_their_abbreviations(session):
     person(session, "a", "Ann Mit", orgs=["Massachusetts Institute of Technology"])
     person(session, "b", "Bob Iitb", orgs=["Indian Institute of Technology Bombay"])

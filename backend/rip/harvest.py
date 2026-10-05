@@ -134,13 +134,18 @@ FOLLOWER_BANDS = [(1000, None), (200, 999), (50, 199), (10, 49)]
 
 def harvest_github_india(
     out_file: str, *, limit: int = 5000, cities: list[str] | None = None,
-    min_followers: int = 10, progress=print,
+    min_followers: int = 10, language: str | None = None, progress=print,
 ) -> HarvestResult:
     """Collect India-located GitHub logins into a JSONL file of identifiers.
 
     Writes {"external_id": login} lines; `bulk-ingest github` then fetches each
     profile. Search only yields logins, so the fetch is a separate, rate-limited
     step — which is why the two phases are kept apart.
+
+    LANGUAGE narrows to people GitHub files under that language (its
+    `language:` qualifier, from their repositories). "Python developers" found
+    only Stack Overflow users with a python tag: the corpus held almost no one
+    whose code shows the language.
     """
     from .connectors import get_connector
 
@@ -157,6 +162,8 @@ def harvest_github_india(
                 if result.fetched >= limit or low < min_followers:
                     break
                 extra = f"followers:{low}..{high}" if high else f"followers:>={low}"
+                if language:
+                    extra = f"language:{language} {extra}"
                 for page in range(1, 11):  # 10 pages x 100 = the 1,000 cap
                     if result.fetched >= limit:
                         break

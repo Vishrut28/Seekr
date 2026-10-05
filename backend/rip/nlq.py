@@ -901,7 +901,14 @@ def _org_matches(gram: str, gram_l: str, parts: list[str], span: set, tokens: li
                     hits.add(name)
     if not hits:
         return []
-    topical = any(df.get(singular(w), 0) > 0 for w in content)
+    # A phrase is a subject only when every word of it is one: "computer
+    # vision" is, "Google DeepMind" is not. Any one word used to be enough,
+    # and "google" is a word of Stack Overflow tags (google-chrome), so the
+    # phrase never matched; "DeepMind" alone answered for it until the corpus
+    # gained an organization called plain "Google", and then "Google
+    # DeepMind researchers" returned Google's engineers ahead of DeepMind's.
+    topical = all(df.get(singular(w), 0) > 0 for w in content) if len(content) > 1 \
+        else df.get(singular(content[0]), 0) > 0
     if topical and not after_at:
         return []
     return sorted(hits)[:20]
