@@ -133,6 +133,14 @@ def test_a_repaired_typo_reaches_what_the_right_spelling_reaches(session):
     assert {"Sky Stated", "Dee Dark", "Pat Papers"} <= set(typo)
 
 
+def test_a_repaired_typo_says_what_was_typed_and_what_was_searched(session):
+    person(session, "s", "Sky Stated", topics=["Cosmology and Gravitation Theories"])
+    person(session, "d", "Dee Dark", topics=["Dark Matter and Cosmic Phenomena"])
+    rewrite = next(r for r in parse(session, "cosmolgy").rewrites if r["how"] == "related subjects")
+    assert rewrite["typed"] == "cosmolgy"
+    assert rewrite["searched"] == "cosmology + related subjects"
+
+
 def test_a_term_does_not_borrow_the_related_subjects_of_a_different_topic(session):
     """"computational" resolves to "Computational Biology" too, and borrowing
     its related subjects sent "computational pathology" to genomics."""

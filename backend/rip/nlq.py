@@ -1151,7 +1151,11 @@ def _expand_concepts(result: NLQuery, skills: dict, aux: VocabAux) -> None:
         extra = [v for v in _related_values(lookup, skills, aux, known) if v not in have]
         if extra:
             group["related_values"] = (have + extra)[:MAX_RELATED_VALUES]
-            result.rewrites.append({"typed": term, "searched": f"{term} + related subjects",
+            # typed as the user wrote it, searched as repaired: a typo read
+            # "Searched natural language processing ... for natural language
+            # processing" once the search term was the repair
+            result.rewrites.append({"typed": group.get("term") or term,
+                                    "searched": f"{term} + related subjects",
                                     "how": "related subjects"})
     for term in list(result.unmatched_terms):
         extra = _related_values(term, skills, aux, set())
