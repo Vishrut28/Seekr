@@ -36,6 +36,7 @@ from .models import (
 )
 from .normalize import NormalizedProfile, strong_keys
 from .resolution import _fuzzy_candidates, find_near_misses, resolve, sync_name_tokens
+from .textnorm import words
 
 
 def _utcnow() -> datetime:
@@ -430,6 +431,18 @@ def _get_or_create_org(session: Session, name: str, org_type: str | None, url: s
     return org
 
 
+def _only_the_name(value: str | None, own_name: set[str]) -> bool:
+    """Is this keyword nothing but the holder's own name -- "Vivek Mishra",
+    "Lochan Mahesh C" -- written in full or with initials? Two words at
+    least: one word is left alone, since "Rust" is a language before it is
+    anyone's first name."""
+    ws = words(value or "")
+    if len(ws) < 2 or not own_name:
+        return False
+    return all(w in own_name or (len(w) == 1 and any(n.startswith(w) for n in own_name))
+               for w in ws) and any(len(w) > 1 for w in ws)
+
+
 def ingest_profile(session: Session, profile: NormalizedProfile, commit: bool = True) -> Person:
     """Run one normalized profile through resolution + persistence. Idempotent.
 
@@ -581,7 +594,17 @@ def ingest_profile(session: Session, profile: NormalizedProfile, commit: bool = 
         asserted.add(_add_evidence(session, person, record, "location", profile.location,
                                    confidence=0.7))
 
+    own_name = set(words(profile.name or ""))
     for item in profile.evidence:
+        # A keyword that is only the holder's own name is not a subject: two
+        # ORCID records listed "Vivek Mishra" and "Mahesh" as keywords, and
+        # "vivek" became a topic word -- a search for the name then returned
+        # whoever held that "topic" instead of the people called Vivek.
+        # One word is left alone: "Rust" is a language before it is anyone's
+        # first name.
+        if (item.attribute_type in ("skill", "research_interest", "specialization")
+                and _only_the_name(item.value, own_name)):
+            continue
         asserted.add(_add_evidence(
             session, person, record, item.attribute_type, item.value,
             extracted_info=item.extracted_info, url=item.url,

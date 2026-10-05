@@ -206,3 +206,24 @@ def test_a_live_person_is_kept_only_if_they_answer(session, monkeypatch):
     names = {p.canonical_name for p in session.query(Person).all()}
     assert "Ira Fit" in names and "Tom Off" not in names
     assert [g["name"] for g in got] == ["Ira Fit"]
+
+
+def test_a_name_people_carry_is_not_respelled_into_a_subject(session):
+    """"Virat" became "viral" and answered with virologists."""
+    person(session, "v", "Virat Agarwal")
+    person(session, "x", "Vera Virologist", "Viral Infections and Outbreaks Research")
+    parsed = parse(session, "Virat")
+    assert parsed.name_terms == ["Virat"] and not parsed.skill_groups
+    assert found(session, "virat") == ["Virat Agarwal"]
+
+
+def test_a_keyword_that_is_the_holders_own_name_is_not_a_topic(session):
+    """An ORCID record listed "Vivek Mishra" among its keywords, and "vivek"
+    then matched that topic instead of the people called Vivek."""
+    person(session, "m", "Vivek Mishra", "Vivek Mishra", "V. Mishra", "Rust")
+    person(session, "g", "Vivek Gupta")
+    from rip.models import Evidence
+
+    assert {e.value for e in session.query(Evidence).filter(
+        Evidence.attribute_type == "research_interest")} == {"Rust"}
+    assert found(session, "vivek") == ["Vivek Gupta", "Vivek Mishra"]

@@ -1679,6 +1679,14 @@ def parse(session: Session, query: str | None, _nested: bool = False) -> NLQuery
             contained = _contained(gram_l, skills, aux)
             group = {"term": gram}
             if not contained:
+                # A word people here are called is a name before it is a typo:
+                # "Virat" -- seven people carry it -- was respelled "viral" and
+                # answered with virologists.
+                if (len(parts) == 1 and _could_be_a_name(gram)
+                        and _name_exists(session, gram)):
+                    result.name_terms.append(gram)
+                    consumed |= span
+                    continue
                 # A typo one word into a phrase: "distributed sytems" used to
                 # apply the bare word "distributed" (reaching Distributed
                 # Processing) and report the rest as dropped.
