@@ -1990,6 +1990,142 @@
    "the controls are one per query the entrants come from: six"
   ],
   "caveat": "the person saw Claude's grades for the 11 described in chat on 2026-10-03, so their grading of those 11 is not fully blind to Claude's; the controls are",
-  "result": null
+  "result": {
+   "seal_verified": true,
+   "graded_after_plan": "plan committed 2026-10-04T11:57:27Z; first grade 2026-10-05T05:26:20Z",
+   "entrants_by_person": {
+    "2": 5,
+    "1": 3,
+    "0": 3
+   },
+   "entrants_by_claude": {
+    "2": 6,
+    "1": 2,
+    "0": 3
+   },
+   "entrant_agreement": "6/11 exact, none 0 against 2 (Claude's side not blind)",
+   "control_agreement": "3/6 exact, one 0 against 2: Kae Nemoto (quantum computing, Japan) for 'machine learning researchers in India', Claude 0, person 2",
+   "top_ten_with_person_grades": "133 of 191 places graded 2 (0.696); 47 graded 1, 11 graded 0",
+   "reading": "The fixes held precision: the eleven people they added grade like the rest of the top ten. The labels are noisier than the validation suggested: across the two blind checks (validation 7/10, these controls 3/6) the person and the labels agree exactly on 10 of 16 cards, with one 0 against 2. Where they differ the labels are more generous on neighbouring fields (ALS for dementia, LHC physics for cosmology) and the person applies the place rule unevenly (Preskill, not in India, graded 2; V. Sharma, not in India, graded 1). Read every score against these labels as +-0.1, not to the third decimal."
+  },
+  "claude_revealed": {
+   "nonce": "724335ab4e215ff19974019f0736e4a6",
+   "claude": {
+    "42fb5fd89abd": {
+     "grade": 0,
+     "note": "cardiovascular and arterial stiffness; nothing on the card about dementia"
+    },
+    "de97a4da21b3": {
+     "grade": 2,
+     "note": "aerosol filtration and electrostatic precipitation: air-pollution control"
+    },
+    "e0f2509d5c9e": {
+     "grade": 0,
+     "note": "energy policy; nothing on air quality on the card"
+    },
+    "add64d2d7dad": {
+     "grade": 2,
+     "note": "papers on ozone prediction and an air pollution index"
+    },
+    "87ef3cac9bcd": {
+     "grade": 0,
+     "note": "magnetic sensors; nothing on air quality on the card"
+    },
+    "1ab1051bf0e6": {
+     "grade": 2,
+     "note": "a large-language-model paper; IISc Bangalore"
+    },
+    "2b791a7f2245": {
+     "grade": 2,
+     "note": "signal and image processing, an ML neighbour; Pune (borderline)"
+    },
+    "485ec24a6d13": {
+     "grade": 1,
+     "note": "a cosmology paper; not in India"
+    },
+    "e25d70719194": {
+     "grade": 2,
+     "note": "NLP stated, and an NLP paper"
+    },
+    "ea101cc968dc": {
+     "grade": 2,
+     "note": "a review of tuberculids (cutaneous TB); Delhi"
+    },
+    "0a1b7096e843": {
+     "grade": 1,
+     "note": "HIV, an infectious-disease neighbour of TB; Thailand, not India"
+    }
+   }
+  },
+  "person": {
+   "42fb5fd89abd": {
+    "grade": 1,
+    "labelled_at": "2026-10-05T05:27:33.404Z"
+   },
+   "de97a4da21b3": {
+    "grade": 2,
+    "labelled_at": "2026-10-05T05:26:20.920Z"
+   },
+   "e0f2509d5c9e": {
+    "grade": 0,
+    "labelled_at": "2026-10-05T05:28:49.148Z"
+   },
+   "add64d2d7dad": {
+    "grade": 1,
+    "labelled_at": "2026-10-05T05:32:28.702Z"
+   },
+   "87ef3cac9bcd": {
+    "grade": 0,
+    "labelled_at": "2026-10-05T05:32:12.443Z"
+   },
+   "1ab1051bf0e6": {
+    "grade": 2,
+    "labelled_at": "2026-10-05T05:27:03.382Z"
+   },
+   "2b791a7f2245": {
+    "grade": 2,
+    "labelled_at": "2026-10-05T05:29:11.089Z"
+   },
+   "485ec24a6d13": {
+    "grade": 2,
+    "labelled_at": "2026-10-05T05:26:47.262Z"
+   },
+   "e25d70719194": {
+    "grade": 2,
+    "labelled_at": "2026-10-05T05:30:48.076Z"
+   },
+   "ea101cc968dc": {
+    "grade": 1,
+    "labelled_at": "2026-10-05T05:31:27.960Z"
+   },
+   "0a1b7096e843": {
+    "grade": 0,
+    "labelled_at": "2026-10-05T05:31:13.890Z"
+   },
+   "64ddbcd0723c": {
+    "grade": 1,
+    "labelled_at": "2026-10-05T05:30:16.101Z"
+   },
+   "b932173a4539": {
+    "grade": 0,
+    "labelled_at": "2026-10-05T05:26:32.546Z"
+   },
+   "052bed19ab7e": {
+    "grade": 2,
+    "labelled_at": "2026-10-05T05:31:03.272Z"
+   },
+   "30a20a4f8c51": {
+    "grade": 1,
+    "labelled_at": "2026-10-05T05:29:46.916Z"
+   },
+   "3d58844bda08": {
+    "grade": 2,
+    "labelled_at": "2026-10-05T05:30:23.403Z"
+   },
+   "30dfc39c4b1b": {
+    "grade": 0,
+    "labelled_at": "2026-10-05T05:28:38.349Z"
+   }
+  }
  }
 }

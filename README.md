@@ -598,6 +598,14 @@ They reviewed the three and accepted the labels, and
 `evaluation/relevance_labels.json` records both. So these labels measure
 whether a match is **plausible**, as one person judges it, and they rest on
 that acceptance rather than on the blind check.
+
+A second blind check came later: six more pooled cards, mixed unmarked
+among the people the search fixes below brought in. The person agreed with
+the labels on 3 of 6, with one 0 against 2: a quantum-computing researcher in
+Japan, for `machine learning researchers in India`. Across both checks that
+is 10 of 16. Where they differ, the labels are more generous on neighbouring
+fields, such as ALS for dementia or LHC physics for cosmology. **Read any
+score against these labels as ±0.1, not to the third decimal.**
 `scripts/score_relevance_labels.py` scores them:
 
 | | cards | graded 2 | graded 1 or 2 |
@@ -685,10 +693,14 @@ Read the "after" column with three cautions:
   So the label rows are in-sample.
 - **The criteria rows are not independent either.** The grader gives 1 to two
   papers on a subject, which is the new route's own rule.
-- **The eleven new top-ten places hold ten people the labels never saw.** Graded
-  afterwards under the same rule, and not blind: 5 graded 2, 2 graded 1, 3
-  graded 0. With them, 69% of the top ten is graded 2, the same as before;
-  there are simply more of them.
+- **The new top-ten places hold eleven people the labels never saw.** After
+  the location fix below, the person graded them on unmarked cards mixed with
+  controls: 5 graded 2, 3 graded 1, 3 graded 0. They had seen Claude's grades
+  for these people described in chat, so only the controls were fully blind.
+  With those
+  grades, 133 of the 191 top-ten places are graded 2 (70%), the same share as
+  before; there are simply more places. The check is recorded in
+  `relevance_labels.json["post_fix_check"]`.
 
 One query reads worse on the criteria, `computational pathology` (0.86 → 0.75).
 Two digital-pathology researchers now match both words through their papers
