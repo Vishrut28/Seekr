@@ -79,7 +79,9 @@ def openalex_person(session, tag, name, works):
 def intruder(**kw):
     base = {"coauthors": ("Cal Birder",), "institution": "Uni Zoology", "year": 2009}
     base.update(kw)
-    return work("Phylogeny of the shorebirds", "Bird Phylogeny", **base)
+    # each its own title: one title under one person is one work (rip.papers)
+    return work(f"Phylogeny of the shorebirds, {'-'.join(base['coauthors'])}",
+                "Bird Phylogeny", **base)
 
 
 def found(session, who):
@@ -248,7 +250,7 @@ def test_the_review_page_is_told_why_and_shown_the_papers(session):
     assert entry["reasons"] == ["foreign"]
     assert entry["foreign_score"] == conflation.FOREIGN_WEIGHTS["domain"]
     [paper] = entry["foreign"]
-    assert paper["title"] == "Phylogeny of the shorebirds"
+    assert paper["title"].startswith("Phylogeny of the shorebirds")
     assert paper["distance"] == "domain" and paper["year"] == 2009
 
 

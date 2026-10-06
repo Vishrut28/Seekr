@@ -637,8 +637,15 @@ def ingest_profile(session: Session, profile: NormalizedProfile, commit: bool = 
                 _set_person_field(session, person, "current_role", org_aff.role, record)
 
     # publications + authorship edges
+    # this person's papers by title: the same work under another id or none
+    # (an ORCID entry, OpenAlex's preprint copy) is the paper they already
+    # hold, not a second one -- see rip.papers
+    from .papers import same_work, title_key
+
+    own_titles: dict[str, list[Publication]] | None = None
     for pub_data in profile.publications:
         pub = None
+        reused = False
         if pub_data.external_id:
             pub = session.execute(
                 select(Publication).where(Publication.external_id == pub_data.external_id)
@@ -647,6 +654,25 @@ def ingest_profile(session: Session, profile: NormalizedProfile, commit: bool = 
             pub = session.execute(
                 select(Publication).where(Publication.doi == pub_data.doi)
             ).scalar_one_or_none()
+        key = title_key(pub_data.title)
+        if pub is None and key:
+            if own_titles is None:
+                own_titles = {}
+                for held in session.execute(
+                    select(Publication).join(Authorship, Authorship.publication_id == Publication.id)
+                    .where(Authorship.person_id == person.id)
+                ).scalars():
+                    if title_key(held.title):
+                        own_titles.setdefault(title_key(held.title) or "", []).append(held)
+            probe = Publication(title=pub_data.title, doi=pub_data.doi,
+                                published_date=pub_data.published_date)
+            pub = next((held for held in own_titles.get(key, []) if same_work(held, probe)), None)
+            reused = pub is not None
+            if pub is not None:
+                if not pub.doi and pub_data.doi:
+                    pub.doi = pub_data.doi
+                if pub_data.citations is not None:
+                    pub.citations = max(pub.citations or 0, pub_data.citations)
         if pub is None:
             pub = Publication(
                 external_id=pub_data.external_id, title=pub_data.title, venue=pub_data.venue,
@@ -656,7 +682,9 @@ def ingest_profile(session: Session, profile: NormalizedProfile, commit: bool = 
             )
             session.add(pub)
             session.flush()
-        elif pub_data.citations is not None:
+            if key and own_titles is not None:
+                own_titles.setdefault(key, []).append(pub)
+        elif pub_data.citations is not None and not reused:
             pub.citations = pub_data.citations
         existing_auth = session.execute(
             select(Authorship).where(
