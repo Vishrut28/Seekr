@@ -272,9 +272,37 @@ def work_alt(text: str | None) -> Alt | None:
     return phrase_alt("w", text)
 
 
+def person_country(p, current: list[str], past: list[str]) -> str:
+    """The one country search places someone in: stated, else the one their
+    location names, else its city's, else their workplaces' when they agree
+    (current ones decide). The index and the SQL path both ask this, so they
+    cannot disagree about who is in India."""
+    from .geo import city_country, country_in_text, country_of_employers
+
+    return ((p.country or "").strip() or country_in_text(p.location)
+            or city_country(p.location)
+            or country_of_employers([*filter(None, [p.current_organization]), *current], past)
+            or "")
+
+
+def employers_of(session: Session, ids) -> dict[str, tuple[list[str], list[str]]]:
+    """(current, past) workplace names per person -- not where they studied."""
+    from .models import Affiliation, Organization
+
+    out: dict[str, tuple[list[str], list[str]]] = defaultdict(lambda: ([], []))
+    for pid, org_name, relation, is_current in session.execute(
+        select(Affiliation.person_id, Organization.name, Affiliation.relation, Affiliation.is_current)
+        .join(Organization, Organization.id == Affiliation.organization_id)
+        .where(Affiliation.person_id.in_(list(ids)))
+    ).all():
+        if relation != "studied_at":
+            out[pid][0 if is_current else 1].append(org_name)
+    return out
+
+
 def _postings_for(session: Session, person_ids: list[str]) -> tuple[list[dict], list[dict]]:
     """(search_term rows, search_doc rows) for these people, from the tables."""
-    from .geo import city_country, country_in_text, country_of_employers
+    from .geo import city_country, country_in_text
     from .models import (
         Affiliation,
         Authorship,
@@ -453,10 +481,7 @@ def _postings_for(session: Session, person_ids: list[str]) -> tuple[list[dict], 
         # is in Kanpur. A merge once dropped the country a source stated for
         # someone at BITS Hyderabad, and nothing else could put him in India.
         current, past = employers.get(pid, ([], []))
-        code = ((p.country or "").strip() or country_in_text(p.location)
-                or city_country(p.location)
-                or country_of_employers([*filter(None, [p.current_organization]), *current], past)
-                or "")
+        code = person_country(p, current, past)
         if code:
             add(pid, "c", [code.lower()])
         # Exactly the query-independent half of the final score (output 0.25,

@@ -19,13 +19,23 @@ from functools import lru_cache
 from typing import Any, TypeGuard
 
 from rapidfuzz import fuzz
-from sqlalchemy import and_, case, desc, func, literal, or_, select
+from sqlalchemy import and_, case, desc, false, func, literal, or_, select
 from sqlalchemy.orm import Session
 
 from . import geo
 from . import search_index as si
 from .models import Evidence, IdentityLink, Organization, Person
-from .textnorm import contains_phrase, fold, is_unspaced, org_key, singular, stems, value_key, words
+from .textnorm import (
+    MAX_TERM_LEN,
+    contains_phrase,
+    fold,
+    is_unspaced,
+    org_key,
+    singular,
+    stems,
+    value_key,
+    words,
+)
 
 logger = logging.getLogger("rip.nlq")
 
@@ -1178,6 +1188,24 @@ def _misspelt_noise(token: str, aux: VocabAux) -> str | None:
     return hit[0] if hit else None
 
 
+def without_related(parsed: NLQuery) -> NLQuery:
+    """PARSED answering with what each subject is, not what neighbours it.
+
+    "NLP" also reaches Topic Modeling and Speech Recognition through the
+    concept map. With related subjects off, a subject the corpus holds is
+    matched as itself only; one reached ONLY through related subjects keeps
+    them, since without them it would ask for nothing.
+    """
+    dropped = set()
+    for group in parsed.skill_groups:
+        own = group.get("values") or group.get("contained_values") or group.get("pattern")
+        if own and group.pop("related_values", None):
+            dropped.add(group.get("term"))
+    parsed.rewrites = [r for r in parsed.rewrites
+                       if not (r.get("how") == "related subjects" and r.get("typed") in dropped)]
+    return parsed
+
+
 def _whole_names(tokens: list[str], result: NLQuery, df: dict) -> None:
     """A name is asked for whole.
 
@@ -2246,6 +2274,35 @@ def _full_name_exists(session: Session, phrase: str) -> bool:
     )
 
 
+def _name_word_keys(text: str) -> list[set[str]]:
+    """Per word of TEXT, the name keys any of its search forms is stored as."""
+    from .names import search_forms
+    from .resolution import name_tokens
+
+    out = []
+    for word in words(text):
+        keys = set()
+        for form in search_forms(word):
+            keys |= {k for k in name_tokens(form) if not k.startswith("k:")}
+        if keys:
+            out.append(keys)
+    return out
+
+
+def _carries_name_words(text: str):
+    """SQL: the person's own names carry every word of TEXT."""
+    from sqlalchemy import exists as sa_exists
+
+    from .models import PersonNameToken
+
+    per_word = _name_word_keys(text)
+    if not per_word:
+        return false()
+    return and_(*[sa_exists().where(PersonNameToken.person_id == Person.id,
+                                    PersonNameToken.token.in_(sorted(keys)))
+                  for keys in per_word])
+
+
 def _name_exists(session: Session, token: str) -> bool:
     """Does anyone in the corpus actually carry this word as part of a name?"""
     from sqlalchemy import or_
@@ -2272,7 +2329,7 @@ def _name_exists(session: Session, token: str) -> bool:
         return any(_looks_like_a_person(n) for n in rows)
     rows = session.execute(
         select(Person.canonical_name).where(
-            or_(*_name_clauses(Person.canonical_name, token)),
+            or_(*_name_clauses(Person.canonical_name, token), _carries_name_words(token)),
             Person.merged_into.is_(None),
         ).limit(20)
     ).scalars().all()
@@ -2308,7 +2365,7 @@ def _papers_naming(term: str):
     )
 
 
-def _filtered_stmt(parsed: NLQuery):
+def _filtered_stmt(parsed: NLQuery, session: Session | None = None):
     """The filter query, without paging — shared by the count and the page."""
     from sqlalchemy import exists as sa_exists
     from sqlalchemy import or_
@@ -2373,7 +2430,23 @@ def _filtered_stmt(parsed: NLQuery):
         where = [func.upper(Person.country).in_(parsed.countries)]
         where += [location_anywhere(name) for code in parsed.countries
                   for name in names_for_country(code)]
-        stmt = stmt.where(or_(*where))
+        if session is None:
+            stmt = stmt.where(or_(*where))
+        else:
+            # the index's own rule, person by person: a stated country wins,
+            # and only current workplaces place someone who has one. Matching
+            # any Indian institution ever named put an IIT Delhi alumnus now
+            # in Norway "in India" here and not in the index.
+            stated_country = func.coalesce(func.trim(Person.country), "")
+            pool = session.execute(select(Person).where(
+                Person.merged_into.is_(None),
+                func.upper(Person.country).in_(parsed.countries) | (stated_country == ""),
+            )).scalars().all()
+            jobs = si.employers_of(session, [p.id for p in pool])
+            codes = {c.upper() for c in parsed.countries}
+            placed = [p.id for p in pool
+                      if si.person_country(p, *jobs.get(p.id, ([], []))).upper() in codes]
+            stmt = stmt.where(Person.id.in_(placed))
     if parsed.locations:
         stmt = stmt.where(or_(*[
             location_anywhere(loc) for loc in parsed.locations
@@ -2390,17 +2463,17 @@ def _filtered_stmt(parsed: NLQuery):
                 _word_match(Affiliation.role, title),
             )).correlate(Person)
         )
-    if parsed.name_terms:
-        from sqlalchemy import String as SAString  # noqa: F401  (used below)
-
-        for term in parsed.name_terms:
-            stmt = stmt.where(or_(
-                *_name_clauses(Person.canonical_name, term),
-                func.lower(func.cast(Person.aliases, SAString)).like(f"%\"{like_escape(term.lower())}%", escape="\\"),
-            ))
+    for term in parsed.name_terms:
+        # the canonical name, or the person's own other names through their
+        # name keys -- which hold only aliases that are that person's name
+        # (resolution.sync_name_tokens). Matching the raw alias list let
+        # "Aman Sharma" filed on Poonam Sharma find her here, where the index
+        # did not.
+        stmt = stmt.where(or_(*_name_clauses(Person.canonical_name, term),
+                              _carries_name_words(term)))
     for sub in _excluded_queries(parsed):
         stmt = stmt.where(Person.id.not_in(
-            _filtered_stmt(sub).with_only_columns(Person.id)))
+            _filtered_stmt(sub, session).with_only_columns(Person.id)))
     if parsed.min_publications or parsed.min_citations:
         from .models import Authorship, Publication
 
@@ -2488,11 +2561,19 @@ def _constraints(parsed: NLQuery) -> list:
     from .names import name_phrase_forms
 
     for term in parsed.name_terms:
-        # "Bill Gates" is also William Gates; "Agarwal" is also Aggarwal
+        # "Bill Gates" is also William Gates; "Agarwal" is also Aggarwal. The
+        # words of a name, not the words side by side: "karan singh" missed
+        # Karan P. Singh and Karan Pratap Singh, whom the SQL path found.
         alts = [alt for form in name_phrase_forms(term)
-                for alt in (si.phrase_alt("n", form), si.phrase_alt("na", form))]
+                for alt in (_name_words_alt("n", form), _name_words_alt("na", form))]
         out.append(si.Constraint(f"name:{term}", [a for a in alts if a]))
     return out
+
+
+def _name_words_alt(fld: str, text: str):
+    """Every word of TEXT in field FLD, in any order and any distance apart."""
+    terms = tuple(dict.fromkeys(w for w in words(text) if len(w) <= MAX_TERM_LEN))
+    return si.Alt(fld, terms) if terms else None
 
 
 def _topical_alts(parsed: NLQuery) -> list:
@@ -2505,7 +2586,7 @@ def count_matches(session: Session, parsed: NLQuery) -> int:
         return 0
     if si.is_ready(session):
         return si.count(session, _constraints(parsed), _restrict(parsed))
-    inner = _filtered_stmt(parsed).with_only_columns(Person.id).distinct().subquery()
+    inner = _filtered_stmt(parsed, session).with_only_columns(Person.id).distinct().subquery()
     return session.execute(select(func.count()).select_from(inner)).scalar_one()
 
 
@@ -2531,7 +2612,7 @@ def satisfying(session: Session, parsed: NLQuery, ids, use_index: bool = True) -
         return set(session.execute(
             select(sub.c.person_id).where(sub.c.person_id.in_(ids))).scalars())
     return set(session.execute(
-        _filtered_stmt(parsed).with_only_columns(Person.id)
+        _filtered_stmt(parsed, session).with_only_columns(Person.id)
         .where(Person.id.in_(ids)).distinct()).scalars())
 
 
@@ -3720,7 +3801,13 @@ def execute_progressive(session: Session, parsed: NLQuery) -> tuple[list, NLQuer
         if not clauses or len(clauses) < 2 and rows:
             return rows, parsed, []
         wanted = parsed.limit
-        if rows and (len(rows) >= min(PARTIAL_FILL_BELOW, wanted) or parsed.offset):
+        # Paging never relaxes. A page past the last one is empty because the
+        # answer ran out, not because the question was too narrow: page two of
+        # eight Google DeepMind people dropped the employer, called it "not
+        # found", and offered to go live for it.
+        if parsed.offset:
+            return rows, parsed, []
+        if rows and len(rows) >= min(PARTIAL_FILL_BELOW, wanted):
             return rows, parsed, []
 
         # Relaxing never loosens a name. "Dhruv Dixit" found Dhruv Dixit, and
@@ -3781,7 +3868,7 @@ def execute(session: Session, parsed: NLQuery) -> list[Person]:
         ids = si.candidates(session, _constraints(parsed), pool_size, _topical_alts(parsed),
                             _restrict(parsed))
         return _rank_and_page(session, parsed, ids)
-    stmt = _filtered_stmt(parsed)
+    stmt = _filtered_stmt(parsed, session)
     # de-duplicate on id, not whole rows: Postgres cannot DISTINCT a JSON column
     # Deterministic, quality-biased ordering BEFORE the pool is capped.
     # Without an ORDER BY here, which rows survive `LIMIT pool_size` is

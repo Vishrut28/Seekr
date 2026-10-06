@@ -46,6 +46,10 @@ export interface PersonSummary {
   /** what tells two people of one name apart: their ORCID, how much they published */
   orcid?: string | null;
   papers?: number;
+  /** why this row answers the query: matched topics, employer, place */
+  why?: string[];
+  /** how many topics they have in all; `attributes` carries the first few */
+  topic_count?: number;
   from_live_search?: boolean;
   score?: number | null;
   score_components?: ScoreComponents | null;
@@ -145,6 +149,8 @@ export interface QueryResponse extends QueryUnderstanding {
   /** people who meet part of the query, held back unless asked for */
   near_matches?: number;
   near?: boolean;
+  /** whether related subjects were matched too ("NLP" reaching Topic Modeling) */
+  related?: boolean;
   has_more?: boolean;
   next_offset?: number | null;
   results: PersonSummary[];

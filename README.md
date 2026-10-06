@@ -470,8 +470,20 @@ never quietly belongs to a different question than the one asked.
   different people unless a shared ORCID or a shared paper proves otherwise
   (`scripts/adjudicate_duplicates.py`; two different ORCIDs outrank any shared
   paper). The page says so, and each such row shows its ORCID and paper count.
-- **Why each row is there.** The topics that matched are listed first in the
-  Skills column, in bold.
+- **Why each row is there.** Each row carries `why` -- the topics that
+  matched (or "related: ..." / "named in their papers"), the employer and the
+  place -- shown under the name; matched topics come first in bold, three
+  topics a row with "+N more". Two switches beside the count, remembered per
+  browser: near matches (`near=true`) and related topics (`related=false`
+  matches each subject as itself: "NLP" stops reaching Topic Modeling).
+- **Paging never loosens a search.** A page past the last one says the
+  results ran out; it no longer drops a constraint, reports it "not found",
+  or goes live for it.
+- **The SQL path agrees with the index.** Used while the index is not ready:
+  names match through the same name keys (own aliases only, any word order,
+  so "karan singh" finds Karan P. Singh on both), and a country is decided
+  by the same rule (`search_index.person_country`: stated, location, city,
+  then current workplaces).
 - **Near matches only on request.** Results are people who meet every part of
   the query. When fewer than 10 do, Seekr finds people who meet most of it but
   holds them back: the response counts them in `near_matches`, and the page

@@ -291,3 +291,12 @@ def city_country(text: str | None) -> str | None:
                 if gram in CITY_COUNTRY:
                     return CITY_COUNTRY[gram]
     return None
+
+
+def country_label(code: str | None) -> str:
+    """A country code as people write it: "IN" -> "India"."""
+    names = _COUNTRY_NAMES.get((code or "").upper())
+    if not names:
+        return code or ""
+    first = names[0]
+    return first.upper() if len(first) <= 3 else first.title()

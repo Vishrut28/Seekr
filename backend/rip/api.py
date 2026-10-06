@@ -1329,6 +1329,11 @@ def nl_query(
         "query, behind the full matches and marked partial. Off by default; "
         "the response counts them in near_matches.",
     ),
+    related: bool = Query(
+        True,
+        description="also match subjects related to the one asked for (\"NLP\" reaching "
+        "Topic Modeling); false matches each subject as itself",
+    ),
     db: Session = Depends(get_db),
 ):
     """Natural-language search. Read-only, ranked by evidence.
@@ -1357,12 +1362,16 @@ def nl_query(
         query_understanding,
         satisfying,
         subjects_asked,
+        without_related,
     )
 
     # tolerate direct calls (tests) where FastAPI has not resolved the params
     limit = limit if isinstance(limit, int) else 0
     offset = offset if isinstance(offset, int) else 0
+    with_related = related is not False
     asked = parse(db, q)
+    if not with_related:
+        without_related(asked)
     if limit:
         asked.limit = limit
     asked.offset = offset
@@ -1436,6 +1445,10 @@ def nl_query(
         wanted_topics = {v.lower() for g in parsed.skill_groups
                          for key in ("values", "contained_values", "related_values")
                          for v in g.get(key) or []}
+        from .geo import country_label
+
+        direct_topics = {v.lower() for g in parsed.skill_groups
+                         for key in ("values", "contained_values") for v in g.get(key) or []}
         out = []
         for person in rows:
             summary = _person_summary(person)
@@ -1446,6 +1459,20 @@ def nl_query(
             ]
             summary["attributes"] = sorted(
                 attrs, key=lambda a: (not a["matched"], -a["evidence_count"]))[:6]
+            summary["topic_count"] = len(attrs)
+            # one line on why this row answers the question
+            matched_topics = [a["value"] for a in summary["attributes"] if a["matched"]]
+            why = []
+            if matched_topics:
+                direct = [t for t in matched_topics if t.lower() in direct_topics]
+                near_by = [t for t in matched_topics if t.lower() not in direct_topics]
+                if direct:
+                    why.append(", ".join(direct[:2]) + (f" +{len(direct) - 2}" if len(direct) > 2 else ""))
+                if near_by and not direct:
+                    why.append("related: " + ", ".join(near_by[:2]))
+            elif parsed.skill_groups and (getattr(person, "relevance", None) or {}).get("papers_only"):
+                why.append("named in their papers")
+            summary["why"] = why
             summary["organizations"] = _org_cache.get(person.id, [])
             summary.update(_id_cache.get(person.id, {}))
             # the affiliation that satisfied the org filter — often NOT the
@@ -1453,6 +1480,11 @@ def nl_query(
             summary["matched_organization"] = next(
                 (o for o in summary["organizations"] if o.lower() in wanted_orgs), None
             )
+            if summary["matched_organization"]:
+                summary["why"].append("at " + summary["matched_organization"])
+            if not getattr(person, "partial_match", None):
+                summary["why"] += ["in " + country_label(c) for c in parsed.countries]
+                summary["why"] += ["in " + loc for loc in parsed.locations]
             # Why this person ranks where they do. A score with no breakdown is
             # an assertion; the components name the evidence behind it.
             # a partial match says which constraints it does not meet
@@ -1502,6 +1534,7 @@ def nl_query(
         # people who meet part of the query, held back unless near=true
         "near_matches": near_matches,
         "near": near is True,
+        "related": with_related,
         "has_more": parsed.offset + len(persons) < total,
         "next_offset": parsed.offset + len(persons) if parsed.offset + len(persons) < total else None,
         "results": results,
@@ -1515,7 +1548,12 @@ def nl_query(
             if matched_nothing
             else None
         ),
-        "empty_reason": (diagnose_empty(db, parsed) if (not persons and not matched_nothing) else None),
+        "empty_reason": (
+            # past the last page: the answer ran out, nothing failed to match
+            {"message": f"No more results: all {total} matches are on earlier pages.",
+             "past_the_end": True}
+            if (not persons and parsed.offset and total)
+            else diagnose_empty(db, parsed) if (not persons and not matched_nothing) else None),
         # Worth going live whenever the corpus could not answer fully: nothing
         # found, a constraint we had to drop, or a thin answer. "Nothing found"
         # alone was the old test, and it quietly stopped firing as the graph
@@ -1536,10 +1574,11 @@ def nl_query(
         # for one result (limit=1) looked "thin" by its page alone and went
         # live for a query the corpus answers 35 times over -- storing twelve
         # unrelated people.
-        "discover_available": bool(
+        # never from a later page: the answer is judged once, on the first
+        "discover_available": bool(not parsed.offset and (
             not total or asked.unmatched_terms or not_found
             or total < max(1, THIN_ANSWER >> max(0, _applied_filter_count(parsed) - 1))
-        ),
+        )),
         # on the deployed read-only snapshot a live search still answers the
         # question, but nothing it finds can be kept — say so rather than
         # letting the corpus look mysteriously frozen
@@ -1610,6 +1649,8 @@ def nl_query(
                     _attr_cache.pop(touched_pid, None)
                     _org_cache.pop(touched_pid, None)
             asked = parse(db, q)
+            if not with_related:
+                without_related(asked)
             if limit:
                 asked.limit = limit
             asked.offset = offset
@@ -2050,6 +2091,7 @@ def query_stream(
         "true = also allow metered providers. Same meaning as on /v1/query.",
     ),
     near: bool = Query(False, description="also return near matches, as on /v1/query"),
+    related: bool = Query(True, description="also match related subjects, as on /v1/query"),
     db: Session = Depends(get_db),
 ):
     """The same search as /v1/query, reported as it happens.
@@ -2091,6 +2133,7 @@ def query_stream(
         relevance_scores,
         satisfying,
         subjects_asked,
+        without_related,
     )
 
     may_write = _may_write(request)
@@ -2102,6 +2145,8 @@ def query_stream(
         session = SessionLocal()
         try:
             parsed = parse(session, q)
+            if related is False:
+                without_related(parsed)
             if limit:
                 parsed.limit = limit
             events.put({"type": "parsed", "applied_filters": {
@@ -2139,6 +2184,8 @@ def query_stream(
                 from .nlq import invalidate_vocab
                 invalidate_vocab()
                 parsed = parse(session, q)
+                if related is False:
+                    without_related(parsed)
                 if limit:
                     parsed.limit = limit
             asked = parsed

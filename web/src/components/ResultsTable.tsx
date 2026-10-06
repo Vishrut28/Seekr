@@ -150,14 +150,16 @@ function PersonRow({
   const navigate = useNavigate();
   const idLine = namesakes > 1 ? identityLine(person) : "";
 
-  // the topics that matched the query come first from the API, and are marked
-  const topics = (person.attributes || [])
-    .filter(
-      (a) => a.attribute_type === "skill" || a.attribute_type === "research_interest",
-    )
-    .slice(0, 6);
-  const skills = topics.length
-    ? topics.map((a, i) => (
+  // the topics that matched the query come first from the API, and are
+  // marked; three are enough to tell people apart, the rest are a count
+  const allTopics = (person.attributes || []).filter(
+    (a) => a.attribute_type === "skill" || a.attribute_type === "research_interest",
+  );
+  const topics = allTopics.slice(0, 3);
+  const moreTopics = Math.max(person.topic_count ?? allTopics.length, allTopics.length) - topics.length;
+  const skills = topics.length ? (
+    <>
+      {topics.map((a, i) => (
         <span key={a.value}>
           {i > 0 && ", "}
           {a.matched ? (
@@ -168,8 +170,22 @@ function PersonRow({
             a.value
           )}
         </span>
-      ))
-    : null;
+      ))}
+      {moreTopics > 0 && (
+        <span
+          className="moretopics"
+          title={allTopics.slice(3).map((a) => a.value).join(", ") || undefined}
+        >
+          {" "}
+          +{moreTopics} more
+        </span>
+      )}
+    </>
+  ) : null;
+  // why this row is here, in a line: what matched, where, and what is missing
+  const why = person.match === "partial"
+    ? ["missing " + (person.missing || []).map((m) => m.term).join(", ")]
+    : person.why || [];
   const sources = [...new Set((person.attributes || []).flatMap((a) => a.sources || []))];
 
   // the affiliation that satisfied the org filter — often NOT the current one,
@@ -208,6 +224,11 @@ function PersonRow({
         <BrandLinks urls={person.profile_urls} />
         {/* several people share this name on the page: say which one this is */}
         {idLine && <div className="sub2 idline">{idLine}</div>}
+        {why.length > 0 && (
+          <div className={person.match === "partial" ? "whyline partial" : "whyline"}>
+            {why.join(" · ")}
+          </div>
+        )}
       </td>
       <td className="org">
         {primary || <span className="muted">—</span>}

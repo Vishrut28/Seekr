@@ -34,6 +34,31 @@ const EXAMPLES = [
 const RECENT_KEY = "seekr_recent";
 const LAST_QUERY_KEY = "seekr_q";
 
+interface SearchPrefs {
+  near: boolean;
+  related: boolean;
+}
+
+const PREFS_KEY = "seekr_search_prefs";
+const DEFAULT_PREFS: SearchPrefs = { near: false, related: true };
+
+/** The reader's switches; storage can be missing or blocked, so defaults stand. */
+function readPrefs(): SearchPrefs {
+  try {
+    return { ...DEFAULT_PREFS, ...JSON.parse(localStorage.getItem(PREFS_KEY) || "{}") };
+  } catch {
+    return DEFAULT_PREFS;
+  }
+}
+
+function writePrefs(prefs: SearchPrefs) {
+  try {
+    localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
+  } catch {
+    /* a private window: the switch still holds for this visit */
+  }
+}
+
 function readRecent(): string[] {
   try {
     return JSON.parse(localStorage.getItem(RECENT_KEY) || "[]");
@@ -73,9 +98,12 @@ export function Search() {
   // read inside callbacks that must not be rebuilt on every keystroke
   const textRef = useRef(text);
   textRef.current = text;
-  // near matches (people meeting only part of the query) are shown only when
-  // asked for, and stay shown while paging through that same answer
-  const nearRef = useRef(false);
+  // Two switches the reader owns, remembered in this browser: near matches
+  // (people meeting only part of the query) and related subjects ("NLP"
+  // reaching Topic Modeling). Read inside callbacks, so kept in a ref too.
+  const [prefs, setPrefs] = useState<SearchPrefs>(readPrefs);
+  const prefsRef = useRef(prefs);
+  prefsRef.current = prefs;
 
   useWorking(Boolean(loading));
 
@@ -116,7 +144,12 @@ export function Search() {
     sessionStorage.setItem(LAST_QUERY_KEY, q);
     rememberQuery(q);
     const paging = typeof from === "number" && from > 0;
-    if (!paging) nearRef.current = Boolean(near);
+    if (!paging && typeof near === "boolean" && near !== prefsRef.current.near) {
+      const next = { ...prefsRef.current, near };
+      prefsRef.current = next;
+      setPrefs(next);
+      writePrefs(next);
+    }
     setMode("query");
     setRanQuery(q);
     setError(null);
@@ -161,7 +194,8 @@ export function Search() {
       const params = new URLSearchParams({ q });
       if (paging) params.set("offset", String(from));
       if (discover) params.set("discover", "true");
-      if (nearRef.current) params.set("near", "true");
+      if (prefsRef.current.near) params.set("near", "true");
+      if (!prefsRef.current.related) params.set("related", "false");
       const res = await api<QueryResponse>(`/v1/query?${params}`);
       setData(res);
       setRows((prev) => (paging ? append(prev, res.results) : res.results));
@@ -402,6 +436,14 @@ export function Search() {
               onLoadMore={loadMore}
               onDiscover={() => runQuery(true)}
               onNear={(show) => runQuery(false, undefined, show)}
+              prefs={prefs}
+              onRelated={(on) => {
+                const next = { ...prefsRef.current, related: on };
+                prefsRef.current = next;
+                setPrefs(next);
+                writePrefs(next);
+                runQuery();
+              }}
             />
           ) : null}
         </div>
@@ -420,6 +462,8 @@ function Results({
   onLoadMore,
   onDiscover,
   onNear,
+  prefs,
+  onRelated,
 }: {
   data: QueryResponse | null;
   rows: PersonSummary[];
@@ -430,6 +474,8 @@ function Results({
   onLoadMore: () => void;
   onDiscover: () => void;
   onNear: (show: boolean) => void;
+  prefs: SearchPrefs;
+  onRelated: (on: boolean) => void;
 }) {
   const f = data?.applied_filters;
   const unmatched = data?.unmatched_terms || [];
@@ -473,6 +519,8 @@ function Results({
   // back from a live search FOR that very term: the rows were the term's own
   // answers, and the page told the reader to disregard them.
   const corpusRows = rows.filter((r) => !r.from_live_search).length;
+  const nearRows = rows.filter((r) => r.match === "partial").length;
+  const fullRows = rows.length - nearRows;
   // Several rows with one name read as duplicates. They are kept apart because
   // nothing proves them one person, and the page should say so.
   const byName = new Map<string, { name: string; n: number }>();
@@ -490,8 +538,11 @@ function Results({
       <div className="meta">
         <div className="count">
           {rows.length > 0 ? (
+            // near matches are counted apart: "22 of 22 matching" over six
+            // full matches and sixteen partial ones claimed all of them matched
             <>
-              <b>{fmt(rows.length)}</b> of {fmt(Math.max(total, rows.length))} matching
+              <b>{fmt(fullRows)}</b> of {fmt(Math.max(total, fullRows))} matching
+              {nearRows > 0 && <> · {fmt(nearRows)} near</>}
             </>
           ) : searching ? (
             <>Searching…</>
@@ -507,6 +558,20 @@ function Results({
                 {p.value}
               </span>
             ))}
+          </div>
+        )}
+        {mode === "query" && (
+          <div className="switches">
+            <label title="People who meet only part of the search, after the full matches">
+              <input type="checkbox" checked={prefs.near}
+                onChange={(e) => onNear(e.target.checked)} />
+              Near matches
+            </label>
+            <label title='Subjects next to the one asked for: "NLP" also reaching Topic Modeling'>
+              <input type="checkbox" checked={prefs.related}
+                onChange={(e) => onRelated(e.target.checked)} />
+              Related topics
+            </label>
           </div>
         )}
       </div>
