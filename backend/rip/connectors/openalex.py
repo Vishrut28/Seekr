@@ -45,6 +45,76 @@ WORK_FIELDS = (
 )
 
 
+# An institution is an employer when three of a person's own papers name it,
+# or two that are this share of those naming any institution: Koray
+# Kavukcuoglu's twelve Google DeepMind papers count, the two of about twenty
+# that file him at a law university in Shandong do not, and for someone with
+# eight papers two at one place is a real stay.
+SURE_EMPLOYER_PAPERS = 3
+MIN_EMPLOYER_PAPERS = 2
+MIN_EMPLOYER_SHARE = 0.15
+# A consortium paper says little about anyone's employer: a Global Burden of
+# Disease collaborator lists half a dozen institutions, and a record holding
+# several of them gave one "Rahul Gupta" twelve employers, ten of them current.
+MAX_EMPLOYER_PAPER_AUTHORS = 50
+# Nobody works at more than two places at once often enough to say so.
+MAX_CURRENT_EMPLOYERS = 2
+
+
+def employers_from_papers(author_id: str, works: list[dict]) -> tuple[list[OrgAffiliation], str | None, set[str]]:
+    """(employers, country, every institution named) from the institutions
+    this author put on their own papers -- the line OpenAlex keeps per work
+    for them, not their co-authors'. Current means named on a paper from the
+    last two years of their record."""
+    per: dict[str, dict] = {}
+    papers = 0
+    latest = None
+    for work in works or []:
+        date = work.get("publication_date") or ""
+        year = work.get("publication_year") or (int(date[:4]) if date[:4].isdigit() else None)
+        authorships = work.get("authorships") or []
+        if len(authorships) > MAX_EMPLOYER_PAPER_AUTHORS:
+            continue
+        mine = [a for a in authorships
+                if ((a.get("author") or {}).get("id") or "").endswith(author_id)]
+        insts = {i["display_name"]: i for a in mine for i in a.get("institutions") or []
+                 if i.get("display_name")}
+        if not insts:
+            continue
+        papers += 1
+        if year:
+            latest = max(latest or year, year)
+        for name, inst in insts.items():
+            entry = per.setdefault(name, {"n": 0, "years": [], "type": inst.get("type"),
+                                          "country": inst.get("country_code")})
+            entry["n"] += 1
+            if year:
+                entry["years"].append(year)
+    seen = set(per)
+    kept = {name: e for name, e in per.items()
+            if e["n"] >= SURE_EMPLOYER_PAPERS
+            or (e["n"] >= MIN_EMPLOYER_PAPERS and e["n"] >= MIN_EMPLOYER_SHARE * papers)}
+    recent = {name for name, e in kept.items()
+              if e["years"] and latest and max(e["years"]) >= latest - 1}
+    # the places named most on the latest papers
+    current_names = set(sorted(recent, key=lambda n: (
+        -sum(1 for y in kept[n]["years"] if latest and y >= latest - 1), -kept[n]["n"], n)
+    )[:MAX_CURRENT_EMPLOYERS])
+    out = []
+    for name, e in sorted(kept.items(), key=lambda kv: (-kv[1]["n"], kv[0])):
+        years = e["years"]
+        current = name in current_names
+        out.append(OrgAffiliation(
+            name=name, relation="worked_at", org_type=e["type"],
+            start_date=str(min(years)) if years else None,
+            end_date=None if current or not years else str(max(years)),
+            is_current=current,
+        ))
+    countries = [kept[o.name]["country"] for o in out if o.is_current and kept[o.name]["country"]]
+    country = max(set(countries), key=countries.count) if countries else None
+    return out, country, seen
+
+
 class OpenAlexConnector(BaseConnector):
     source = "openalex"
     source_type = "scholarly"
@@ -251,6 +321,28 @@ class OpenAlexConnector(BaseConnector):
             for inst in (author.get("last_known_institutions") or [])
             if inst.get("display_name")
         ]
+        from_papers, paper_country, on_papers = employers_from_papers(author_id, works)
+        if from_papers:
+            # OpenAlex's one "last known institution" is often nobody's: Koray
+            # Kavukcuoglu's was John Brown University, on none of his papers,
+            # while twelve said Google DeepMind. Where the papers name
+            # employers, a last-known institution they never mention is
+            # dropped, and the papers decide what is current.
+            named = {o.name for o in from_papers}
+            last_known = {o.name for o in organizations}
+            for org in from_papers:
+                org.is_current = org.is_current or org.name in last_known
+            # a last-known institution on one paper so far is a new job, not
+            # a mistake: kept, and current
+            fresh = [o for o in organizations if o.name not in named and o.name in on_papers]
+            # the strongest current employer first: ingest takes the first
+            # current one as the person's current organization
+            organizations = fresh + sorted(from_papers, key=lambda o: not o.is_current)
+            named |= {o.name for o in fresh}
+            if paper_country and not any(
+                    (inst.get("display_name") in named)
+                    for inst in (author.get("last_known_institutions") or [])):
+                country = paper_country
 
         topics = [t for t in (author.get("topics") or [])[:15] if t.get("display_name")]
         evidence = [

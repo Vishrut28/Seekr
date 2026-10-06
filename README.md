@@ -454,6 +454,18 @@ never quietly belongs to a different question than the one asked.
   psychiatrist whose papers mentioned him, and "NLP researchers in India"
   stored 23 people to show 4. A term the corpus does not know yet applies
   nothing, so a novel subject still keeps whoever the source found for it.
+- **Employers from people's own papers.** OpenAlex's single "last known
+  institution" is often wrong (Koray Kavukcuoglu was filed at John Brown
+  University, on none of his papers). Employers come from the institutions a
+  person lists on their own papers: three papers, or two that are 15% of
+  them, consortium papers (over 50 authors) not counted; current means named
+  in the last two years, at most two. A source's employer it stops listing is
+  retracted on the next read. "Google DeepMind researchers" went from 1
+  person to 8.
+- **One paper, one row.** The same title (four words or more) under one
+  person is one work unless dated over two years apart or carrying two
+  published DOIs (`rip/papers.py`); ingest reuses the row, so copies from
+  ORCID and OpenAlex preprints no longer inflate counts or the two-paper rule.
 - **Namesakes are told apart, not merged.** Several rows with one name are
   different people unless a shared ORCID or a shared paper proves otherwise
   (`scripts/adjudicate_duplicates.py`; two different ORCIDs outrank any shared

@@ -613,6 +613,8 @@ def ingest_profile(session: Session, profile: NormalizedProfile, commit: bool = 
     _retract_evidence(session, person, record, asserted)
 
     # organizations + affiliations
+    kept_affiliations: set[int] = set()
+    first_current = next((o.name for o in profile.organizations if o.is_current), None)
     for org_aff in profile.organizations:
         org = _get_or_create_org(session, org_aff.name, org_aff.org_type, org_aff.url)
         existing_aff = session.execute(
@@ -624,17 +626,47 @@ def ingest_profile(session: Session, profile: NormalizedProfile, commit: bool = 
             )
         ).scalar_one_or_none()
         if existing_aff is None:
-            session.add(
-                Affiliation(
-                    person_id=person.id, organization_id=org.id, relation=org_aff.relation,
-                    role=org_aff.role, start_date=org_aff.start_date, end_date=org_aff.end_date,
-                    is_current=org_aff.is_current, source_record_id=record.id, url=org_aff.url,
-                )
+            existing_aff = Affiliation(
+                person_id=person.id, organization_id=org.id, relation=org_aff.relation,
+                role=org_aff.role, start_date=org_aff.start_date, end_date=org_aff.end_date,
+                is_current=org_aff.is_current, source_record_id=record.id, url=org_aff.url,
             )
+            session.add(existing_aff)
+            session.flush()
+        elif existing_aff.source_record_id == record.id:
+            # this record's own claim, as it now makes it
+            existing_aff.start_date = org_aff.start_date or existing_aff.start_date
+            existing_aff.end_date = org_aff.end_date
+            existing_aff.is_current = org_aff.is_current
+        kept_affiliations.add(existing_aff.id)
         if org_aff.is_current:
             _set_person_field(session, person, "current_organization", org_aff.name, record)
             if org_aff.role:
                 _set_person_field(session, person, "current_role", org_aff.role, record)
+    # An employer this record no longer names is no longer its claim, as with
+    # evidence. OpenAlex filed Koray Kavukcuoglu at John Brown University, on
+    # none of his papers; once the record is read from the papers, that row
+    # goes, and so does the current organization it supplied.
+    retracted: set[str] = set()
+    for affiliation in session.execute(
+        select(Affiliation).where(Affiliation.person_id == person.id,
+                                  Affiliation.source_record_id == record.id)
+    ).scalars().all():
+        if affiliation.id not in kept_affiliations:
+            organization = session.get(Organization, affiliation.organization_id)
+            if organization is not None:
+                retracted.add(organization.name)
+            session.delete(affiliation)
+    session.flush()
+    still_named = set(session.execute(
+        select(Organization.name).join(Affiliation, Affiliation.organization_id == Organization.id)
+        .where(Affiliation.person_id == person.id)).scalars())
+    # another source still naming it keeps it
+    if person.current_organization in retracted - still_named:
+        session.add(ChangeLog(person_id=person.id, field="current_organization",
+                              old_value=person.current_organization, new_value=first_current,
+                              source_record_id=record.id))
+        person.current_organization = first_current
 
     # publications + authorship edges
     # this person's papers by title: the same work under another id or none
