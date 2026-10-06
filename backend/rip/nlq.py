@@ -2916,11 +2916,11 @@ def _query_terms(parsed: NLQuery) -> set[str]:
             terms.add(str(group["pattern"]).lower())
         for key in ("term", "searched"):
             if group.get(key):
-                terms |= _spellings(str(group[key]))
+                terms |= _subject_spellings(str(group[key]))
     return {t for t in terms if t}
 
 
-def _spellings(term: str) -> set[str]:
+def _subject_spellings(term: str) -> set[str]:
     """TERM and, for an abbreviated subject, its other spellings: a paper on
     "LLM agents" is on topic for "large language models", and the reverse."""
     t = fold(term)

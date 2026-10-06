@@ -1388,7 +1388,8 @@ def nl_query(
             _org_cache[pid] = []
             _id_cache[pid] = {"orcid": None, "papers": 0}
         if new_ids:
-            from .models import Authorship as _Authorship, PersonKey as _PersonKey
+            from .models import Authorship as _Authorship
+            from .models import PersonKey as _PersonKey
 
             for pid, n in db.execute(
                 select(_Authorship.person_id, func.count(_Authorship.id))
