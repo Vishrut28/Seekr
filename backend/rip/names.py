@@ -21,6 +21,8 @@ from __future__ import annotations
 import re
 from functools import lru_cache
 
+from rapidfuzz import fuzz
+
 from .textnorm import fold
 
 # One name, romanised more than one way. The same person writes it either way
@@ -145,13 +147,54 @@ def carries_name(wanted: str, names, handles=()) -> bool:
 
 def _word_fits(a: str, b: str) -> bool:
     """One word of a name standing for another: the same word in any search
-    form, an initial, or a shortening ("Sundar" for "Sundararajan")."""
+    form, an initial, a shortening ("Sundar" for "Sundararajan"), or a slip
+    of a letter in a long word ("Kanadarpa" for "Kandarpa")."""
     if a == b or search_key(a) == search_key(b):
         return True
     short, long_ = sorted((a, b), key=len)
     if len(short) == 1:
         return long_.startswith(short)
-    return len(short) >= 3 and long_.startswith(short)
+    if len(short) >= 3 and long_.startswith(short):
+        return True
+    # 88, not lower: "Armaan" against "Aman" scores 80 and is another person
+    return len(short) >= 5 and fuzz.ratio(a, b) >= 88
+
+
+# Words a name is written with that are not part of it.
+_HONORIFICS = frozenset({"dr", "prof", "professor", "mr", "mrs", "ms", "miss", "sir", "er"})
+
+
+def _unmangled(text: str | None) -> str:
+    """UTF-8 read as Latin-1 somewhere upstream: "AndrÃ©s" for "Andrés"."""
+    if text and ("Ã" in text or "Â" in text):
+        try:
+            return text.encode("latin-1").decode("utf-8")
+        except UnicodeError:
+            return text
+    return text or ""
+
+
+def _other_script(text: str | None) -> bool:
+    return any(ch.isalpha() and ord(ch) > 0x24F for ch in _unmangled(text))
+
+
+def fitting_aliases(name: str | None, aliases) -> list[str]:
+    """The ALIASES that are NAME written another way (see alias_fits).
+
+    A name in another script cannot judge a Latin one, so there the Latin
+    aliases judge each other: one fits if it is another way of writing at
+    least one of the rest. Λέανδρος Μαγλαράς carries "Leandros Maglaras" and
+    "L. Maglaras", which vouch for each other, and a co-author's "Janicke,
+    Helge", which nothing does.
+    """
+    given: list[str] = [str(a) for a in aliases or []]
+    if not _other_script(name):
+        return [a for a in given if alias_fits(name, a)]
+    latin = [a for a in given if not _other_script(a)]
+    if len(latin) < 2:
+        return given
+    return [a for a in given if _other_script(a)
+            or any(alias_fits(b, a) for b in latin if b is not a)]
 
 
 def alias_fits(name: str | None, alias: str | None) -> bool:
@@ -159,16 +202,43 @@ def alias_fits(name: str | None, alias: str | None) -> bool:
 
     Sources list alternative names that belong to other people: OpenAlex
     filed "Aman Sharma" under Poonam Sharma and Kusum Sharma, so a search for
-    Aman Sharma answered with both. Initials, reordering, nicknames, a
-    shortening and an added middle name all fit. Two names that each have a
-    word the other cannot account for -- Aman against Poonam -- are two
-    people; that also turns away a changed surname, which the canonical name
-    still finds. A name in another script is not judged.
+    Aman Sharma answered with both. Initials -- run together too, "KK Sarma",
+    "Baydin, AG" -- reordering, nicknames, a shortening, a title ("Dr."), a
+    one-letter slip in a long word and an added middle name all fit, and so
+    does a one-word handle ("softvar", "imbhargav5"), which is how people sign
+    their accounts. Two names that each have a word the other cannot account
+    for -- Aman against Poonam -- are two people; that also turns away a
+    changed surname, which the canonical name still finds. A name in another
+    script is not judged.
     """
-    n = [w for w in _name_words(name) if not w.isdigit()]
-    a = [w for w in _name_words(alias) if not w.isdigit()]
-    if not n or not a or any(ch.isalpha() and ord(ch) > 0x24F for ch in "".join(a)):
+    name, alias = _unmangled(name), _unmangled(alias)
+    n = [w for w in _name_words(name) if not w.isdigit() and w not in _HONORIFICS]
+    a = [w for w in _name_words(alias) if not w.isdigit() and w not in _HONORIFICS]
+    # either side in another script: "Leandros Maglaras" for Λέανδρος Μαγλαράς
+    if not n or not a or any(ch.isalpha() and ord(ch) > 0x24F for ch in "".join(a + n)):
         return True
-    alias_left = [w for w in a if not any(_word_fits(w, x) for x in n)]
-    name_left = [w for w in n if not any(_word_fits(w, x) for x in a)]
+    raw_alias = (alias or "").strip()
+    if len(a) == 1 and " " not in raw_alias and (len(a[0]) >= 7 or any(ch.isdigit() for ch in raw_alias)):
+        return True
+    alias_left, matched = [], set()
+    for w in a:
+        hits = [i for i, x in enumerate(n) if _word_fits(w, x)]
+        if not hits and 2 <= len(w) <= 3:
+            # initials run together, each the start of a different word; past
+            # the first, a letter may be a middle name the canonical leaves
+            # out ("Olesen, JL" for Jes Olesen)
+            free = [i for i in range(len(n)) if i not in matched]
+            hits = []
+            for k, ch in enumerate(w):
+                i = next((i for i in free if n[i].startswith(ch) and i not in hits), None)
+                if i is None and k == 0:
+                    break
+                if i is not None:
+                    hits.append(i)
+        if hits:
+            matched.update(hits)
+        else:
+            alias_left.append(w)
+    name_left = [w for i, w in enumerate(n) if i not in matched
+                 and not any(_word_fits(w, x) for x in a)]
     return not (alias_left and name_left)

@@ -227,3 +227,49 @@ def test_a_keyword_that_is_the_holders_own_name_is_not_a_topic(session):
     assert {e.value for e in session.query(Evidence).filter(
         Evidence.attribute_type == "research_interest")} == {"Rust"}
     assert found(session, "vivek") == ["Vivek Gupta", "Vivek Mishra"]
+
+
+def test_an_alias_is_a_way_of_writing_this_persons_name():
+    from rip.names import alias_fits
+
+    own = [("Kandarpa Kumar Sarma", "KK Sarma"), ("Atılım Güneş Baydin", "Baydin, AG"),
+           ("Jes Olesen", "Olesen, JL"), ("Chirag R. Parikh", "Dr. Chirag Parikh"),
+           ("Kandarpa Kumar Sarma", "Kanadarpa Kumar Sarma"), ("Varun Malhotra", "softvar"),
+           ("Λέανδρος Μαγλαράς", "Leandros Maglaras"), ("Andrés Moyá", "AndrÃ©s Moya")]
+    someone_else = [("Aman Sharma", "Armaan Sharma"), ("Aman Sharma", "Ananya Sharma"),
+                    ("Kanwar Pal Singh", "Karan Singh"), ("Kandarpa Kumar Sarma", "Mousmita Sarma"),
+                    ("Poonam Sharma", "A. Sharma")]
+    assert [p for p in own if not alias_fits(*p)] == []
+    assert [p for p in someone_else if alias_fits(*p)] == []
+
+
+def test_matching_ignores_someone_elses_name_on_a_record(session):
+    """Kanwar Pal Singh carried "Karan Singh", which scored 100 against every
+    incoming Karan Singh."""
+    from rip.resolution import _score
+
+    kanwar = ingest_profile(session, make_profile(
+        source="openalex", source_type="scholarly", external_id="k",
+        url="https://openalex.org/k", raw={"id": "k"}, name="Kanwar Pal Singh",
+        aliases=["Karan Singh", "Kanwar P. Singh"], usernames=[]))
+    assert _score("Karan Singh", kanwar) < 90
+    assert _score("Kanwar P. Singh", kanwar) >= 90
+
+
+def test_the_api_lists_own_names_and_keeps_the_rest_apart(session):
+    from rip.api import _person_summary
+    from rip.models import Person
+
+    p = Person(canonical_name="Poonam Sharma", aliases=["P. Sharma", "Aman Sharma"])
+    out = _person_summary(p)
+    assert out["aliases"] == ["P. Sharma"] and out["names_from_other_people"] == ["Aman Sharma"]
+
+
+def test_a_person_is_found_by_their_name_in_another_script(session):
+    ingest_profile(session, make_profile(
+        source="openalex", source_type="scholarly", external_id="l",
+        url="https://openalex.org/l", raw={"id": "l"}, name="Λέανδρος Μαγλαράς",
+        aliases=["Leandros Maglaras", "L. Maglaras", "Janicke, Helge"], usernames=[]))
+    session.commit()
+    assert found(session, "leandros maglaras") == ["Λέανδρος Μαγλαράς"]
+    assert found(session, "helge janicke") == []

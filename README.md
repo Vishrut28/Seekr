@@ -433,7 +433,11 @@ never quietly belongs to a different question than the one asked.
   called Nadella finds nobody, not every Satya, and live search then looks for
   the whole name. An alternative name a source filed under someone else's
   record (OpenAlex lists "Aman Sharma" on Poonam Sharma) does not count: an
-  alias must be a way of writing that person's own name. Case never matters,
+  alias must be a way of writing that person's own name. Initials ("KK Sarma"),
+  titles, small slips and account handles fit; someone else's name is kept on
+  the record (`names_from_other_people`) but never searched, shown as theirs or
+  used to match an incoming profile. A name in another script is judged by the
+  person's other names: Λέανδρος Μαγλαράς is found as Leandros Maglaras. Case never matters,
   including a query typed all in capitals. A word people here are called is
   read as a name before any typo repair ("Virat" was once respelled "viral"),
   and a keyword that is only its holder's own name (ORCID lists "Vivek Mishra"

@@ -2256,8 +2256,14 @@ def _name_exists(session: Session, token: str) -> bool:
         from .names import search_forms
 
         ids = []
-        for form in sorted(search_forms(token)):
-            ids += si.people_with(session, si.phrase_alt("n", form), limit=20)
+        # canonical names, then the person's own other names -- the index
+        # keeps only those (names.alias_fits): "Leandros Maglaras" is
+        # Λέανδρος Μαγλαράς, and was nobody's name to a Latin-script search
+        for field in ("n", "na"):
+            for form in sorted(search_forms(token)):
+                ids += si.people_with(session, si.phrase_alt(field, form), limit=20)
+            if ids:
+                break
         if not ids:
             return False
         rows = session.execute(
@@ -3298,7 +3304,7 @@ def _name_fit_scores(
         if handle:
             handles.setdefault(pid, []).append(str(handle).lower())
 
-    from .names import alias_fits, search_forms
+    from .names import fitting_aliases, search_forms
 
     def same(typed: list[str], stored: list[str]) -> bool:
         # word by word, where a word also matches its nicknames and spellings:
@@ -3327,8 +3333,7 @@ def _name_fit_scores(
             score = NAME_FIT_ALL_WORDS
         elif any(contains(name_words, t) for t in term_words):
             score = NAME_FIT_ANY_WORD
-        alias_words = [norm(str(a)).split() for a in (aliases or [])
-                       if alias_fits(name, str(a))]
+        alias_words = [norm(a).split() for a in fitting_aliases(name, aliases)]
         if score < NAME_FIT_ALIAS_FLOOR and any(
                 same(t, a) for t in term_words for a in alias_words):
             score = max(score, NAME_FIT_ALIAS_FLOOR)

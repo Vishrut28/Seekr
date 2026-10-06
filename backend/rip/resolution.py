@@ -95,7 +95,11 @@ def blocking_keys(name: str | None) -> set[str]:
 
 def sync_name_tokens(session: Session, person: Person) -> None:
     """Keep a person's blocking tokens in step with their names."""
-    wanted = name_tokens(person.canonical_name, *(person.aliases or []))
+    from .names import fitting_aliases
+
+    # someone else's name a source filed on this record is no key to it
+    wanted = name_tokens(person.canonical_name,
+                         *fitting_aliases(person.canonical_name, person.aliases))
     existing = {
         t.token: t
         for t in session.execute(
@@ -208,7 +212,11 @@ def _score(profile_name: str, person: Person) -> float:
     target = _spelled(profile_name)
     scores = [fuzz.token_sort_ratio(target, _spelled(person.canonical_name))] \
         if person.canonical_name else []
-    for alias in person.aliases or []:
+    from .names import fitting_aliases
+
+    # Only aliases that are this person's own name: Kanwar Pal Singh carries
+    # "Karan Singh", which scored 100 against every incoming Karan Singh.
+    for alias in fitting_aliases(person.canonical_name, person.aliases):
         # An alias that identifies nobody, compared with a name that identifies
         # nobody, proves nothing: "Karan Singh" carries the alias "K Singh", and
         # every "K. Singh" in the graph scored 100 against it. Enough for a

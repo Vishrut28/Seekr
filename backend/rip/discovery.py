@@ -19,7 +19,7 @@ import re
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .names import alias_fits, carries_name
+from .names import carries_name, fitting_aliases
 from .nlq import (
     NOISE_WORDS,
     ROLE_MODIFIERS,
@@ -703,7 +703,7 @@ def _fetch_profiles(to_fetch: list[dict], deadline: float | None = None) -> list
             # what gets stored, and a handle-only result had no name to check
             if item.get("_name") and not carries_name(
                     item["_name"],
-                    [profile.name, *(a for a in profile.aliases or [] if alias_fits(profile.name, a))],
+                    [profile.name, *fitting_aliases(profile.name, profile.aliases)],
                     profile.usernames or []):
                 raise ValueError(f"{item['external_id']} is not called {item['_name']}")
             term_words = {

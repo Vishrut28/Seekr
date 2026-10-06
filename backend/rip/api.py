@@ -274,11 +274,17 @@ def get_db():
 
 
 def _person_summary(p: Person) -> dict:
+    from .names import fitting_aliases
+
+    aliases = fitting_aliases(p.canonical_name, p.aliases)
     return {
         "id": p.id,
         "merged_into": p.merged_into,
         "canonical_name": p.canonical_name,
-        "aliases": p.aliases,
+        # the names that are this person's own; a source's list can carry
+        # other people's ("Aman Sharma" on Poonam Sharma), kept apart, not lost
+        "aliases": aliases,
+        "names_from_other_people": [str(a) for a in p.aliases or [] if str(a) not in aliases],
         "location": p.location or place_mentioned(p.summary),
         "summary": p.summary,
         "current_role": p.current_role,
