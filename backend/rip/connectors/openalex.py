@@ -91,9 +91,12 @@ def employers_from_papers(author_id: str, works: list[dict]) -> tuple[list[OrgAf
             if year:
                 entry["years"].append(year)
     seen = set(per)
+    # A record of one or two papers is all the evidence there is: the
+    # fragments a split leaves behind hold the one paper moved onto them.
+    least = 1 if papers <= 2 else MIN_EMPLOYER_PAPERS
     kept = {name: e for name, e in per.items()
             if e["n"] >= SURE_EMPLOYER_PAPERS
-            or (e["n"] >= MIN_EMPLOYER_PAPERS and e["n"] >= MIN_EMPLOYER_SHARE * papers)}
+            or (e["n"] >= least and e["n"] >= MIN_EMPLOYER_SHARE * papers)}
     recent = {name for name, e in kept.items()
               if e["years"] and latest and max(e["years"]) >= latest - 1}
     # the places named most on the latest papers
@@ -223,7 +226,7 @@ class OpenAlexConnector(BaseConnector):
             return f"orcid:{tail}"
         return tail
 
-    def works_by_doi(self, dois: list[str]) -> list[dict]:
+    def works_by_doi(self, dois: list[str], fields: str = "id,doi,topics") -> list[dict]:
         """OpenAlex's record of each DOI it knows: id, doi and placed topics.
 
         Up to fifty DOIs in one request, OR-ed in a single filter. A DOI that
@@ -236,7 +239,7 @@ class OpenAlexConnector(BaseConnector):
             chunk = wanted[start:start + 50]
             data = self.get_json(f"{API}/works", params=self._params({
                 "filter": "doi:" + "|".join(chunk), "per-page": len(chunk),
-                "select": "id,doi,topics"}))
+                "select": fields}))
             found.extend(data.get("results") or [])
         return found
 

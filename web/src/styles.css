@@ -585,3 +585,9 @@ table.list tbody tr{transition:background-color var(--quick) var(--ease)}
   border-top-color:var(--accent); animation:srcspin .7s linear infinite}
 @keyframes srcspin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){ .srcspin{animation-duration:2s} }
+details.unchecked > summary{cursor:pointer; list-style:none; display:flex; flex-direction:column; gap:4px}
+details.unchecked > summary::-webkit-details-marker{display:none}
+details.unchecked > summary h2::before{content:"▸ "; color:var(--faint)}
+details.unchecked[open] > summary h2::before{content:"▾ "}
+details.unchecked > summary .muted{font-size:12.5px}
+details.unchecked[open] > .card{margin-top:10px}

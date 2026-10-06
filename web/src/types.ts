@@ -125,6 +125,8 @@ export interface DiscoverySuggestion {
   affiliation?: string | null;
   role?: string | null;
   location?: string | null;
+  /** fetched, checked against the query and kept: it is among the results */
+  stored?: boolean;
 }
 
 export interface NotFoundTerm {

@@ -89,3 +89,19 @@ def test_each_row_says_why_it_answers(session):
         db=session)["results"]}
     assert rows["Ada Deep"] == ["Natural Language Processing", "at Google DeepMind"]
     assert rows["Tom Topics"] == ["related: Topic Modeling", "at Google DeepMind"]
+
+
+def test_a_term_nothing_can_check_makes_the_rest_near_matches(session):
+    """"quantum error correction researchers in India" listed everyone in
+    India, the subject set aside as unknown."""
+    from rip.api import nl_query
+
+    person(session, "a", "Ann India", ["Hydrology"], country="IN")
+    person(session, "b", "Bob India", ["Ecology"], country="IN")
+    resp = nl_query(q="zyxquix researchers in India", limit=0, offset=0, discover="false", db=session)
+    assert resp["unmatched_terms"] == ["zyxquix"]
+    assert resp["count"] == 0 and resp["near_matches"] == 2
+    shown = nl_query(q="zyxquix researchers in India", limit=0, offset=0, discover="false",
+                     near=True, db=session)["results"]
+    assert {r["match"] for r in shown} == {"partial"}
+    assert shown[0]["missing"] == [{"term": "zyxquix", "as": "unknown"}]

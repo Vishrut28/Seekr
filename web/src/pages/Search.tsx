@@ -582,13 +582,9 @@ function Results({
           applied — nothing stored in Seekr matches{" "}
           {unknownTerms.length === 1 ? "that term" : "those terms"} yet
           {corpusRows > 0
-            ? `, so these ${fmt(Math.max(total, rows.length))} results ignore ${
-                unknownTerms.length === 1 ? "it" : "them"
-              }`
+            ? ", so the people below who were already in Seekr meet only the rest of the search (marked partial)"
             : rows.length
-              ? `. The ${fmt(rows.length)} below came back from a live search for ${
-                  unknownTerms.length === 1 ? "it" : "them"
-                } and are not stored answers`
+              ? `. The ${fmt(rows.length)} below were found by a live search for the whole question and checked against the rest of it`
               : ""}
           .{" "}
           <button className="btn sm" onClick={onDiscover}>
@@ -615,7 +611,10 @@ function Results({
             : <>Nobody matches every part of the search. </>}
           <b>{fmt(data?.near_matches || 0)}</b>{" "}
           {data?.near_matches === 1 ? "person matches" : "people match"} only part of it
-          {relaxedTerms.length > 0 ? <> (not <b>{relaxedTerms.join(", ")}</b>)</> : null}.{" "}
+          {relaxedTerms.length + unknownTerms.length > 0 ? (
+            <> (not <b>{[...relaxedTerms, ...unknownTerms].join(", ")}</b>)</>
+          ) : null}
+          .{" "}
           <button className="btn sm" onClick={() => onNear(true)}>
             Show near matches
           </button>
@@ -761,17 +760,27 @@ function Results({
         </EmptyState>
       ) : null}
 
-      {suggestions.length > 0 && <LiveCandidates suggestions={suggestions} />}
+      {/* only the ones nobody has checked: anyone fetched and checked is in
+          the results above if they answer, and was dropped if they do not */}
+      {suggestions.some((s) => !s.stored) && (
+        <LiveCandidates suggestions={suggestions.filter((s) => !s.stored)} />
+      )}
     </>
   );
 }
 
 function LiveCandidates({ suggestions }: { suggestions: DiscoverySuggestion[] }) {
   return (
-    <section className="block">
-      <h2>
-        Live candidates <span className="n">{suggestions.length}</span>
-      </h2>
+    <details className="block unchecked">
+      <summary>
+        <h2>
+          Unchecked candidates <span className="n">{suggestions.length}</span>
+        </h2>
+        <span className="muted">
+          Found by a source but not fetched, so not checked against your search. Add one to
+          fetch and check it later.
+        </span>
+      </summary>
       <div className="card">
         <div className="tablewrap">
           <table className="list">
@@ -792,7 +801,7 @@ function LiveCandidates({ suggestions }: { suggestions: DiscoverySuggestion[] })
           </table>
         </div>
       </div>
-    </section>
+    </details>
   );
 }
 

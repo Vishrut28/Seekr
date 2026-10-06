@@ -306,7 +306,10 @@ def test_unmatched_query_returns_nothing_not_everything(session):
 
 
 def test_partial_match_still_filters(session):
-    """One recognised term is enough; only a total miss returns nothing."""
+    """One recognised term still filters; what it finds meets only that part
+    of the question, so it is a near match -- terms nothing can check are not
+    quietly ignored ("quantum error correction researchers in India" once
+    listed everyone in India)."""
     from rip.api import nl_query
     from rip.nlq import has_filters
 
@@ -315,8 +318,11 @@ def test_partial_match_still_filters(session):
     assert has_filters(parsed)  # "rust" matched
     resp = nl_query(q="rust program managers at oyo", discover="false", db=session)
     assert resp["matched_nothing"] is False
+    assert resp["count"] == 0 and resp["near_matches"] == 1
+    resp = nl_query(q="rust program managers at oyo", discover="false", near=True, db=session)
     assert resp["count"] == 1
     assert resp["results"][0]["canonical_name"] == "Ada Example"
+    assert resp["results"][0]["match"] == "partial"
 
 
 def test_queue_lead_endpoint(session):

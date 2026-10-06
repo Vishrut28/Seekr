@@ -69,3 +69,9 @@ def test_rereading_a_record_retracts_the_employer_it_no_longer_names(session):
         Affiliation.person_id == person.id)}
     assert names == {"Google DeepMind (United Kingdom)", "New York University"}
     assert person.current_organization == "Google DeepMind (United Kingdom)"
+
+
+def test_a_record_of_one_paper_takes_its_institution():
+    """A fragment a split leaves holds the one paper moved onto it."""
+    orgs, _country, _seen = employers_from_papers("A1", [work(1, 2020, "Lund University")])
+    assert [(o.name, o.is_current) for o in orgs] == [("Lund University", True)]

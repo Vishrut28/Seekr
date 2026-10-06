@@ -57,7 +57,8 @@ from .nlq import (  # whole-word matching, shared with the parser
 THIN_ANSWER = 10
 
 
-def _hold_back_near(persons: list, total: int, near: bool) -> tuple[list, int, int]:
+def _hold_back_near(persons: list, total: int, near: bool,
+                    unknown: list[str] | None = None) -> tuple[list, int, int]:
     """(rows to show, full-match total, near matches held back).
 
     A near match meets part of the query: "NLP researchers in India" found two
@@ -67,6 +68,14 @@ def _hold_back_near(persons: list, total: int, near: bool) -> tuple[list, int, i
     -- nobody meets the whole query -- the total they were counted against
     is theirs, and the full-match total is nought.
     """
+    # A term nothing stored can check ("quantum error correction") was not
+    # applied, so a corpus row meets the rest of the question only: a near
+    # match. Shown as answers, "quantum error correction researchers in
+    # India" listed 299 people -- everyone in India.
+    missing = [{"term": t, "as": "unknown"} for t in unknown or []]
+    for person in persons if missing else []:
+        if not getattr(person, "partial_match", None):
+            person.partial_match = {"missing": missing}
     held = [p for p in persons if getattr(p, "partial_match", None)]
     if near or not held:
         return persons, total, 0
@@ -1378,7 +1387,8 @@ def nl_query(
     persons, parsed, not_found = execute_progressive(db, asked)
     matched_nothing = not has_filters(asked)
     total = count_matches(db, parsed) if has_filters(parsed) else 0
-    persons, total, near_matches = _hold_back_near(persons, total, near is True)
+    persons, total, near_matches = _hold_back_near(persons, total, near is True,
+                                                   asked.unmatched_terms)
     # Per-person evidence/affiliation cache, shared across every
     # build_results() call in this request — not just within one call. When
     # live discovery fires, execute_progressive() re-runs and build_results()
@@ -1657,7 +1667,7 @@ def nl_query(
             persons, parsed, not_found = execute_progressive(db, asked)
             corpus_total = count_matches(db, parsed) if has_filters(parsed) else 0
             persons, corpus_total, near_matches = _hold_back_near(
-                persons, corpus_total, near is True)
+                persons, corpus_total, near is True, asked.unmatched_terms)
             response["near_matches"] = near_matches
             response["not_found"] = not_found
             response["applied_clauses"] = [
@@ -2193,7 +2203,7 @@ def query_stream(
             parsed = applied
             corpus_total = count_matches(session, parsed) if has_filters(parsed) else 0
             persons, corpus_total, near_matches = _hold_back_near(
-                persons, corpus_total, near is True)
+                persons, corpus_total, near is True, asked.unmatched_terms)
             # People a live source just returned join the results when they
             # answer the question, as in /v1/query: every constraint the
             # re-parsed query applies is checked on them.

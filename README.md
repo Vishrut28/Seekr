@@ -462,6 +462,14 @@ never quietly belongs to a different question than the one asked.
   in the last two years, at most two. A source's employer it stops listing is
   retracted on the next read. "Google DeepMind researchers" went from 1
   person to 8.
+- **Employers from papers anywhere.** For people whose source names no
+  employer, `python -m rip.cli employers --yes` looks up their papers' DOIs
+  in OpenAlex (batched, no email sent) and reads the one author line that is
+  their name -- a paper with two authors of that name is skipped. A record of
+  one or two papers takes the institution on them.
+- **Unchecked candidates are kept apart.** People a live source found but
+  Seekr never fetched sit in a collapsed "Unchecked candidates" section;
+  anyone fetched is checked and either in the results or dropped.
 - **One paper, one row.** The same title (four words or more) under one
   person is one work unless dated over two years apart or carrying two
   published DOIs (`rip/papers.py`); ingest reuses the row, so copies from
@@ -484,6 +492,10 @@ never quietly belongs to a different question than the one asked.
   so "karan singh" finds Karan P. Singh on both), and a country is decided
   by the same rule (`search_index.person_country`: stated, location, city,
   then current workplaces).
+- **A term nothing can check is not ignored.** If part of a question matches
+  nothing stored ("quantum error correction researchers in India"), people
+  who meet only the rest are near matches, not answers; people a live search
+  found for the whole question are answers. It once listed everyone in India.
 - **Near matches only on request.** Results are people who meet every part of
   the query. When fewer than 10 do, Seekr finds people who meet most of it but
   holds them back: the response counts them in `near_matches`, and the page

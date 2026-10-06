@@ -298,6 +298,28 @@ def cmd_reparse(args) -> None:
             sys.exit(1)
 
 
+def cmd_employers(args) -> None:
+    """Employers for people with papers and none, from their own author lines
+    in OpenAlex (rip.employers). Dry run unless --yes."""
+    from .employers import employers_by_doi, without_employer
+
+    init_db()
+    with SessionLocal() as session:
+        ids = without_employer(session)
+        connector = get_connector("openalex")
+        got = employers_by_doi(
+            session, ids,
+            lambda dois: connector.works_by_doi(dois, fields="id,doi,publication_date,authorships"))
+        print(f"{len(ids)} people without an employer; looked up {got['looked_up']} DOIs; "
+              f"{got['people']} given one ({got['rows']} rows)")
+        if args.yes:
+            session.commit()
+            print("saved")
+        else:
+            session.rollback()
+            print("dry run: nothing saved (pass --yes)")
+
+
 def cmd_harvest(args) -> None:
     from .harvest import harvest_github_india, harvest_openalex
 
@@ -1002,6 +1024,10 @@ def main() -> None:
     p_reparse.add_argument("--source", default=None)
     p_reparse.add_argument("--verbose", action="store_true")
 
+    p_employers = sub.add_parser(
+        "employers", help="employers from people's own author lines (OpenAlex, by DOI)")
+    p_employers.add_argument("--yes", action="store_true", help="save; otherwise dry run")
+
     p_harvest = sub.add_parser("harvest", help="page a source's whole index into JSONL")
     p_harvest.add_argument("source", help="currently: openalex")
     p_harvest.add_argument("--out", required=True, help="output .jsonl or .jsonl.gz")
@@ -1100,6 +1126,8 @@ def main() -> None:
         cmd_review(args)
     elif args.command == "reparse":
         cmd_reparse(args)
+    elif args.command == "employers":
+        cmd_employers(args)
     elif args.command == "harvest":
         cmd_harvest(args)
     elif args.command == "bulk-ingest":
