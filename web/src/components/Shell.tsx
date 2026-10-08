@@ -1,9 +1,9 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { NavLink } from "react-router-dom";
+import { Link, NavLink } from "react-router-dom";
 import { api } from "../api/client";
 import { useAuth } from "../context/auth";
 import { Icon } from "../lib/icons";
-import { useScrollShade, useTheme } from "../lib/hooks";
+import { useScrollShade } from "../lib/hooks";
 import { Backdrop, Mark } from "../lib/mark";
 import type { FacetResponse } from "../types";
 import { CountUp } from "./CountUp";
@@ -74,19 +74,22 @@ function RailStats() {
 
 export function Shell({
   topbar,
+  landing = false,
   children,
 }: {
   topbar?: ReactNode;
+  /** the start page: no topbar, and its own large mark in place of the watermark */
+  landing?: boolean;
   children: ReactNode;
 }) {
   const { signOut, required } = useAuth();
-  const [, toggleTheme] = useTheme();
   const scrolled = useScrollShade();
 
   return (
     <div className="shell">
       <aside className="rail">
-        <div className="brand">
+        {/* the logo goes home: back to the start page */}
+        <Link to="/search" className="brand" title="Start page">
           <div className="mark">
             <Mark size={15} />
           </div>
@@ -96,7 +99,7 @@ export function Shell({
               by Deccan<sup>AI</sup>
             </span>
           </div>
-        </div>
+        </Link>
         <nav>
           {NAV.map(({ to, label, icon: IconFn }) => (
             <NavLink key={to} to={to} className={({ isActive }) => (isActive ? "active" : "")}>
@@ -107,9 +110,6 @@ export function Shell({
         </nav>
         <div className="rail-foot">
           <RailStats />
-          <button className="themebtn" onClick={toggleTheme}>
-            Toggle theme
-          </button>
           {/* nothing to sign out of when the backend wants no token */}
           {required && (
             <button className="themebtn" onClick={signOut}>
@@ -118,10 +118,16 @@ export function Shell({
           )}
         </div>
       </aside>
-      <main>
-        <Backdrop />
-        <div className={scrolled ? "topbar scrolled" : "topbar"}>{topbar}</div>
-        <div className="page">{children}</div>
+      <main className={landing ? "landing" : undefined}>
+        {landing ? (
+          children
+        ) : (
+          <>
+            <Backdrop />
+            <div className={scrolled ? "topbar scrolled" : "topbar"}>{topbar}</div>
+            <div className="page">{children}</div>
+          </>
+        )}
       </main>
     </div>
   );

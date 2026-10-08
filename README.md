@@ -1414,12 +1414,12 @@ backend/
 
 web/              the React app — this is what you edit
   src/
-    main.tsx      entry; applies the saved theme before first paint
+    main.tsx      entry
     App.tsx       routes (hash-based) and the auth gate
     api/client.ts the one door to the backend; bearer auth, 401 handling
     types.ts      the shapes /v1 returns
     pages/        Search, Person, Shortlists, Review, Sources, Gate
-    components/   Shell, Filters, ResultsTable, Network, EmptyState
+    components/   Shell, Landing, SearchBox, Filters, ResultsTable, Network, EmptyState
     lib/          icons, brand links, the traced mark, formatting, hooks
     styles.css    design tokens, layout, motion
   vite.config.ts  builds into ../frontend, proxies /v1 in dev
@@ -1467,6 +1467,16 @@ cd web && npm run build
 
 `npm run typecheck` runs TypeScript with no emit, which is what CI should
 gate on.
+
+The interface is dark only. `/search` with nothing asked is the start page
+(`components/Landing.tsx`): the Deccan mark, the name, and one search bar.
+Searching moves to the results, as a history step, so Back returns to the
+start page; so do the rail's logo and its Search link. Recent searches and
+examples to try appear only once a search box is in use
+(`components/SearchBox.tsx`), in both the start page's bar and the topbar.
+The globe in the start page's bar adds the paid source to the next search
+only, and is never remembered. Anyone whose system asks for reduced motion
+gets the start page without its animation.
 
 ## Deploying
 

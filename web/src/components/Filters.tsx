@@ -111,6 +111,7 @@ export function Filters({
   onApply,
   onClear,
   nameText,
+  startOpen = false,
 }: {
   values: FilterState;
   flags: FilterFlags;
@@ -119,13 +120,15 @@ export function Filters({
   onApply: () => void;
   onClear: () => void;
   nameText?: string;
+  /** opened from the start page's filter button, so it arrives unfolded */
+  startOpen?: boolean;
 }) {
   const facets = useFacets();
   const count = activeFilterCount(values, flags, nameText);
   const set = (name: string, value: string) => onChange({ ...values, [name]: value });
 
   return (
-    <details className="filters">
+    <details className="filters" open={startOpen || undefined}>
       <summary>
         <Icon.caret /> Filters
         {count > 0 && <span className="count">{count}</span>}

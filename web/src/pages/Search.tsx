@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { SourceCards, useLiveSearch } from "../components/SourceCards";
 import { api, apiSend, errorMessage, isUnauthorized } from "../api/client";
 import {
@@ -13,11 +14,12 @@ import {
   nameFilter,
 } from "../components/Filters";
 import { Banner, EmptyState, Loading } from "../components/EmptyState";
+import { Landing } from "../components/Landing";
+import { SearchBox } from "../components/SearchBox";
 import { ResultsTable, nameKey } from "../components/ResultsTable";
 import { Shell } from "../components/Shell";
 import { fmt } from "../lib/format";
 import { useWorking } from "../lib/hooks";
-import { Icon } from "../lib/icons";
 import type {
   DiscoverySuggestion,
   FacetResponse,
@@ -25,9 +27,19 @@ import type {
   QueryResponse,
 } from "../types";
 
-const EXAMPLES = [
-  "machine learning at University of Toronto",
+/** What the empty start-page bar types out: real searches with real answers. */
+const TYPING = [
+  "NLP researchers in India",
+  "machine learning at Google DeepMind",
+  "Python developers in India",
+  "computer vision researchers",
   "deep learning, top 20",
+];
+
+/** Offered under the box as "Try", after the reader's own recent searches. */
+const EXAMPLES = [
+  ...TYPING,
+  "machine learning at University of Toronto",
   "product designers at Swiggy",
 ];
 
@@ -90,9 +102,16 @@ export function Search() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [recent, setRecent] = useState<string[]>(readRecent);
-  const [trending, setTrending] = useState<string[]>(EXAMPLES);
+  const [trending, setTrending] = useState<string[]>([]);
   const [values, setValues] = useState<FilterState>(EMPTY_FILTERS);
   const [flags, setFlags] = useState<FilterFlags>(EMPTY_FLAGS);
+  // the start page's filter button: the full page, with the filters open
+  const [browsing, setBrowsing] = useState(false);
+  // a search carried over from the last visit is about to be re-run, so the
+  // start page must not flash up in the meantime
+  const [restoring, setRestoring] = useState(() => Boolean(sessionStorage.getItem(LAST_QUERY_KEY)));
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const input = useRef<HTMLInputElement>(null);
   // read inside callbacks that must not be rebuilt on every keystroke
@@ -113,6 +132,12 @@ export function Search() {
     setRecent(list);
   };
 
+  const forgetQuery = (q: string) => {
+    const list = readRecent().filter((x) => x !== q);
+    localStorage.setItem(RECENT_KEY, JSON.stringify(list));
+    setRecent(list);
+  };
+
   const live = useLiveSearch();
 
   /** Nothing asked, nothing shown. An empty box used to leave the last
@@ -126,8 +151,23 @@ export function Search() {
     setOffset(0);
     setError(null);
     setLoading(null);
+    setRestoring(false);
     sessionStorage.removeItem(LAST_QUERY_KEY);
   };
+
+  // Back from the results, or Search / the logo clicked in the rail, is a
+  // visit to the start page: the history entry without `results` on it.
+  const lastKey = useRef(location.key);
+  useEffect(() => {
+    if (lastKey.current === location.key) return;
+    lastKey.current = location.key;
+    if ((location.state as { results?: boolean } | null)?.results) return;
+    clearResults();
+    setText("");
+    textRef.current = "";
+    setBrowsing(false);
+    setMode("query");
+  });
 
   /** A later page, minus anyone already on screen. A live search stores
    *  people mid-session, so the next page of the corpus can contain someone
@@ -306,10 +346,17 @@ export function Search() {
     else clearResults();
   };
 
-  const useExample = (value: string) => {
+  const searchFor = (value: string, paid?: boolean) => {
     setText(value);
     textRef.current = value;
-    runQuery();
+    runQuery(paid || undefined);
+  };
+
+  /** Leaving the start page is a step the browser's Back button undoes. */
+  const leaveLanding = () => {
+    navigate("/search", { state: { results: true } });
+    // a phone may have scrolled the start page; results start at their top
+    window.scrollTo(0, 0);
   };
 
   const clearFilters = () => {
@@ -319,26 +366,25 @@ export function Search() {
     setData(null);
   };
 
+  // the corpus's commonest roles join the examples as things to try
+  const tries = [...new Set([...EXAMPLES, ...trending])];
+
   const topbar = (
     <div className="searchrow">
-      <div className="searchwrap">
-        <Icon.search />
-        <input
-          ref={input}
-          className="search"
-          placeholder="Search people, skills, organizations…"
-          value={text}
-          onChange={(e) => changeText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") runQuery();
-            if (e.key === "Escape") {
-              changeText("");
-              e.currentTarget.blur();
-            }
-          }}
-        />
-        <span className="kbd">/</span>
-      </div>
+      <SearchBox
+        variant="top"
+        value={text}
+        onChange={changeText}
+        onSubmit={(q) => searchFor(q)}
+        onEscape={() => {
+          changeText("");
+          input.current?.blur();
+        }}
+        recent={recent}
+        tries={tries}
+        onForget={forgetQuery}
+        inputRef={input}
+      />
       <button className="btn primary" onClick={() => runQuery()}>
         Search
       </button>
@@ -373,39 +419,37 @@ export function Search() {
 
   const isSearching = Boolean(loading) || live.running;
   const showResults = Boolean(data) || rows.length > 0 || live.running;
+  // the start page is the page with nothing asked of it yet
+  const landing = !browsing && !restoring && !showResults && !isSearching && !error;
+
+  if (landing) {
+    return (
+      <Shell landing>
+        <Landing
+          text={text}
+          onText={changeText}
+          onSearch={(q, paid) => {
+            leaveLanding();
+            searchFor(q, paid);
+          }}
+          onFilters={() => {
+            leaveLanding();
+            setBrowsing(true);
+          }}
+          recent={recent}
+          tries={tries}
+          typing={TYPING}
+          onForget={forgetQuery}
+          inputRef={input}
+        />
+      </Shell>
+    );
+  }
 
   return (
     <Shell topbar={topbar}>
       <div className="search-page">
         <div className="search-controls">
-          <div className="examples">
-            <em>Trending</em>
-            {trending.map((x) => (
-              <button key={x} className="chipbtn" onClick={() => useExample(x)}>
-                {x}
-              </button>
-            ))}
-          </div>
-          {recent.length > 0 && (
-            <div className="examples">
-              <em>Recent</em>
-              {recent.map((x) => (
-                <button key={x} className="chipbtn" onClick={() => useExample(x)}>
-                  {x}
-                </button>
-              ))}
-              <button
-                className="chipbtn muted"
-                onClick={() => {
-                  localStorage.removeItem(RECENT_KEY);
-                  setRecent([]);
-                }}
-              >
-                clear
-              </button>
-            </div>
-          )}
-
           <Filters
             values={values}
             flags={flags}
@@ -414,6 +458,7 @@ export function Search() {
             onApply={() => runFilters()}
             onClear={clearFilters}
             nameText={text}
+            startOpen={browsing}
           />
 
           {/* what each source is doing, while it does it */}
