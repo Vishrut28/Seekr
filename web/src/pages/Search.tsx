@@ -20,6 +20,7 @@ import { ResultsTable, nameKey } from "../components/ResultsTable";
 import { Shell } from "../components/Shell";
 import { fmt } from "../lib/format";
 import { useWorking } from "../lib/hooks";
+import { morph } from "../lib/transition";
 import type {
   DiscoverySuggestion,
   FacetResponse,
@@ -110,6 +111,8 @@ export function Search() {
   // a search carried over from the last visit is about to be re-run, so the
   // start page must not flash up in the meantime
   const [restoring, setRestoring] = useState(() => Boolean(sessionStorage.getItem(LAST_QUERY_KEY)));
+  // back on the start page from the results, rather than arriving fresh
+  const [returning, setReturning] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -162,11 +165,15 @@ export function Search() {
     if (lastKey.current === location.key) return;
     lastKey.current = location.key;
     if ((location.state as { results?: boolean } | null)?.results) return;
-    clearResults();
-    setText("");
-    textRef.current = "";
-    setBrowsing(false);
-    setMode("query");
+    // the same glide as the way in, run backwards
+    morph(() => {
+      clearResults();
+      setText("");
+      textRef.current = "";
+      setBrowsing(false);
+      setMode("query");
+      setReturning(true);
+    });
   });
 
   /** A later page, minus anyone already on screen. A live search stores
@@ -441,6 +448,7 @@ export function Search() {
           typing={TYPING}
           onForget={forgetQuery}
           inputRef={input}
+          returning={returning}
         />
       </Shell>
     );

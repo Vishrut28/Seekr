@@ -1,5 +1,6 @@
 import { useRef, useState, type PointerEvent, type RefObject } from "react";
 import { MARK_PATH } from "../lib/mark";
+import { canMorph, morph } from "../lib/transition";
 import { SearchBox } from "./SearchBox";
 
 /** The start page: the Deccan mark, the name, and one search bar. What to
@@ -18,6 +19,7 @@ export function Landing({
   typing,
   onForget,
   inputRef,
+  returning = false,
 }: {
   text: string;
   onText: (value: string) => void;
@@ -29,6 +31,8 @@ export function Landing({
   typing: string[];
   onForget: (query: string) => void;
   inputRef: RefObject<HTMLInputElement | null>;
+  /** back from the results: the bar is there at once, to land the glide on */
+  returning?: boolean;
 }) {
   const stage = useRef<HTMLDivElement>(null);
   const [leaving, setLeaving] = useState(false);
@@ -39,8 +43,12 @@ export function Landing({
 
   const search = (query: string) => {
     if (leaving) return;
+    // The bar glides up into the results' topbar, the mark lifts away and
+    // the results fade in under it: one movement, not a cut.
+    if (canMorph()) return morph(() => onSearch(query, paid));
     const still = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     if (still) return onSearch(query, paid);
+    // older browsers: the start page lifts away, then the results arrive
     setRipple((r) => r + 1);
     setLeaving(true);
     window.setTimeout(() => onSearch(query, paid), LEAVE_MS);
@@ -68,7 +76,7 @@ export function Landing({
   };
 
   return (
-    <div className="lp" ref={stage} onPointerMove={onMove} onPointerLeave={onLeave}>
+    <div className={returning ? "lp returning" : "lp"} ref={stage} onPointerMove={onMove} onPointerLeave={onLeave}>
       <div className="lp-aurora" aria-hidden="true">
         <i />
         <i />

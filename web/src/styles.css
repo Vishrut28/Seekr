@@ -715,6 +715,51 @@ main.landing{min-height:100vh; isolation:isolate}
   .herobar-ph{right:100px}
   .herobar-kbd, .sugg-foot{display:none}
 }
+/* ---------- start page <-> results: one movement ---------- */
+/* The search box is the same object on both pages, so it carries one name:
+   the browser glides it between its two places. The rail is named so it
+   holds still while everything else crossfades. */
+.herobar-wrap{view-transition-name:seekr-search}
+.topbar .searchwrap{view-transition-name:seekr-search}
+.rail{view-transition-name:seekr-rail}
+.lp-emblem{view-transition-name:seekr-emblem}
+.lp-word{view-transition-name:seekr-word}
+.lp-by{view-transition-name:seekr-by}
+
+::view-transition-group(*){animation-duration:.62s; animation-timing-function:cubic-bezier(.22,.61,.36,1)}
+/* the box eases out of its place, so the mark above is gone before it passes */
+::view-transition-group(seekr-search){animation-duration:.72s; animation-timing-function:cubic-bezier(.65,0,.35,1)}
+::view-transition-group(seekr-rail){animation:none}
+::view-transition-old(seekr-rail), ::view-transition-new(seekr-rail){animation:none}
+/* the box's two looks dissolve into each other as it travels */
+::view-transition-old(seekr-search){animation:vt-fade-out .18s var(--ease) both}
+::view-transition-new(seekr-search){animation:vt-fade-in .3s .18s var(--ease) both}
+/* the page behind: the start page dims and blurs away, the results rise in */
+::view-transition-old(root){animation:vt-away .4s var(--ease) both}
+::view-transition-new(root){animation:vt-rise .5s .24s var(--ease) both}
+/* the mark and the name lift off, upward, as the box goes up */
+::view-transition-old(seekr-emblem), ::view-transition-old(seekr-word), ::view-transition-old(seekr-by){
+  animation:vt-lift .3s cubic-bezier(.55,0,1,.45) both}
+::view-transition-old(seekr-word){animation-delay:.02s}
+/* coming back, they settle in from above once the box has gone by */
+::view-transition-new(seekr-emblem), ::view-transition-new(seekr-word), ::view-transition-new(seekr-by){
+  animation:vt-drop .5s .5s cubic-bezier(.34,1.56,.64,1) both}
+::view-transition-new(seekr-word){animation-delay:.56s}
+::view-transition-new(seekr-by){animation-delay:.62s}
+@keyframes vt-fade-out{to{opacity:0}}
+@keyframes vt-fade-in{from{opacity:0}}
+@keyframes vt-away{to{opacity:0; filter:blur(6px); transform:scale(.985)}}
+@keyframes vt-rise{from{opacity:0; transform:translateY(14px)}}
+@keyframes vt-lift{to{opacity:0; transform:translateY(-70px) scale(.88); filter:blur(6px)}}
+@keyframes vt-drop{from{opacity:0; transform:translateY(-36px) scale(.94)}}
+
+/* Back on the start page from the results: the glide lands on a bar that is
+   already there, rather than one still waiting for its entrance. */
+.lp.returning .lp-bar, .lp.returning .lp-by{animation:none; opacity:1; transform:none}
+.lp.returning .lp-word span{animation-delay:0s !important; animation-duration:.01s, 2.4s}
+.lp.returning .lp-tile, .lp.returning .lp-tile .fill{animation:none; opacity:1}
+.lp.returning .lp-tile .draw{display:none}
+
 /* without motion the page must still arrive: everything starts where it ends */
 @media (prefers-reduced-motion:reduce){
   .lp-word span, .lp-by, .lp-bar, .lp-tile .fill, .srow, .lp-tile{opacity:1 !important; transform:none !important}
