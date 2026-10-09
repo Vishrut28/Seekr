@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiBlob, apiSend, errorMessage, isUnauthorized } from "../api/client";
 import { BrandLinks } from "../lib/brands";
 import { Icon } from "../lib/icons";
-import type { PersonSummary, Shortlist } from "../types";
-import { api } from "../api/client";
+import type { PersonSummary } from "../types";
+import { ShortlistPicker } from "./ShortlistPicker";
 
 type Verdict = "good" | "bad";
 
@@ -15,7 +15,8 @@ type Verdict = "good" | "bad";
 function MatchCell({ person, query }: { person: PersonSummary; query: string }) {
   const [verdict, setVerdict] = useState<Verdict | null>(null);
   const [saved, setSaved] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [picking, setPicking] = useState(false);
+  const bookmark = useRef<HTMLButtonElement>(null);
   // What happened, and to WHICH control. One shared note put "Recorded" on
   // every button in the cell: the bookmark claimed a save that never happened,
   // and a thumb the reader had just switched away from still said it counted.
@@ -41,40 +42,6 @@ function MatchCell({ person, query }: { person: PersonSummary; query: string }) 
     }
   };
 
-  const save = async () => {
-    let existing: string[] = [];
-    try {
-      const lists = await api<{ shortlists: Shortlist[] }>("/v1/shortlists");
-      existing = lists.shortlists.map((l) => l.name);
-    } catch {
-      /* a first-time user has no lists yet; the prompt still works */
-    }
-    const message = existing.length
-      ? `Save to which shortlist?\n\nExisting: ${existing.join(", ")}\n\nType a name (new or existing):`
-      : "Name your first shortlist:";
-    const name = window.prompt(message, existing[0] || "Shortlist");
-    if (!name) return;
-    setBusy(true);
-    try {
-      const list = await apiSend<Shortlist>("/v1/shortlists", "POST", { name });
-      const result = await apiSend<{ added: boolean }>(
-        `/v1/shortlists/${list.id}/members`,
-        "POST",
-        { person_id: person.id, query },
-      );
-      setSaved(true);
-      setNote({
-        on: "save",
-        text: result.added ? `Saved to ${list.name}` : `Already on ${list.name}`,
-      });
-    } catch (e) {
-      if (!isUnauthorized(e)) {
-        setNote({ on: "save", text: "Could not save: " + errorMessage(e) });
-      }
-      setBusy(false);
-    }
-  };
-
   return (
     <td className="vote" onClick={(e) => e.stopPropagation()}>
       <button
@@ -92,20 +59,33 @@ function MatchCell({ person, query }: { person: PersonSummary; query: string }) 
         <Icon.thumbDown />
       </button>
       <button
-        className={saved ? "vbtn save on" : "vbtn save"}
+        ref={bookmark}
+        className={saved ? "vbtn save on" : picking ? "vbtn save open" : "vbtn save"}
         title={tip("save", "Save to a shortlist")}
-        disabled={busy}
-        onClick={save}
+        aria-haspopup="dialog"
+        aria-expanded={picking}
+        onClick={() => setPicking((p) => !p)}
       >
         <Icon.bookmark />
       </button>
+      {picking && bookmark.current && (
+        <ShortlistPicker
+          anchor={bookmark.current}
+          personId={person.id}
+          query={query}
+          onClose={() => setPicking(false)}
+          onSaved={(listName, added) => {
+            setSaved(true);
+            setNote({ on: "save", text: added ? `Saved to ${listName}` : `Already on ${listName}` });
+          }}
+        />
+      )}
       {/* The report a human reads before an interview: everything Seekr holds
           about this person, with the source of each line. Fetched rather than
           linked, so the bearer token stays out of the URL. */}
       <button
         className="vbtn"
         title="Open the dossier as a PDF"
-        disabled={busy}
         onClick={async (e) => {
           e.stopPropagation();
           const blob = await apiBlob(`/v1/persons/${person.id}/dossier.pdf`);

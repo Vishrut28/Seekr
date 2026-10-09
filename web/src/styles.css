@@ -227,12 +227,14 @@ input.search:focus{outline:none; border-color:var(--accent); box-shadow:0 0 0 3p
 .results-card .tablewrap{flex:1 1 auto}
 .tablewrap{overflow-x:auto}
 table.list{width:100%; border-collapse:collapse; font-size:13.5px; table-layout:fixed}
-table.results-table .col-name{width:16%}
+table.results-table .col-name{width:17%}
 table.results-table .col-org{width:18%}
-table.results-table .col-loc{width:12%}
-table.results-table .col-skills{width:34%}
-table.results-table .col-sources{width:12%}
-table.results-table .col-match{width:8%}
+table.results-table .col-loc{width:11%}
+table.results-table .col-skills{width:28%}
+table.results-table .col-sources{width:10%}
+/* four buttons, sized in pixels: at 8% the bookmark and the dossier fell
+   off the card's edge on an ordinary laptop screen, hiding Save entirely */
+table.results-table .col-match{width:156px}
 table.list thead th{
   text-align:left; font-size:11px; font-weight:600; color:var(--muted); letter-spacing:.03em;
   text-transform:uppercase; padding:9px 16px; background:var(--surface2);
@@ -282,9 +284,9 @@ td.num{font-variant-numeric:tabular-nums; text-align:right; color:var(--muted)}
 .vote{white-space:nowrap}
 .vbtn{background:none;border:1px solid var(--line);border-radius:6px;padding:2px 6px;
   margin-right:4px;cursor:pointer;color:var(--muted);line-height:1}
-.vbtn:hover{border-color:var(--fg);color:var(--fg)}
-.vbtn.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}
-.vbtn.save.on{background:#0a66c2;border-color:#0a66c2;color:#fff}
+.vbtn:hover{border-color:var(--ink);color:var(--ink)}
+.vbtn.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.vbtn.save.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 .chipbtn.muted{color:var(--faint);border-style:dashed}
 /* Named plink, not brand: .brand is already the sidebar logo block. */
 .plinks{display:flex; gap:4px; margin-top:5px; flex-wrap:wrap}
@@ -715,6 +717,34 @@ main.landing{min-height:100vh; isolation:isolate}
   .herobar-ph{right:100px}
   .herobar-kbd, .sugg-foot{display:none}
 }
+/* ---------- save to a shortlist ---------- */
+.vbtn.save.open{border-color:var(--accent); color:var(--accent); background:var(--accent-soft)}
+.slp{position:fixed; z-index:100; padding:6px; border-radius:14px;
+  background:var(--glass); backdrop-filter:blur(18px) saturate(1.4); -webkit-backdrop-filter:blur(18px) saturate(1.4);
+  border:1px solid var(--line); box-shadow:0 24px 60px -20px rgba(0,0,0,.75), 0 0 0 1px rgba(0,0,0,.2);
+  transform-origin:top right; animation:slp-in .18s var(--ease) both}
+.slp.up{transform-origin:bottom right}
+@keyframes slp-in{from{opacity:0; transform:translateY(-4px) scale(.97)}}
+.slp-head{font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--faint); padding:7px 10px 6px}
+.slp-list{max-height:240px; overflow-y:auto; display:flex; flex-direction:column; gap:1px}
+.slp-row{display:flex; align-items:center; gap:10px; width:100%; text-align:left; padding:8px 10px;
+  border:0; border-radius:9px; background:none; color:var(--ink2); font-size:13px; transition:background .12s, color .12s}
+.slp-row:hover:not(:disabled), .slp-row:focus-visible{background:var(--accent-soft); color:var(--ink); outline:none}
+.slp-row:disabled{cursor:default}
+.slp-name{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.slp-n{font-size:11.5px; color:var(--faint); font-variant-numeric:tabular-nums}
+.slp-check{width:18px; height:18px; flex:none; display:grid; place-items:center; border-radius:6px;
+  border:1px solid var(--line); color:transparent; transition:background .2s, border-color .2s, color .2s, transform .25s cubic-bezier(.34,1.56,.64,1)}
+.slp-check.on{background:var(--accent); border-color:var(--accent); color:var(--accent-ink); transform:scale(1.08)}
+.slp-row.has .slp-name{color:var(--ink)}
+.slp-empty{display:flex; align-items:center; gap:8px; padding:10px; font-size:12.5px; color:var(--muted)}
+.slp-spin{width:12px; height:12px; border-radius:50%; border:2px solid var(--line); border-top-color:var(--accent); animation:spin .7s linear infinite}
+.slp-new{display:flex; gap:6px; padding:8px 4px 4px; margin-top:4px; border-top:1px solid var(--line2)}
+.slp-new input{flex:1; min-width:0; font:inherit; font-size:13px; color:var(--ink); background:var(--bg);
+  border:1px solid var(--line); border-radius:8px; padding:6px 9px}
+.slp-new input:focus{outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft)}
+.slp-error{font-size:12px; color:var(--danger); padding:6px 8px 2px}
+
 /* ---------- start page <-> results: one movement ---------- */
 /* The search box is the same object on both pages, so it carries one name:
    the browser glides it between its two places. The rail is named so it
