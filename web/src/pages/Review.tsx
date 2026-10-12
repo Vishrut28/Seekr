@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { api, apiSend, errorMessage, isUnauthorized } from "../api/client";
 import { Banner, EmptyState, Loading } from "../components/EmptyState";
 import { Shell } from "../components/Shell";
+import { useConfirm } from "../lib/confirm";
 import { useWorking } from "../lib/hooks";
 import type { Conflation, DuplicateCandidate, FuzzyMerge } from "../types";
 
@@ -31,6 +32,7 @@ export function Review() {
   const [conflations, setConflations] = useState<Conflation[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [acting, setActing] = useState(false);
+  const confirm = useConfirm();
 
   useWorking(!queue && !error);
 
@@ -94,13 +96,20 @@ export function Review() {
    *  re-fetching it would put them back together.
    */
   const splitOff = async (c: Conflation, ids: number[], what: string) => {
-    const ok = window.confirm(
-      `Move ${ids.length === 1 ? "this paper" : `these ${ids.length} papers`}` +
-        ` off "${c.person_name}" onto a new person?` +
-        "\n\nTheir subjects are recomputed from the papers each side keeps. " +
+    const ok = await confirm({
+      title: `Move ${ids.length === 1 ? "this paper" : `these ${ids.length} papers`} onto a new person?`,
+      detail: (
+        <>
+          Off <b>{c.person_name}</b> · {what}
+        </>
+      ),
+      body: [
+        "Their subjects are recomputed from the papers each side keeps.",
         "Any ORCID stays with the original, and the source record stops being " +
-        "refreshed, because re-fetching it would merge them again.",
-    );
+          "refreshed, because re-fetching it would merge them again.",
+      ],
+      confirmLabel: ids.length === 1 ? "Move paper" : "Move papers",
+    });
     if (!ok) return;
     try {
       await apiSend(`/v1/review/conflations/${c.person_id}/split`, "POST", {
@@ -192,18 +201,34 @@ export function Review() {
                 <button
                   className="btn primary sm"
                   disabled={acting}
-                  onClick={() => {
+                  onClick={async () => {
                     // Last stop before an irreversible write. Both sides
                     // usually carry the SAME name — that is why they were
                     // queued — so the names alone identify nothing, and the
                     // id and the reason go in with them.
-                    const ok = window.confirm(
-                      `Merge "${d.duplicate_person_name}" (${short(d.duplicate_person_id)})` +
-                        ` into "${d.person_name}" (${short(d.person_id)})?` +
-                        `\n\n${d.signals?.reason || `score ${d.score}`}` +
-                        "\n\nEverything the first holds moves to the second. " +
-                        "This cannot be undone.",
-                    );
+                    const ok = await confirm({
+                      title: "Merge these two records?",
+                      detail: (
+                        <>
+                          <div className="cfm-pair">
+                            <span>
+                              <b>{d.duplicate_person_name}</b>{" "}
+                              <code>{short(d.duplicate_person_id)}</code>
+                            </span>
+                            <span className="cfm-arrow" aria-label="into">
+                              →
+                            </span>
+                            <span>
+                              <b>{d.person_name}</b> <code>{short(d.person_id)}</code>
+                            </span>
+                          </div>
+                          <div className="cfm-why">{d.signals?.reason || `score ${d.score}`}</div>
+                        </>
+                      ),
+                      body: ["Everything the first holds moves to the second. This cannot be undone."],
+                      confirmLabel: "Merge",
+                      tone: "danger",
+                    });
                     if (ok) act(`/v1/review/duplicates/${d.candidate_id}/merge`);
                   }}
                 >

@@ -1,6 +1,7 @@
 import { Navigate, Route, HashRouter as Router, Routes } from "react-router-dom";
 import { Loading } from "./components/EmptyState";
 import { AuthProvider, useAuth } from "./context/auth";
+import { ConfirmProvider } from "./lib/confirm";
 import { Gate } from "./pages/Gate";
 import { Person } from "./pages/Person";
 import { Review } from "./pages/Review";
@@ -32,9 +33,11 @@ function Routed() {
 export function App() {
   return (
     <AuthProvider>
-      <Router>
-        <Routed />
-      </Router>
+      <ConfirmProvider>
+        <Router>
+          <Routed />
+        </Router>
+      </ConfirmProvider>
     </AuthProvider>
   );
 }

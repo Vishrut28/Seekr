@@ -4,6 +4,7 @@ import { api, apiSend, errorMessage, isUnauthorized } from "../api/client";
 import { Banner, Loading } from "../components/EmptyState";
 import { Shell } from "../components/Shell";
 import { day } from "../lib/format";
+import { useConfirm } from "../lib/confirm";
 import { useWorking } from "../lib/hooks";
 import { Icon } from "../lib/icons";
 import type { Shortlist, ShortlistDetail } from "../types";
@@ -95,16 +96,21 @@ function ShortlistBlock({
   const [removing, setRemoving] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [listFailed, setListFailed] = useState(false);
+  const confirm = useConfirm();
 
   /** A list could be started but never dropped, so a name typed wrong stayed
    *  on the page for good. Only the list goes — everyone on it is untouched. */
   const deleteList = async () => {
     const count = list.count ?? list.members.length;
-    const ok = window.confirm(
-      `Delete the shortlist "${list.name}"?` +
-        (count ? `\n\nIt has ${count} ${count === 1 ? "person" : "people"} on it. ` : "\n\n") +
-        "The list goes; nobody on it is deleted.",
-    );
+    const ok = await confirm({
+      title: `Delete the shortlist "${list.name}"?`,
+      body: [
+        (count ? `It has ${count} ${count === 1 ? "person" : "people"} on it. ` : "") +
+          "The list goes; nobody on it is deleted.",
+      ],
+      confirmLabel: "Delete list",
+      tone: "danger",
+    });
     if (!ok) return;
     try {
       await apiSend(`/v1/shortlists/${list.id}`, "DELETE");

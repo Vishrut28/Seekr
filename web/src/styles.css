@@ -160,20 +160,6 @@ input.search:focus{outline:none; border-color:var(--accent); box-shadow:0 0 0 3p
 .btn.armed{color:var(--warn); border-color:color-mix(in srgb, var(--warn) 45%, var(--line));
   background:var(--warn-soft)}
 
-/* One row, never two: these are a hint, not a menu. Anything past the edge
-   scrolls sideways rather than pushing the results further down the page. */
-.examples{display:flex; gap:6px; flex-wrap:nowrap; margin-top:10px; align-items:center;
-  overflow-x:auto; scrollbar-width:none}
-.examples::-webkit-scrollbar{display:none}
-.examples em{color:var(--faint); font-style:normal; font-size:12px; margin-right:2px; flex:0 0 auto}
-.examples .chipbtn{flex:0 0 auto; max-width:220px; overflow:hidden;
-  text-overflow:ellipsis; white-space:nowrap}
-.chipbtn{
-  border:1px solid var(--line); background:var(--surface); color:var(--ink2);
-  border-radius:99px; padding:3px 11px; font-size:12px;
-}
-.chipbtn:hover{border-color:var(--accent); color:var(--accent); background:var(--accent-soft)}
-
 /* ---------- filters ---------- */
 .filters{margin-top:14px; border:1px solid var(--line); border-radius:var(--radius); background:var(--surface)}
 .filters summary{
@@ -287,7 +273,6 @@ td.num{font-variant-numeric:tabular-nums; text-align:right; color:var(--muted)}
 .vbtn:hover{border-color:var(--ink);color:var(--ink)}
 .vbtn.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 .vbtn.save.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
-.chipbtn.muted{color:var(--faint);border-style:dashed}
 /* Named plink, not brand: .brand is already the sidebar logo block. */
 .plinks{display:flex; gap:4px; margin-top:5px; flex-wrap:wrap}
 .plink{display:inline-flex; align-items:center; justify-content:center;
@@ -451,7 +436,10 @@ table.data td.num{text-align:right; padding-right:0; font-variant-numeric:tabula
 @media (max-width:860px){
   .shell{grid-template-columns:1fr}
   .rail{position:static; height:auto; flex-direction:row; align-items:center; overflow-x:auto; border-right:none; border-bottom:1px solid var(--line)}
-  .brand{padding:12px 16px}
+  /* the logo keeps its width in the strip: squeezed, "by Deccan AI" broke
+     onto two lines under the name */
+  .brand{padding:12px 16px; flex:none}
+  .brand span{white-space:nowrap}
   nav{flex-direction:row; padding:8px}
   .rail-foot{display:none}
   .page, .topbar{padding-left:16px; padding-right:16px}
@@ -469,20 +457,20 @@ table.data td.num{text-align:right; padding-right:0; font-variant-numeric:tabula
    as unfinished in a tool people keep open all day. Everything shares
    --ease and stays under 320ms. */
 
-/* Theme changes dissolve rather than flash. */
-body, .rail, .card, .topbar, table.list tbody tr, .btn, .chipbtn, .pill{
+/* Colour changes dissolve rather than flash. */
+body, .rail, .card, .topbar, table.list tbody tr, .btn, .pill{
   transition:background-color var(--settle) var(--ease),
              border-color var(--settle) var(--ease),
              color var(--settle) var(--ease);
 }
 
 /* Controls acknowledge a press, by a hair. */
-.btn, .chipbtn, .vbtn, .reveal{
+.btn, .vbtn, .reveal{
   transition:transform var(--quick) var(--ease),
     background-color var(--quick) var(--ease), border-color var(--quick) var(--ease),
     color var(--quick) var(--ease), box-shadow var(--quick) var(--ease);
 }
-.btn:active, .chipbtn:active, .vbtn:active, .reveal:active{transform:scale(.98)}
+.btn:active, .vbtn:active, .reveal:active{transform:scale(.98)}
 
 /* One focus treatment across the whole product, so keyboard use looks
    deliberate rather than left to the browser. */
@@ -500,14 +488,8 @@ nav a::before{
 }
 nav a.active::before{height:18px}
 
-/* Suggestion chips and result pills arrive in sequence, as results do. */
-.examples .chipbtn, .pills .pill{animation:chipin .28s var(--ease) both}
-.examples .chipbtn:nth-child(2){animation-delay:.02s}
-.examples .chipbtn:nth-child(3){animation-delay:.04s}
-.examples .chipbtn:nth-child(4){animation-delay:.06s}
-.examples .chipbtn:nth-child(5){animation-delay:.08s}
-.examples .chipbtn:nth-child(6){animation-delay:.10s}
-.examples .chipbtn:nth-child(n+7){animation-delay:.12s}
+/* The pills naming what a search matched arrive with its results. */
+.pills .pill{animation:chipin .28s var(--ease) both}
 @keyframes chipin{from{opacity:0; transform:translateY(3px)} to{opacity:1; transform:none}}
 
 /* Rows change colour on hover and hold their position: a data table that
@@ -529,7 +511,7 @@ table.list tbody tr{transition:background-color var(--quick) var(--ease)}
 .banner{animation:cardin .28s var(--ease) both}
 
 @media (prefers-reduced-motion:reduce){
-  .examples .chipbtn, .pills .pill, .banner{animation:none; opacity:1; transform:none}
+  .pills .pill, .banner{animation:none; opacity:1; transform:none}
 }
 
 
@@ -745,6 +727,33 @@ main.landing{min-height:100vh; isolation:isolate}
 .slp-new input:focus{outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft)}
 .slp-error{font-size:12px; color:var(--danger); padding:6px 8px 2px}
 
+/* ---------- are you sure? ---------- */
+.cfm-backdrop{position:fixed; inset:0; z-index:200; display:grid; place-items:center; padding:16px;
+  background:rgba(8,8,10,.55); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+  animation:cfm-fade .18s var(--ease) both}
+@keyframes cfm-fade{from{opacity:0}}
+.cfm{position:relative; width:min(440px, 100%); padding:22px 22px 18px; border-radius:16px;
+  background:var(--glass); backdrop-filter:blur(20px) saturate(1.4); -webkit-backdrop-filter:blur(20px) saturate(1.4);
+  border:1px solid var(--line); box-shadow:0 30px 80px -24px rgba(0,0,0,.8);
+  animation:cfm-in .26s cubic-bezier(.34,1.56,.64,1) both}
+@keyframes cfm-in{from{opacity:0; transform:translateY(8px) scale(.96)}}
+.cfm-icon{width:36px; height:36px; border-radius:10px; display:grid; place-items:center; margin-bottom:12px;
+  color:var(--accent); background:var(--accent-soft)}
+.cfm.danger .cfm-icon{color:var(--danger); background:var(--danger-soft)}
+.cfm h3{font-size:16px; font-weight:600; letter-spacing:-.01em; line-height:1.35; text-wrap:balance}
+.cfm-detail{margin-top:10px; padding:10px 12px; border-radius:10px; background:var(--surface2);
+  border:1px solid var(--line2); font-size:13px; color:var(--ink2); overflow-wrap:anywhere}
+.cfm-detail b{color:var(--ink); font-weight:600}
+.cfm-detail code{font-family:var(--mono); font-size:11px; color:var(--faint)}
+.cfm-pair{display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px}
+.cfm-arrow{color:var(--faint)}
+.cfm-why{margin-top:6px; font-size:12px; color:var(--muted)}
+.cfm-body{margin-top:10px; font-size:13px; line-height:1.55; color:var(--muted)}
+.cfm-body p + p{margin-top:6px}
+.cfm-actions{display:flex; justify-content:flex-end; gap:8px; margin-top:18px}
+.btn.danger-solid{background:var(--danger); border-color:var(--danger); color:#111113}
+.btn.danger-solid:hover{background:color-mix(in srgb, var(--danger) 86%, #fff)}
+
 /* ---------- start page <-> results: one movement ---------- */
 /* The search box is the same object on both pages, so it carries one name:
    the browser glides it between its two places. The rail is named so it
@@ -792,7 +801,7 @@ main.landing{min-height:100vh; isolation:isolate}
 
 /* without motion the page must still arrive: everything starts where it ends */
 @media (prefers-reduced-motion:reduce){
-  .lp-word span, .lp-by, .lp-bar, .lp-tile .fill, .srow, .lp-tile{opacity:1 !important; transform:none !important}
+  .lp-word span, .lp-by, .lp-bar, .lp-tile .fill, .srow, .lp-tile, .cfm, .slp{opacity:1 !important; transform:none !important}
   .lp-tile .draw, .lp-halo, .lp-ripple{display:none}
   .lp-word span{color:var(--ink); background:none}
 }
